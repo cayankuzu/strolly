@@ -4,7 +4,7 @@
  * the real one, or the better one; it lets the rooms change while no one is
  * looking, and leaves the question with whoever is left.
  */
-import type { CaptionCue, Discovery, TextSegment } from '../types'
+import type { CaptionCue, ChoiceGate, Discovery, TextSegment } from '../types'
 import { at, type SegmentId } from './timeline'
 
 type T = TextSegment<SegmentId>
@@ -28,7 +28,8 @@ export const TEXT: T[] = [
   { id: 'knocked', seg: 'knock', from: 0.2, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Kapı çaldı.'] },
   { id: 'walks', seg: 'walk', from: 0.15, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'context', lines: ['Deniz kapıya yürüdü.'] },
   ...say('open-not', 'dont', 0.05, 0.45, 'KAYIT', '— Açma.'),
-  { id: 'didnt', seg: 'dont', from: 0.52, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Açmadı.'] },
+  { id: 'didnt', seg: 'dont', from: 0.56, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Açmadı.'], when: { all: ['door:wait'] } },
+  { id: 'couldnt', seg: 'dont', from: 0.56, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Açamadı.'], when: { all: ['door:open'] } },
   { id: 'steps', seg: 'gone', from: 0.1, to: 1.05, slot: 'rail', kind: 'narration', purpose: 'foreshadow', lines: ['Ayak sesleri merdivenlerden indi.', 'Kim olduğunu hiç öğrenemedi.'], stagger: 0.4 },
 
   // 03 — BAŞKA HAYAT
@@ -95,7 +96,7 @@ export const TEXT: T[] = [
 export const TRANSCRIPT: Record<string, string> = {
   record:
     'Gece yarısından sonra Deniz eski bir kutuda bir ses kayıt cihazı bulur. Kasette kendi sesi, kendi nefesi, bu odanın sesleri vardır. Kayıtta Deniz şöyle der: “Bu sefer kapıyı açma.” Deniz bu cümleyi hiç söylememiştir. Kayıtta bir saatin tıkırtısı da vardır; odada saat yoktur.',
-  door: 'Kapı çalar. Deniz kapıya yürür. Kayıt: “Açma.” Deniz açmaz. Ayak sesleri merdivenlerden iner; kim olduğu hiç öğrenilmez.',
+  door: 'Kapı çalar. Deniz kapıya yürür. Kayıt: “Açma.” Okur seçer: açmamak ya da açmak. Açmazsa açmaz; açmaya kalkarsa kol dönmez, kapı onun hiç kilitlemediği bir yerden kilitlidir. Ayak sesleri merdivenlerden iner; kim olduğu hiç öğrenilmez.',
   another: 'Deniz o gece kanepede uyur. Sabah ev aynıdır, neredeyse: masada başka bir kupa, kitaplıkta tanımadığı bir kitap vardır.',
   photo: 'Duvardaki fotoğrafta Deniz ve hiç tanımadığı bir kadın vardır. Arkasında 2018 yazar. Deniz o yıl hiç evlenmemiştir.',
   voice: 'Cihazda yeni bir kayıt vardır. Deniz’in başka bir versiyonu: “Bu hayatı seçtiğinde diğerlerini öldürmüş olmuyorsun. Sadece onları yaşamaktan vazgeçiyorsun.”',
@@ -104,7 +105,7 @@ export const TRANSCRIPT: Record<string, string> = {
   question: 'Deniz sorar: “Hangisi benim?” Kayıt: “Hepsi.” Deniz: “Ama ben sadece bunu yaşadım.” Kayıt: “Sen yaşadığını hatırlıyorsun.”',
   remain: 'Deniz bütün hayatların ortasında kalır; farklı Denizler, farklı evler bir an görünüp kaybolur.',
   choice:
-    'Duvarda daha önce olmayan bir kapı belirir: The life you didn’t choose. Kayıt: “Bu kapıyı açarsan artık hangisinin gerçek olduğunu soramazsın.” Deniz kapıyı açar; arkasında başka bir ev ve başka bir Deniz vardır: “Sen hangimizsin?” Arkana döndüğünde kapı yoktur. Yerde yalnızca kayıt cihazı kalır. Son kayıt: “Hikâyeyi bitirdiğini sanıyorsun. Ama burada kalanı hiç görmedin.” Some lives are never lived. They are only left behind.',
+    'Duvarda daha önce olmayan bir kapı belirir: The life you didn’t choose. Kayıt: “Bu kapıyı açarsan artık hangisinin gerçek olduğunu soramazsın.” Deniz kapıyı açar; arkasında başka bir ev ve başka bir Deniz vardır: “Sen hangimizsin?” Okur cevap verir ya da susar. Arkana döndüğünde kapı yoktur. Yerde yalnızca kayıt cihazı kalır. Son kayıt: “Hikâyeyi bitirdiğini sanıyorsun. Ama burada kalanı hiç görmedin.” Some lives are never lived. They are only left behind.',
 }
 
 export const QUIET: Array<readonly [number, number]> = [
@@ -228,5 +229,34 @@ export const DISCOVERIES: Discovery<SegmentId>[] = [
     kind: 'object',
     visibility: 'visible',
     examine: { verb: 'DİNLE', lines: ['Kasetin sonunda uzun bir sessizlik.', 'Sonra birinin nefesi. Seninkine benziyor.'] },
+  },
+]
+
+/** The knock (to open or not, as the tape says), and the answer to the other Deniz. */
+export const CHOICES: ChoiceGate<SegmentId>[] = [
+  {
+    id: 'door',
+    seg: 'dont',
+    at: 0.5,
+    style: 'choice',
+    title: 'KAPI',
+    prompt: 'Kapı bir daha çaldı.',
+    options: [
+      { id: 'wait', label: 'Açma.', reply: ['Elini koldan çekti.'], sets: ['door:wait'] },
+      { id: 'open', label: 'Aç.', reply: ['Kol dönmedi.', 'Kapı, onun hiç kilitlemediği bir yerden kilitliydi.'], sets: ['door:open'] },
+    ],
+  },
+  {
+    id: 'which',
+    seg: 'facing',
+    at: 0.94,
+    style: 'choice',
+    title: 'DİĞER DENİZ',
+    prompt: '“Sen hangimizsin?”',
+    options: [
+      { id: 'here', label: '“Ben buradayım.”', speaker: 'DİĞER DENİZ', reply: ['Ben de.'], sets: ['which:here'] },
+      { id: 'dunno', label: '“Bilmiyorum.”', speaker: 'DİĞER DENİZ', reply: ['İyi.', 'Ben de bilmiyorum.'], sets: ['which:dunno'] },
+      { id: 'silent', label: 'Hiçbir şey söyleme.', reply: ['Diğer Deniz de bir şey söylemedi.', 'Bir süre öyle baktılar.'], sets: ['which:silent'] },
+    ],
   },
 ]

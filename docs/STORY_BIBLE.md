@@ -207,7 +207,7 @@ oturum bitmemiştir. Gerçeklik kimin bakış açısından ölçülür?
 ## 04 — YAŞAMAK
 
 **Soru:** Bir saatin olsaydı, onu nasıl geçirirdin?
-**Tür:** Zamansal, insani. ~13 dk, 8 bölüm.
+**Tür:** Zamansal, insani. ~17 dk, 9 bölüm, 2 seçim.
 
 ### Öncül (KİLİT)
 
@@ -219,24 +219,35 @@ azalırken bile devam eder: biri büyür, biri gider, biri başka biri olarak d�
 
 ### Bölümler
 
-1. **İNTERNET KAFE** — Kasa, bir saatlik oturum, her zamanki masa.
-2. **ZAMAN** — 60:00'dan geri sayım; duvar saati ekrandan hızlı ilerler.
-3. **İNSANLAR** — Yan masadaki çocuk büyür; gidenler, gelenler.
-4. **VEDA** — Sağdaki masada annesi; "yarın ararım". Döndüğünde masa boştur.
+1. **İNTERNET KAFE** — Kasa ("Bir saat. Uzatma yok."), her zamanki masa. Kasiyer
+   çay getirir: "Tost da var, kaşarlı." Sandalyenin bir ayağı yıllardır kısadır.
+2. **ZAMAN** — 60:00'dan geri sayım. **Seçim:** bu saati ne yaparak geçireceksin
+   (bir oyun / haberler / pencere). Duvar saati ekrandan hızlı ilerler.
+3. **İNSANLAR** — Yan masadaki çocuk büyür; gidenler, gelenler. Birileri güler,
+   birileri tost yer; onun süresi azalırken de hayat devam eder.
+4. **VEDA** — Sağdaki masada annesi, hep orada. Telefon, rehberde ilk isim ANNE.
+   **Seçim:** ona dön, konuş / "Yarın ararım." Döndüğünde masa boştur. Konuştuysa
+   ne konuştuklarını değil, konuştuklarını hatırlar; yarına bıraktıysa ertesi gün
+   telefon çalar, çalar.
 5. **SONSUZLUK** — Hiç kapanmayan ekran, hiç boşalmayan kafe; acele yok, anlam da yok.
 6. **ÖTENAZİ** — Köşedeki yaşlı kadın: bu saat kimin? Arif yargılamaz.
-7. **KARA DELİK** — Kalan süreyle en uzağa: olay ufku. Işık bükülür, ses yoktur,
-   ölçek insanı küçültür; dışarıda herkes yaşlanır, Arif için birkaç dakika geçer.
+7. **KAPANIŞ** — "Kapanışa yarım saat, arkadaşlar." Kafe yavaş yavaş boşalır.
+   Son çay: "Bu benden." Çay sıcaktır; Arif bunu ilk kez fark eder.
+8. **KARA DELİK** — Kalan süreyle en uzağa: olay ufku. Gölge, ince foton halkası,
+   neredeyse yandan görülen disk ve diskin bükülüp gölgenin üstünden ve altından
+   dolanan arka yüzü; yaklaşan taraf daha parlak. Ses yoktur, ölçek insanı
+   küçültür; dışarıda herkes yaşlanır, Arif için birkaç dakika geçer.
    Psikedelik efekt değil, fiziksel olarak inandırıcı bir görüntü (KİLİT).
-8. **SON** — 00:01, 00:00. Kafe yoktur. Yaşamak, sürenin bitmesini beklemek
-   değil; biteceğini bile bile kalmaktır.
+9. **SON** — 00:01: o saatten aklında kalan tek şey (seçime göre: skorlar değil,
+   haberler değil, otobüse yetişen adam). 00:00. Kafe yoktur. Yaşamak, sürenin
+   bitmesini beklemek değil; biteceğini bile bile kalmaktır.
 
 ---
 
 ## 05 — KALAN
 
 **Soru:** Yaşanmamış bir hayat, hiç yaşanmamış mıdır?
-**Tür:** Belirsiz, sessiz. ~16 dk, 10 bölüm.
+**Tür:** Belirsiz, sessiz. ~16 dk, 10 bölüm, 2 seçim.
 
 ### Öncül (KİLİT)
 
@@ -250,11 +261,13 @@ teatral değildir: "Sen hangimizsin?"
 
 ### Bölümler
 
-KAYIT · KAPI · BAŞKA HAYAT · FOTOĞRAF · SES ("Bu hayatı seçtiğinde diğerlerini
+KAYIT · KAPI (**seçim:** açma / aç — açmaya kalkarsa kol dönmez; kapı onun hiç
+kilitlemediği bir yerden kilitlidir) · BAŞKA HAYAT · FOTOĞRAF · SES ("Bu hayatı seçtiğinde diğerlerini
 öldürmüş olmuyorsun. Sadece onları yaşamaktan vazgeçiyorsun.") · ODALAR ·
 SEÇİLMEMİŞ HAYATLAR (evli / başka şehirde / bu eve hiç taşınmamış / yıllar önce
 ölmüş) · GERÇEK SORU ("Hangisi benim?" — "Hepsi." — "Sen yaşadığını
-hatırlıyorsun.") · KALAN · SON SEÇİM (kapı, diğer Deniz, yerde kalan kayıt:
+hatırlıyorsun.") · KALAN · SON SEÇİM (kapı, diğer Deniz: "Sen hangimizsin?" —
+**seçim:** "Ben buradayım." / "Bilmiyorum." / sus; yerde kalan kayıt:
 "Hikâyeyi bitirdiğini sanıyorsun. Ama burada kalanı hiç görmedin.").
 
 ---
@@ -262,7 +275,7 @@ hatırlıyorsun.") · KALAN · SON SEÇİM (kapı, diğer Deniz, yerde kalan kay
 ## 06 — EŞİK
 
 **Soru:** Bir şey, gözlendiği için mi gerçektir?
-**Tür:** Gece, algısal. ~14 dk, 10 bölüm.
+**Tür:** Gece, algısal. ~14 dk, 10 bölüm, 2 seçim.
 
 Kullanıcının daha önceki kararıyla altıncı hikâye olarak tutulur (ULTRA MASTER
 OVERHAUL metni beş hikâye sayar; EŞİK silinmemiştir).
@@ -279,8 +292,10 @@ sandalye. "The story did not end. You stopped looking."
 
 ### Bölümler
 
-ŞEHİR · VİTRİN · AYNI SOKAK · GÖZLEM · CAM · GÖZLEMCİ · KULLANICI · GERÇEKLİK ·
-EŞİK · KAPI.
+ŞEHİR · VİTRİN · AYNI SOKAK · GÖZLEM · CAM · GÖZLEMCİ · KULLANICI (**seçim:**
+terminale bir kelime: OBSERVER / SUBJECT / USER — "KAYITLI KULLANICI: — · ŞU AN
+BAKIYOR") · GERÇEKLİK · EŞİK · KAPI (**seçim:** aç / açma — açmazsa kapı yine de
+açılır).
 
 ---
 

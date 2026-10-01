@@ -7,18 +7,23 @@ const SEGMENTS = [
   ['door', 1.6],
   ['pay', 1.8],
   ['seat', 2.0],
+  ['tea', 2.6],
   // 02 — ZAMAN
   ['start', 1.8],
   ['screen', 2.0],
+  ['spend', 3.2],
   ['clock', 1.8],
   // 03 — İNSANLAR
   ['child', 2.4],
   ['leave', 2.0],
   ['returns', 2.0],
+  ['life', 2.6],
   // 04 — VEDA
   ['mother', 2.2],
+  ['phone', 3.4],
   ['think', 2.0],
   ['gone', 2.4],
+  ['after', 2.4],
   // 05 — SONSUZLUK
   ['endless', 2.2],
   ['still', 2.0],
@@ -28,12 +33,15 @@ const SEGMENTS = [
   ['pain', 2.2],
   ['owner', 2.4],
   ['answer', 2.0],
-  // 07 — KARA DELİK
+  // 07 — KAPANIŞ
+  ['closing', 2.6],
+  ['lastTea', 2.6],
+  // 08 — KARA DELİK
   ['depart', 1.8],
   ['horizon', 2.4],
   ['dilation', 2.6],
   ['slow', 2.0],
-  // 08 — SON
+  // 09 — SON
   ['one', 1.6],
   ['zero', 1.8],
   ['behind', 2.4],
@@ -43,14 +51,15 @@ const SEGMENTS = [
 export type SegmentId = (typeof SEGMENTS)[number][0]
 
 export const timeline = createTimeline(SEGMENTS, [
-  { id: 'cafe', index: 1, title: 'İNTERNET KAFE', first: 'open', last: 'seat' },
+  { id: 'cafe', index: 1, title: 'İNTERNET KAFE', first: 'open', last: 'tea' },
   { id: 'time', index: 2, title: 'ZAMAN', first: 'start', last: 'clock' },
-  { id: 'people', index: 3, title: 'İNSANLAR', first: 'child', last: 'returns' },
-  { id: 'farewell', index: 4, title: 'VEDA', first: 'mother', last: 'gone' },
+  { id: 'people', index: 3, title: 'İNSANLAR', first: 'child', last: 'life' },
+  { id: 'farewell', index: 4, title: 'VEDA', first: 'mother', last: 'after' },
   { id: 'forever', index: 5, title: 'SONSUZLUK', first: 'endless', last: 'meaning' },
   { id: 'choice', index: 6, title: 'ÖTENAZİ', first: 'corner', last: 'answer' },
-  { id: 'void', index: 7, title: 'KARA DELİK', first: 'depart', last: 'slow' },
-  { id: 'end', index: 8, title: 'SON', first: 'one', last: 'last' },
+  { id: 'closing', index: 7, title: 'KAPANIŞ', first: 'closing', last: 'lastTea' },
+  { id: 'void', index: 8, title: 'KARA DELİK', first: 'depart', last: 'slow' },
+  { id: 'end', index: 9, title: 'SON', first: 'one', last: 'last' },
 ])
 
 export const { SEG, SEGMENT_LIST, TOTAL_SCREENS, CHAPTERS, at, local, sub, segmentAt, chapterAt } = timeline

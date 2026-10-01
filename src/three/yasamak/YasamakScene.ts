@@ -10,7 +10,7 @@
  * Arif's seat (0.75, 0.6).
  */
 import * as THREE from 'three'
-import { SEG, local, segmentAt, sessionSeconds, mmss, type SegmentId } from '@/stories/yasamak/timeline'
+import { SEG, at, local, segmentAt, sessionSeconds, mmss, type SegmentId } from '@/stories/yasamak/timeline'
 import { lerp, mulberry32, smoothstep } from '@/lib/math'
 import type { SceneInfo, SceneOptions, StoryScene } from '../Stage'
 import { Figure, type FigureLook } from '../figure/Figure'
@@ -19,7 +19,7 @@ import * as P from '../figure/poses'
 import { box, cyl, disposeTree, mesh } from '../util'
 import { createSetScene, type BuildContext, type SetDirector, type SetFrame, type Shot } from '../kit/SetScene'
 import { Actor, held, keyed, type ShotKeys } from '../kit/direct'
-import { Crowd, canvasPlane, counter, facade, monitor, officeChair, room, std } from '../kit/props'
+import { Crowd, canvasPlane, counter, facade, monitor, officeChair, phone, room, std } from '../kit/props'
 import { pbr } from '../kit/surfaces'
 import { mono, sans } from '../screens'
 
@@ -33,6 +33,11 @@ const ELDER = { x: -4.5, z: ROW2 }
 const NEAR_ELDER = { x: -3.75, z: -0.95 }
 const SEATS1 = [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]
 const SEATS2 = [-4.5, -3, -1.5, 0, 1.5, 3, 4.5]
+/** Where the cashier stands to serve Arif, and where the tea goes. */
+const SERVE = { x: 1.42, z: 1.05 }
+const TEA_SPOT = new THREE.Vector3(1.12, 0.765, 0.06)
+const TEA_SPOT_2 = new THREE.Vector3(0.98, 0.765, 0.1)
+const PHONE_HELD = { x: 0.82, y: 1.02, z: 0.28 }
 
 function palette() {
   return {
@@ -79,6 +84,10 @@ function palette() {
     crowdBody: std(0x3b3f45, 0.85),
     crowdHead: std(0xb48d74, 0.6),
     glow: new THREE.MeshBasicMaterial({ color: 0x8fb0d8 }),
+    teaGlass: new THREE.MeshPhysicalMaterial({ color: 0xe6eeee, roughness: 0.03, transparent: true, opacity: 0.16, depthWrite: false }),
+    // Steeped dark, the way it is served: deep red-brown, nearly opaque.
+    tea: new THREE.MeshStandardMaterial({ color: 0x5e1a06, roughness: 0.12 }),
+    saucer: pbr('ceramic', 0xf1eee7),
   }
 }
 type Pal = ReturnType<typeof palette>
@@ -161,6 +170,18 @@ const P_TO_ELDER = makePath([
   [-3.2, 0.2],
   [NEAR_ELDER.x, NEAR_ELDER.z],
 ])
+const P_SERVE = makePath([
+  [-3.5, 4.75],
+  [-2.2, 3.3],
+  [0.2, 2.2],
+  [SERVE.x, SERVE.z],
+])
+const P_SERVE_BACK = makePath([
+  [SERVE.x, SERVE.z],
+  [0.2, 2.2],
+  [-2.2, 3.3],
+  [-3.5, 4.75],
+])
 const P_BACK = makePath([
   [NEAR_ELDER.x, NEAR_ELDER.z],
   [-2.6, 1.2],
@@ -182,6 +203,12 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
     [0, [-5.2, 1.9, -3.8, 1.5, 0.9, 1.2, 50]],
     [1, [-4.8, 1.85, -3.6, 1.2, 0.95, 1.0, 48]],
   ],
+  tea: [
+    [0, [3.2, 1.55, 2.6, 0.9, 1.05, 0.6, 40]],
+    [0.45, [2.7, 1.45, -0.15, 1.0, 1.0, 0.6, 40]],
+    [0.62, [2.6, 1.42, -0.1, 1.0, 1.0, 0.55, 38]],
+    [1, [1.75, 1.05, 1.15, 0.85, 0.55, 0.6, 38]],
+  ],
   start: [
     [0, [1.12, 1.48, 1.4, 0.75, 1.05, -0.25, 34]],
     [1, [1.05, 1.42, 1.25, 0.75, 1.05, -0.25, 30]],
@@ -189,6 +216,11 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
   screen: [
     [0, [1.05, 1.42, 1.25, 0.75, 1.05, -0.25, 30]],
     [1, [0.98, 1.36, 1.0, 0.75, 1.05, -0.25, 27]],
+  ],
+  spend: [
+    [0, [1.1, 1.45, 1.3, 0.75, 1.05, -0.25, 34]],
+    [0.6, [1.0, 1.4, 1.15, 0.75, 1.05, -0.25, 32]],
+    [1, [2.4, 1.7, 2.4, 0.4, 1.3, -4.8, 46]],
   ],
   clock: [
     [0, [0.75, 1.3, -0.9, 0.75, 1.3, 1.5, 44]],
@@ -206,8 +238,18 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
     [0, [5.1, 1.95, 4.0, -1.0, 0.8, -1.0, 50]],
     [1, [4.9, 1.9, 3.8, -1.0, 0.9, -2.0, 50]],
   ],
+  life: [
+    [0, [-4.9, 2.05, 3.9, 1.0, 0.9, -1.2, 52]],
+    [1, [-4.6, 2.0, 3.7, 1.2, 0.9, -1.2, 50]],
+  ],
   mother: [
     [0, [3.9, 1.32, 2.0, 1.4, 1.05, 0.45, 42]],
+    [1, [3.7, 1.3, 1.85, 1.4, 1.05, 0.45, 40]],
+  ],
+  phone: [
+    [0, [1.25, 1.45, 1.25, 0.82, 1.0, 0.25, 30]],
+    [0.4, [1.2, 1.43, 1.2, 0.82, 1.0, 0.25, 28]],
+    [0.5, [3.9, 1.32, 2.0, 1.4, 1.05, 0.45, 42]],
     [1, [3.7, 1.3, 1.85, 1.4, 1.05, 0.45, 40]],
   ],
   think: [
@@ -219,6 +261,10 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
     [0.38, [0.98, 1.36, 1.0, 0.75, 1.05, -0.25, 27]],
     [0.42, [1.5, 1.45, -1.9, 1.5, 1.0, 0.8, 46]],
     [1, [1.55, 1.42, -1.75, 1.5, 1.0, 0.8, 44]],
+  ],
+  after: [
+    [0, [1.55, 1.42, -1.75, 1.5, 1.0, 0.8, 44]],
+    [1, [1.7, 1.4, -1.6, 1.6, 0.95, 0.8, 40]],
   ],
   endless: [
     [0, [0, 2.5, -4.3, 0, 0.9, 2.5, 56]],
@@ -248,6 +294,15 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
   answer: [
     [0, [-5.4, 1.6, 0.4, -4.3, 1.0, -1.9, 40]],
     [1, [-5.3, 1.55, 0.2, -4.3, 1.0, -1.9, 38]],
+  ],
+  closing: [
+    [0, [3.3, 1.9, 4.4, -1.0, 0.9, -1.0, 50]],
+    [1, [3.0, 1.85, 4.2, -1.0, 0.9, -1.2, 48]],
+  ],
+  lastTea: [
+    [0, [2.6, 1.42, 1.6, 1.0, 0.95, 0.3, 38]],
+    [0.6, [1.75, 1.15, 1.0, 0.95, 0.78, 0.15, 34]],
+    [1, [1.6, 1.08, 0.85, 0.98, 0.78, 0.1, 30]],
   ],
   depart: [
     [0, [0.95, 1.5, 1.9, 0.75, 1.3, -8, 50]],
@@ -311,6 +366,10 @@ class YasamakDirector implements SetDirector {
   private motherAway = 0
   private crowdState: Array<{ shown: boolean; age: number; away: number }> = []
   private v = new THREE.Vector3()
+  private arifChair!: THREE.Group
+  private teas: THREE.Group[] = []
+  private phone!: ReturnType<typeof phone>
+  private phoneScreen!: ReturnType<typeof canvasPlane>
   /** What survives 00:00. */
   private keep: THREE.Object3D[] = []
 
@@ -356,7 +415,10 @@ class YasamakDirector implements SetDirector {
       const mon = monitor(m.frame, i === -1 ? m.screenOff : m.screenGlow, 0.5, 0.31)
       mon.group.position.set(x, 1.0, z - 0.82)
       this.cafe.add(mon.group)
-      if (z === ROW1 && x === ARIF.x) this.keep.push(c, mon.group)
+      if (z === ROW1 && x === ARIF.x) {
+        this.keep.push(c, mon.group)
+        this.arifChair = c
+      }
       return mon.screen
     }
     for (const [row, zs] of [
@@ -390,6 +452,44 @@ class YasamakDirector implements SetDirector {
     receipt.mesh.rotation.set(-PI / 2, 0, 0.3)
     receipt.mesh.position.set(1.2, 0.768, -0.15)
     this.cafe.add(receipt.mesh)
+    // Tea in a tulip glass on its saucer: the first one, and the last.
+    for (let i = 0; i < 2; i++) {
+      const g = new THREE.Group()
+      const tulip = [
+        [0.0, 0.0],
+        [0.022, 0.0],
+        [0.026, 0.01],
+        [0.02, 0.045],
+        [0.024, 0.075],
+        [0.03, 0.1],
+      ].map(([x, y]) => new THREE.Vector2(x, y))
+      mesh(new THREE.LatheGeometry(tulip, 24), m.teaGlass, 0, 0.012, 0, g)
+      mesh(new THREE.LatheGeometry(tulip.slice(0, 5).map((v) => v.clone().multiplyScalar(0.92)), 24), m.tea, 0, 0.014, 0, g)
+      mesh(new THREE.CylinderGeometry(0.055, 0.045, 0.01, 28), m.saucer, 0, 0.005, 0, g)
+      const spoon = mesh(new THREE.BoxGeometry(0.004, 0.002, 0.07), m.metal, 0.04, 0.012, 0, g)
+      spoon.rotation.y = 0.5
+      this.cafe.add(g)
+      this.teas.push(g)
+    }
+    this.phone = phone(m.frame, new THREE.MeshBasicMaterial({ color: 0x000000 }))
+    this.phoneScreen = canvasPlane(0.066, 0.145, 256, (c, W, H) => {
+      c.fillStyle = '#0d1013'
+      c.fillRect(0, 0, W, H)
+      c.fillStyle = '#e8ecef'
+      sans(c, 30, 500)
+      c.fillText('Rehber', 20, 60)
+      ;['ANNE', 'Ahmet', 'Banka', 'Berk'].forEach((name, i) => {
+        c.fillStyle = i ? '#141a1f' : '#2a3540'
+        c.fillRect(12, 96 + i * 76, W - 24, 62)
+        c.fillStyle = i ? '#8b98a2' : '#f2e3cc'
+        sans(c, i ? 22 : 26, 500)
+        c.fillText(name, 26, 136 + i * 76)
+      })
+    }, { emissive: true })
+    this.phoneScreen.mesh.rotation.x = -PI / 2
+    this.phoneScreen.mesh.position.y = 0.0086
+    this.phone.group.add(this.phoneScreen.mesh)
+    scene.add(this.phone.group)
     // The counter and the clock behind everyone.
     const ctr = counter(2.4, 0.7, 1.05, m.counterTop, m.counterBody)
     ctr.position.set(-3.5, 0, 4.0)
@@ -570,6 +670,7 @@ class YasamakDirector implements SetDirector {
     mother.begin()
     elder.begin()
     cashier.begin().place(-3.5, 4.75, PI).hold(P.STAND_EASY)
+    this.serve(seg, u)
 
     // ——— Arif ———
     switch (seg) {
@@ -601,6 +702,30 @@ class YasamakDirector implements SetDirector {
         arif.place(NEAR_ELDER.x, NEAR_ELDER.z, -2.4).hold(seg === 'owner' ? P.STAND_EASY : P.ARMS_CROSSED).lookAt(ELDER.x, ELDER.z)
         if (seg === 'answer' && u > 0.6) arif.walk(P_BACK, smoothstep(0.6, 1, u), P.STAND, -2.4, PI)
         break
+      case 'tea':
+        arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_TYPE).lookAt(SERVE.x, SERVE.z, 0.7 * smoothstep(0.1, 0.3, u) * (1 - smoothstep(0.6, 0.8, u)))
+        break
+      case 'spend':
+        arif.place(ARIF.x, ARIF.z, PI).hold(f.flags.has('hour:window') && u > 0.3 ? P.SIT_BACK : P.SIT_TYPE)
+        if (f.flags.has('hour:window') && u > 0.3) arif.lookAt(ARIF.x + 1.2, -5, 0.5)
+        break
+      case 'life':
+      case 'closing':
+        arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_BACK)
+        if (seg === 'closing') arif.lookAt(-3.5, 4.75, 0.5 * smoothstep(0.05, 0.2, u) * (1 - smoothstep(0.4, 0.6, u)))
+        break
+      case 'phone': {
+        const talk = f.flags.has('mom:talk')
+        const out = smoothstep(0.04, 0.16, u) * (1 - smoothstep(talk ? 0.48 : 0.6, talk ? 0.56 : 0.72, u))
+        arif.place(ARIF.x, ARIF.z, PI).hold(talk && u > 0.5 ? P.SIT_LOOK : P.SIT_STILL)
+        arif.reach('r', out, PHONE_HELD.x, PHONE_HELD.y, PHONE_HELD.z - 0.05, 0.3)
+        if (talk) arif.lookAt(MOTHER.x, MOTHER.z, smoothstep(0.5, 0.62, u) * (1 - smoothstep(0.85, 1, u)))
+        break
+      }
+      case 'lastTea':
+        arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_STILL)
+        arif.reach('r', Math.sin(PI * smoothstep(0.55, 0.95, u)), TEA_SPOT_2.x + 0.02, TEA_SPOT_2.y + 0.06, TEA_SPOT_2.z, 0.35)
+        break
       case 'depart':
         arif.place(ARIF.x, ARIF.z, PI).blend([
           [0, P.STAND],
@@ -627,6 +752,7 @@ class YasamakDirector implements SetDirector {
     if (f.p < SEG.gone.start) this.motherGone = false
     else if (!this.motherGone && (this.motherAway > 0.4 || f.p > SEG.gone.end)) this.motherGone = true
     mother.place(MOTHER.x, MOTHER.z, PI).hold(P.SIT_TYPE)
+    if (seg === 'phone' && f.flags.has('mom:talk')) mother.lookAt(ARIF.x, ARIF.z, smoothstep(0.5, 0.6, u) * (1 - smoothstep(0.8, 0.95, u)))
     mother.visible = f.p >= SEG.mother.start - SEG.clock.len && !this.motherGone
 
     elder.place(ELDER.x, ELDER.z, PI).hold(f.p >= SEG.answer.start + SEG.answer.len * 0.4 ? P.SIT_BACK : P.SIT_SLUMP)
@@ -682,6 +808,7 @@ class YasamakDirector implements SetDirector {
     this.hemi.color.setRGB(1, lerp(0.89, 0.7, away), lerp(0.75, 0.55, away))
 
     arif.apply(f.time, !f.reduced)
+    this.props(f, seg, u)
     child.apply(f.time, !f.reduced)
     mother.apply(f.time, !f.reduced)
     elder.apply(f.time, !f.reduced)
@@ -691,6 +818,50 @@ class YasamakDirector implements SetDirector {
     keyed(SHOTS[seg] ?? SHOTS.open!, held(u, f.reduced), shot)
     shot.fade = seg === 'open' ? 0 : seg === 'door' ? smoothstep(0, 0.35, u) : seg === 'last' ? 1 - smoothstep(0.4, 0.9, u) : 1
     if (seg === 'behind' && u > 0.15 && u < 0.7 && !f.seen.has('void-behind')) shot.request = { id: 'yasamak-behind', yaw: PI, pitch: 0, seconds: 3.2 }
+  }
+
+  /** The cashier brings tea: out from the counter, the glass down, back again. */
+  private serve(seg: SegmentId, u: number) {
+    const c = this.cashier
+    if (seg !== 'tea' && seg !== 'lastTea') return
+    const a = seg === 'tea' ? 0.04 : 0.0
+    if (u < a + 0.4) c.walk(P_SERVE, smoothstep(a, a + 0.4, u), P.CARRY, PI, -2.6)
+    else if (u < 0.66) {
+      c.place(SERVE.x, SERVE.z, -2.6).hold(P.STAND)
+      const spot = seg === 'tea' ? TEA_SPOT : TEA_SPOT_2
+      c.reach('r', Math.sin(PI * smoothstep(a + 0.4, 0.66, u)), spot.x, spot.y + 0.06, spot.z, 0.4)
+      c.lookAt(ARIF.x, ARIF.z, 0.6)
+    } else c.walk(P_SERVE_BACK, smoothstep(0.66, 1, u), P.STAND, -2.6, PI)
+  }
+
+  /** The short chair leg, the glasses of tea, the phone in his hand. */
+  private props(f: SetFrame, seg: SegmentId, u: number) {
+    const p = f.p
+    // The chair rocks on its short leg when he shifts.
+    const rock = seg === 'tea' ? Math.sin(PI * smoothstep(0.66, 0.8, u)) : 0
+    this.arifChair.rotation.z = 0.035 * rock
+    // Tea: carried, then on the desk until the cafe is gone.
+    const cashierHand = this.cashier.figure.rGrip
+    const glass = (g: THREE.Group, s: SegmentId, spot: THREE.Vector3) => {
+      const from = SEG[s].start + SEG[s].len * 0.04
+      const down = SEG[s].start + SEG[s].len * 0.53
+      g.visible = p >= from && p < SEG.zero.start + SEG.zero.len * 0.4
+      if (!g.visible) return
+      if (p < down) {
+        cashierHand.getWorldPosition(this.v)
+        g.position.set(this.v.x, this.v.y - 0.03, this.v.z)
+      } else g.position.copy(spot)
+    }
+    glass(this.teas[0], 'tea', TEA_SPOT)
+    glass(this.teas[1], 'lastTea', TEA_SPOT_2)
+    // The phone, out of his pocket for one moment.
+    const out = seg === 'phone' && u > 0.08 && u < (f.flags.has('mom:talk') ? 0.54 : 0.68)
+    this.phone.group.visible = out
+    if (out) {
+      this.arif.figure.rGrip.getWorldPosition(this.phone.group.position)
+      // Top of the phone away from him, the screen tilted up toward his face.
+      this.phone.group.rotation.set(0.9, this.arif.yaw + PI, 0, 'YXZ')
+    }
   }
 
   /** Seconds a figure has been out of the reader's view (resets when seen). */
@@ -720,7 +891,8 @@ class YasamakDirector implements SetDirector {
       this.v.set(x, 1.3, z)
       s.away = f.inView(this.v, 0.5) ? 0 : s.away + f.dt
       // What each seat should become; it only becomes it while no one is watching.
-      const wantShown = phase === 0 ? true : phase === 1 ? i !== 4 : phase === 2 ? true : f.p < SEG.dilation.start + SEG.dilation.len * (0.1 + i * 0.09)
+      const closing = f.p >= at('closing', 0.35)
+      const wantShown = phase === 0 ? true : phase === 1 ? i !== 4 : phase === 2 ? !closing || i % 3 === 0 : f.p < SEG.dilation.start + SEG.dilation.len * (0.1 + i * 0.09) && i % 3 === 0
       const wantAge = phase >= 2 ? (i === 4 ? 2 : 1) : 0
       if (f.p < SEG.leave.start) {
         s.shown = true
@@ -749,6 +921,7 @@ class YasamakDirector implements SetDirector {
       mat.dispose()
     }
     this.arifScreen.texture.dispose()
+    this.phoneScreen.texture.dispose()
     this.elderScreen.texture.dispose()
     disposeTree(this.crowd.group)
   }

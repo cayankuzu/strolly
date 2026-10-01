@@ -4,7 +4,7 @@
  * it is observed, and who observes the observer. Its last door opens onto
  * STROLLY itself.
  */
-import type { CaptionCue, Discovery, TextSegment } from '../types'
+import type { CaptionCue, ChoiceGate, Discovery, TextSegment } from '../types'
 import { at, type SegmentId } from './timeline'
 
 type T = TextSegment<SegmentId>
@@ -72,7 +72,8 @@ export const TEXT: T[] = [
 
   // 10 — KAPI
   { id: 'nothing-there', seg: 'around', from: 0.15, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Kapının arkasında hiçbir şey görünmüyordu.'] },
-  { id: 'opened', seg: 'opens', from: 0.3, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Mira kapıyı açtı.'] },
+  { id: 'opened', seg: 'opens', from: 0.3, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Mira kapıyı açtı.'], when: { all: ['esik:open'] } },
+  { id: 'opened-anyway', seg: 'opens', from: 0.3, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Mira elini çekti.', 'Kapı yine de açıldı.'], stagger: 0.4, when: { all: ['esik:wait'] } },
   { id: 'the-list', seg: 'list', from: 0.25, to: 1.05, slot: 'rail', kind: 'narration', purpose: 'reveal', lines: ['Bir liste vardı. Mira hepsini tanıyordu.', 'Sonuncusu hariç.'], stagger: 0.45 },
   { id: 'who-watching', seg: 'watching', from: 0.15, to: 1.0, slot: 'center', kind: 'word', purpose: 'reveal', world: true, lines: ['WHO IS WATCHING?'], fade: 0.4 },
   { id: 'end', seg: 'end', from: 0.2, to: 5, slot: 'center', kind: 'final', purpose: 'title', lines: ['THE STORY DID NOT END.', 'YOU STOPPED LOOKING.'], sub: 'EŞİK', fade: 0.4, stagger: 0.2 },
@@ -85,10 +86,10 @@ export const TRANSCRIPT: Record<string, string> = {
   seen: 'Mira bir kafeye girer. Masadaki adam ona bakar; ilk kez biri Mira’yı görmüştür. “Sonunda.” “Beni tanıyor musun?” “Hayır. Ama sen bizi görüyorsun.”',
   glass: 'Adam Mira’yı büyük bir camın önüne götürür. Camın ardında aynı şehrin başka bir versiyonu vardır; başka bir camın ardında başka bir şehir.',
   observer: 'Adam: “Bir şeyi gözlemlediğinde onun var olduğunu düşünüyorsun. Peki seni kim gözlemliyor?” Arkaya bakıldığında hiçbir şey yoktur.',
-  user: 'Tezgâhın arkasındaki eski bir terminalde sırayla şu kelimeler yazar: observer, subject, environment, user. Mira: “User?”',
+  user: 'Tezgâhın arkasındaki eski bir terminalde sırayla şu kelimeler yazar: observer, subject, environment, user. Okur birini seçer; terminal kayıtlı olanı gösterir: kullanıcı için tek satır, şu an bakıyor. Mira: “User?”',
   reality: 'Mira dışarı çıkar. Şehir yerindedir; ama bakılmayan binalar değişir.',
   threshold: 'Sokağın sonunda üzerinde “do not open” yazan bir kapı vardır. Arkasından Mira’nın kendi sesi gelir: “Beni duyuyorsan kapıyı açma. Çünkü dışarı çıktığında artık sen olmayacaksın.”',
-  door: 'Mira kapıyı açar. Kapının ardında STROLLY’nin hikâye listesi vardır; listenin sonuna yeni bir satır eklenir: user. Ekranda “who is watching?” yazar. Görüş yavaşça arkaya döner: Mira yoktur, yalnızca bir sandalye vardır. Sandalyenin üzerinde: thank you for observing. The story did not end. You stopped looking.',
+  door: 'Okur kapıyı açmayı ya da açmamayı seçer; açmazsa kapı yine de açılır. Kapının ardında STROLLY’nin hikâye listesi vardır; listenin sonuna yeni bir satır eklenir: user. Ekranda “who is watching?” yazar. Görüş yavaşça arkaya döner: Mira yoktur, yalnızca bir sandalye vardır. Sandalyenin üzerinde: thank you for observing. The story did not end. You stopped looking.',
 }
 
 export const QUIET: Array<readonly [number, number]> = [
@@ -210,5 +211,34 @@ export const DISCOVERIES: Discovery<SegmentId>[] = [
     kind: 'text',
     visibility: 'visible',
     examine: { verb: 'OKU', lines: ['THANK YOU FOR OBSERVING.'] },
+  },
+]
+
+/** A word typed into the old terminal, and the door marked DO NOT OPEN. */
+export const CHOICES: ChoiceGate<SegmentId>[] = [
+  {
+    id: 'word',
+    seg: 'words',
+    at: 0.45,
+    style: 'query',
+    title: 'TERMİNAL',
+    prompt: 'Bir kelime seç.',
+    options: [
+      { id: 'observer', tag: '01', label: 'OBSERVER', reply: ['KAYITLI GÖZLEMCİ: 1', 'DURUM: BAKIYOR'], sets: ['word:observer'] },
+      { id: 'subject', tag: '02', label: 'SUBJECT', reply: ['KAYITLI ÖZNE: MİRA', 'DURUM: GÖRÜLÜYOR'], sets: ['word:subject'] },
+      { id: 'user', tag: '04', label: 'USER', reply: ['KAYITLI KULLANICI: —', 'DURUM: ŞU AN BAKIYOR'], sets: ['word:user'] },
+    ],
+  },
+  {
+    id: 'open',
+    seg: 'around',
+    at: 0.7,
+    style: 'choice',
+    title: 'DO NOT OPEN',
+    prompt: 'Kapıyı açacak mısın?',
+    options: [
+      { id: 'open', label: 'Aç.', reply: ['Kol soğuktu.'], sets: ['esik:open'] },
+      { id: 'wait', label: 'Açma.', reply: ['Bekledi.'], sets: ['esik:wait'] },
+    ],
   },
 ]

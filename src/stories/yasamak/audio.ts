@@ -20,7 +20,20 @@ const k = (p: number, v: number): Key<number> => [p, v, linear]
 const MIX: Record<LayerId, Key<number>[]> = {
   room: [k(at('door', 0.2), 0), k(at('door', 0.6), 0.4), k(at('dilation', 0.2), 0.4), k(at('slow', 1), 0.1), k(at('zero', 0.34), 0.08), k(at('zero', 0.36), 0)],
   street: [k(at('open', 0.5), 0), k(at('door', 0.4), 0.3), k(at('seat', 0.5), 0.18), k(at('depart', 0.4), 0.18), k(at('horizon', 0.3), 0)],
-  murmur: [k(at('door', 0.4), 0), k(at('seat'), 0.22), k(at('leave'), 0.28), k(at('gone', 0.3), 0.06), k(at('endless'), 0.24), k(at('dilation', 0.5), 0.05), k(at('dilation', 1), 0)],
+  murmur: [
+    k(at('door', 0.4), 0),
+    k(at('seat'), 0.22),
+    k(at('leave'), 0.28),
+    k(at('life', 0.2), 0.36),
+    k(at('life', 1), 0.28),
+    k(at('gone', 0.3), 0.06),
+    k(at('after', 1), 0.06),
+    k(at('endless'), 0.24),
+    k(at('closing', 0.4), 0.24),
+    k(at('lastTea', 0.6), 0.1),
+    k(at('dilation', 0.5), 0.05),
+    k(at('dilation', 1), 0),
+  ],
   horizon: [k(at('depart', 0.3), 0), k(at('horizon', 0.4), 0.5), k(at('slow', 1), 0.4), k(at('zero', 0.34), 0.15), k(at('behind', 0.4), 0), k(at('last'), 0)],
   music: [k(at('open', 0.2), 0), k(at('open', 0.8), 0.25), k(at('seat', 1), 0.15), k(at('mother'), 0.2), k(at('gone', 0.5), 0.4), k(at('meaning', 1), 0.15), k(at('owner'), 0.25), k(at('answer', 1), 0.35), k(at('slow', 1), 0.15), k(at('zero', 0.34), 0), k(at('last', 0.1), 0), k(at('last', 0.5), 0.35), k(at('last', 1), 0)],
 }
@@ -106,6 +119,21 @@ export function createYasamakAudio(kit: AudioKit): AudioProfile {
     if (crossed(at('start', 0.05))) tone(ctx, fx, { freq: 880, to: 1320, glide: 0.2, env: { attack: 0.005, decay: 0.3, peak: 0.03 } })
     if (crossed(at('leave', 0.4))) burst(ctx, noise.brown, fx, { freq: 300, type: 'lowpass', env: { attack: 0.01, decay: 0.3, peak: 0.12 } })
     if (crossed(at('one', 0.45))) tone(ctx, fx, { freq: 660, env: { attack: 0.002, decay: 0.3, peak: 0.025 } })
+    // Tea set down on its saucer; a spoon against the glass.
+    for (const [seg, t] of [
+      ['tea', 0.55],
+      ['lastTea', 0.55],
+    ] as const)
+      if (crossed(at(seg, t))) {
+        tone(ctx, fx, { freq: 2900, env: { attack: 0.001, decay: 0.18, peak: 0.025 } })
+        tone(ctx, fx, { freq: 4100, env: { attack: 0.001, decay: 0.1, peak: 0.012 }, delay: 0.32 })
+      }
+    // The short chair leg.
+    if (crossed(at('tea', 0.7))) burst(ctx, noise.brown, fx, { freq: 380, type: 'lowpass', env: { attack: 0.002, decay: 0.08, peak: 0.1 } })
+    if (crossed(at('phone', 0.08))) tone(ctx, fx, { freq: 1500, env: { attack: 0.001, decay: 0.05, peak: 0.02 } })
+    // The call to tomorrow: ringing, ringing.
+    for (const t of [0.3, 0.48, 0.66, 0.84]) if (crossed(at('after', t))) tone(ctx, fx, { freq: 425, env: { attack: 0.02, decay: 0.9, peak: 0.016 } })
+    if (crossed(at('closing', 0.06))) tone(ctx, fx, { freq: 523.25, to: 392, glide: 0.25, env: { attack: 0.01, decay: 0.6, peak: 0.02 } })
     if (crossed(at('zero', 0.32))) {
       tone(ctx, fx, { freq: 440, to: 110, glide: 0.6, env: { attack: 0.005, decay: 0.7, peak: 0.04 } })
       burst(ctx, noise.white, fx, { freq: 6000, q: 0.7, env: { attack: 0.001, decay: 0.15, peak: 0.03 } })

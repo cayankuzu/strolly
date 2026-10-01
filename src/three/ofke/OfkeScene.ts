@@ -1061,7 +1061,8 @@ class OfkeDirector implements SetDirector {
     if (!on) return
     const a = this.b.arif
     a.figure.rGrip.getWorldPosition(this.phone.group.position)
-    this.phone.group.rotation.set(-0.85, a.yaw, 0, 'YXZ')
+    // Top of the phone away from him, the screen tilted up toward his face.
+    this.phone.group.rotation.set(0.85, a.yaw + PI, 0, 'YXZ')
     const reason = seg === 'reason'
     this.phoneScreen.redraw((c, W, H) => {
       c.fillStyle = '#0b0f12'
