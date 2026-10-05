@@ -1636,6 +1636,13 @@ kbd {
     border-color 0.3s var(--ease);
 }
 
+/* The end panel owns the bottom of the screen; the reset steps aside for it. */
+.strolly:has(.complete) .hud .hud-recenter {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .hud-recenter:hover,
 .hud-recenter:focus-visible {
   border-color: rgba(226, 176, 98, 0.7);

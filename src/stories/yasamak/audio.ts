@@ -110,7 +110,7 @@ export function createYasamakAudio(kit: AudioKit): AudioProfile {
   let typing = 1
   let note = 3
 
-  const crossings = (from: number, to: number) => {
+  const crossings = (from: number, to: number, flags: ReadonlySet<string>) => {
     const crossed = (t: number) => from < t && to >= t
     if (crossed(at('door', 0.3)) || crossed(at('returns', 0.4))) {
       tone(ctx, bell.gain, { freq: 2093, env: { attack: 0.002, decay: 0.9, peak: 0.03 } })
@@ -131,8 +131,8 @@ export function createYasamakAudio(kit: AudioKit): AudioProfile {
     // The short chair leg.
     if (crossed(at('tea', 0.7))) burst(ctx, noise.brown, fx, { freq: 380, type: 'lowpass', env: { attack: 0.002, decay: 0.08, peak: 0.1 } })
     if (crossed(at('phone', 0.08))) tone(ctx, fx, { freq: 1500, env: { attack: 0.001, decay: 0.05, peak: 0.02 } })
-    // The call to tomorrow: ringing, ringing.
-    for (const t of [0.3, 0.48, 0.66, 0.84]) if (crossed(at('after', t))) tone(ctx, fx, { freq: 425, env: { attack: 0.02, decay: 0.9, peak: 0.016 } })
+    // The call left for tomorrow: ringing, ringing.
+    if (flags.has('mom:later')) for (const t of [0.3, 0.48, 0.66, 0.84]) if (crossed(at('after', t))) tone(ctx, fx, { freq: 425, env: { attack: 0.02, decay: 0.9, peak: 0.016 } })
     if (crossed(at('closing', 0.06))) tone(ctx, fx, { freq: 523.25, to: 392, glide: 0.25, env: { attack: 0.01, decay: 0.6, peak: 0.02 } })
     if (crossed(at('zero', 0.32))) {
       tone(ctx, fx, { freq: 440, to: 110, glide: 0.6, env: { attack: 0.005, decay: 0.7, peak: 0.04 } })
@@ -173,7 +173,7 @@ export function createYasamakAudio(kit: AudioKit): AudioProfile {
       }
       if (motion.step !== lastStep && motion.walking > 0.35 && !jumped) burst(ctx, noise.brown, fx, { freq: 220, type: 'lowpass', env: { attack: 0.004, decay: 0.1, peak: 0.12 }, pan: motion.step % 2 ? 0.1 : -0.1 })
       lastStep = motion.step
-      if (!jumped && p > lastP) crossings(lastP, p)
+      if (!jumped && p > lastP) crossings(lastP, p, frame.flags)
       lastP = p
     },
   }

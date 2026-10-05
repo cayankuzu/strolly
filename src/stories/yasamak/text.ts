@@ -131,7 +131,7 @@ export const CAPTIONS: CaptionCue<SegmentId>[] = [
   { seg: 'tea', at: 0.55, text: '[çay bardağı tabağa konur]' },
   { seg: 'tea', at: 0.7, text: '[sandalye bir yana yatar]' },
   { seg: 'phone', at: 0.08, text: '[telefonun kilidi açılır]' },
-  { seg: 'after', at: 0.3, text: '[uzun uzun çalan bir telefon]' },
+  { seg: 'after', at: 0.3, text: '[uzun uzun çalan bir telefon]', when: { all: ['mom:later'] } },
   { seg: 'closing', at: 0.06, text: '[kasadan bir ses]' },
   { seg: 'lastTea', at: 0.4, text: '[kaşığın bardağa değdiği ses]' },
 ]

@@ -86,7 +86,7 @@ export const TEXT: T[] = [
   ...say('cant-ask', 'approach', 0.08, 0.95, 'KAYIT', '— Bu kapıyı açarsan artık hangisinin gerçek olduğunu soramazsın.'),
   { id: 'opened', seg: 'opens', from: 0.35, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Deniz kapıyı açtı.'] },
   { id: 'another-home', seg: 'facing', from: 0.0, to: 0.45, slot: 'rail', kind: 'narration', purpose: 'reveal', lines: ['Kapının ardında başka bir ev vardı. Orada başka bir Deniz.'] },
-  ...say('which-of-us', 'facing', 0.55, 1.0, 'DİĞER DENİZ', '— Sen hangimizsin?'),
+  ...say('which-of-us', 'facing', 0.55, 0.88, 'DİĞER DENİZ', '— Sen hangimizsin?'),
   { id: 'tape-3', seg: 'recording', from: 0.05, to: 0.95, slot: 'top', kind: 'system', purpose: 'system', lines: ['▶ KAYIT 03'] },
   ...say('think-finished', 'recording', 0.12, 0.5, 'KAYIT', '— Hikâyeyi bitirdiğini sanıyorsun.'),
   ...say('never-saw', 'recording', 0.6, 1.02, 'KAYIT', '— Ama burada kalanı hiç görmedin.'),

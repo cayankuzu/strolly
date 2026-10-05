@@ -96,7 +96,8 @@ function bodyPrims(b: BuildParams, female: boolean) {
   P.push(capsulePrim([-0.135 * b.chest, J.chest + 0.2, -0.012], [0.135 * b.chest, J.chest + 0.2, -0.012], 0.054, 0.054, 0.05))
   for (const sx of [-1, 1]) P.push(capsulePrim([0, J.neck - 0.005, -0.022], [sx * 0.14, J.chest + 0.215, -0.016], 0.046, 0.04, 0.04))
   // The neck rises from behind the collarbones (its base sits back from the chest).
-  P.push(capsulePrim([0, J.neck - 0.045, -0.014], [0, J.neck + 0.13, 0.01], female ? 0.05 : 0.056, female ? 0.043 : 0.048, 0.035))
+  // It ends inside the skull: any higher and its back shows through the hair at the nape.
+  P.push(capsulePrim([0, J.neck - 0.045, -0.014], [0, J.neck + 0.085, 0.016], female ? 0.05 : 0.056, female ? 0.042 : 0.046, 0.035))
   for (const sx of [-1, 1]) {
     if (female) P.push(ellipsoidPrim([sx * 0.064, J.chest + 0.05, 0.072], [0.06, 0.056, 0.05], 0.045))
     // His chest: broad and flat, not rounded.

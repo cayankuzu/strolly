@@ -162,7 +162,7 @@ const P_THROUGH = makePath([
 ])
 
 /** Mira's whole state as a function of progress — so her reflection can be her a moment ago. */
-function miraAt(a: Actor, p: number) {
+function miraAt(a: Actor, p: number, pulled: boolean) {
   const seg = segmentAt(p).id as SegmentId
   const u = local(p, seg)
   a.begin()
@@ -230,7 +230,8 @@ function miraAt(a: Actor, p: number) {
       break
     case 'opens':
       a.place(0, -58.6, PI).hold(P.STAND)
-      a.reach('r', smoothstep(0.1, 0.3, u) * (1 - smoothstep(0.5, 0.7, u)), -0.36, 1.0, WALL_Z + 0.08, 0.5)
+      // If she chose to wait, her hand leaves the handle before the door moves.
+      a.reach('r', pulled ? smoothstep(0.04, 0.16, u) * (1 - smoothstep(0.18, 0.3, u)) : smoothstep(0.1, 0.3, u) * (1 - smoothstep(0.5, 0.7, u)), -0.36, 1.0, WALL_Z + 0.08, 0.5)
       break
     case 'list':
     case 'watching':
@@ -868,10 +869,10 @@ class EsikDirector implements SetDirector {
     const u = local(f.p, seg)
 
     // ——— Mira, and the one in the glass ———
-    miraAt(this.mira, f.p)
+    miraAt(this.mira, f.p, f.flags.has('esik:wait'))
     // The reflection is her a moment ago — but only once, and only for a moment.
     const lag = seg === 'reflect' ? 0.012 * Math.sin(PI * smoothstep(0.3, 0.8, u)) : 0
-    miraAt(this.reflection, f.p - lag)
+    miraAt(this.reflection, f.p - lag, f.flags.has('esik:wait'))
     const r = this.reflection
     r.x = 13 - r.x
     r.yaw = -r.yaw

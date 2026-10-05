@@ -78,8 +78,8 @@ export function headPoint(dir: THREE.Vector3, radius: number, face: FaceShape | 
 }
 
 /** The head, with stubble and lip colour through vertex colours. */
-export function headGeometry(radius: number, face: FaceShape) {
-  const geo = new THREE.SphereGeometry(1, 72, 54)
+export function headGeometry(radius: number, face: FaceShape, style: HairStyle = 'short') {
+  const geo = new THREE.SphereGeometry(1, 112, 84)
   const pos = geo.attributes.position as THREE.BufferAttribute
   const colors = new Float32Array(pos.count * 3)
   const unit = new THREE.Vector3()
@@ -105,8 +105,15 @@ export function headGeometry(radius: number, face: FaceShape) {
     // the nose, the corners of the mouth, under the chin.
     const underNose = G(unit.x, 0.11) * G(unit.y + 0.42, 0.035) * front
     const corners = (G(unit.x - 0.2, 0.05) + G(unit.x + 0.2, 0.05)) * G(unit.y + 0.62, 0.03) * front
+    // Hair grows in, it does not start at an edge: the scalp darkens just below the hairline.
+    const below = hairlineAt(style, unit.x, unit.z) - unit.y
+    // (Lighter at the forehead, where a shadow band would read as dirt.)
+    const growth = smoothstep(0.16, 0.0, below) * smoothstep(-0.04, 0.02, below) * (style === 'short' ? 1 : 0.6) * (1 - 0.6 * smoothstep(0.3, 0.8, unit.z))
+    // The fold above each eye, and a little shadow under it.
+    let crease = 0
+    for (const ex of [-0.39, 0.39]) crease += G(unit.x - ex, 0.11) * (G(unit.y - 0.22, 0.022) + 0.6 * G(unit.y - 0.03, 0.025)) * front
     const underChin = smoothstep(-0.9, -1, unit.y) * front
-    const c = (1 - 0.22 * socket) * (1 - 0.55 * parting) * (1 - 0.14 * underNose) * (1 - 0.12 * corners) * (1 - 0.2 * underChin)
+    const c = (1 - 0.22 * socket) * (1 - 0.38 * parting) * (1 - 0.14 * underNose) * (1 - 0.12 * corners) * (1 - 0.2 * underChin) * (1 - 0.45 * growth) * (1 - 0.16 * crease)
     const st = face.stubble * stubble
     colors[i * 3] = c * (1 - 0.95 * st) * (1 + 0.04 * lips + 0.035 * cheek + 0.025 * nose)
     colors[i * 3 + 1] = c * (1 - 0.88 * st) * (1 - 0.4 * lips - 0.05 * cheek - 0.03 * nose)
@@ -119,6 +126,15 @@ export function headGeometry(radius: number, face: FaceShape) {
 
 export type HairStyle = 'short' | 'long'
 
+/** Where the hair starts, as a height on the unit head for a direction (ux, uz). */
+function hairlineAt(style: HairStyle, ux: number, uz: number) {
+  // Short: off the forehead, just above the ears, down to the nape at the back.
+  // (The skull is round down to where the neck meets it, so at the back the hair goes that far.)
+  if (style === 'short') return 0.5 - 0.42 * smoothstep(1, 0, uz) - 1.15 * smoothstep(0, -0.6, uz) + 0.1 * G(Math.abs(ux) - 0.55, 0.15) * Math.max(0, uz)
+  if (uz > 0.42) return 0.44 + 0.06 * G(Math.abs(ux) - 0.5, 0.15)
+  return -1.1 + 0.75 * smoothstep(-1, 0.42, uz)
+}
+
 /**
  * Hair: a slightly larger shell of the skull cut along a hairline. Long hair
  * frames the face and falls past the jaw toward the shoulders.
@@ -129,12 +145,7 @@ export function hairGeometry(radius: number, style: HairStyle) {
   const index = src.index!
   const unit = new THREE.Vector3()
   const p = new THREE.Vector3()
-  const hairline = (ux: number, uz: number) => {
-    // Short: off the forehead, just above the ears, down to the nape at the back.
-    if (style === 'short') return 0.5 - 0.42 * smoothstep(1, 0, uz) - 0.8 * smoothstep(0, -0.8, uz) + 0.1 * G(Math.abs(ux) - 0.55, 0.15) * Math.max(0, uz)
-    if (uz > 0.42) return 0.44 + 0.06 * G(Math.abs(ux) - 0.5, 0.15)
-    return -1.1 + 0.75 * smoothstep(-1, 0.42, uz)
-  }
+  const hairline = (ux: number, uz: number) => hairlineAt(style, ux, uz)
   // Keep only triangles near or above the hairline (the rest are hidden anyway).
   const keep: number[] = []
   for (let i = 0; i < index.count; i += 3) {

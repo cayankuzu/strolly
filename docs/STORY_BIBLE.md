@@ -293,9 +293,9 @@ sandalye. "The story did not end. You stopped looking."
 ### Bölümler
 
 ŞEHİR · VİTRİN · AYNI SOKAK · GÖZLEM · CAM · GÖZLEMCİ · KULLANICI (**seçim:**
-terminale bir kelime: OBSERVER / SUBJECT / USER — "KAYITLI KULLANICI: — · ŞU AN
-BAKIYOR") · GERÇEKLİK · EŞİK · KAPI (**seçim:** aç / açma — açmazsa kapı yine de
-açılır).
+terminal dört kelimeyi de yazdıktan sonra bir kelime: OBSERVER / SUBJECT / USER —
+"KAYITLI KULLANICI: — · ŞU AN BAKIYOR") · GERÇEKLİK · EŞİK · KAPI (**seçim:** aç /
+açma — açmazsa Mira elini koldan çeker, kapı yine de açılır).
 
 ---
 

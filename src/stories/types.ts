@@ -136,7 +136,7 @@ export type ChoiceGate<Id extends string = string> = {
 }
 
 /** Captions for sounds, shown when captions are on (independent of audio being on). */
-export type CaptionCue<Id extends string = string> = { seg: Id; at: number; text: string }
+export type CaptionCue<Id extends string = string> = { seg: Id; at: number; text: string; when?: When }
 
 export type StoryContent = {
   meta: StoryMeta

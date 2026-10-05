@@ -24,6 +24,8 @@ export type AudioFrame = {
   /** What the picture is doing: footsteps, machines, doors, the current era… */
   motion: { step: number; walking: number; robots: number; doors: number; frame: number }
   set: string
+  /** The reading's flags, for sounds that belong to one branch. */
+  flags: ReadonlySet<string>
   /** Where the reader is and where they look (world space of the story's set). */
   listener: Listener | null
 }

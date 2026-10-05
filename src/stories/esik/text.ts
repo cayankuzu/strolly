@@ -71,7 +71,7 @@ export const TEXT: T[] = [
   ...say('not-you', 'voice', 0.56, 1.0, 'SES', '— Çünkü dışarı çıktığında artık sen olmayacaksın.'),
 
   // 10 — KAPI
-  { id: 'nothing-there', seg: 'around', from: 0.15, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Kapının arkasında hiçbir şey görünmüyordu.'] },
+  { id: 'nothing-there', seg: 'around', from: 0.15, to: 0.88, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Kapının arkasında hiçbir şey görünmüyordu.'] },
   { id: 'opened', seg: 'opens', from: 0.3, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Mira kapıyı açtı.'], when: { all: ['esik:open'] } },
   { id: 'opened-anyway', seg: 'opens', from: 0.3, to: 1.0, slot: 'rail', kind: 'narration', purpose: 'turn', lines: ['Mira elini çekti.', 'Kapı yine de açıldı.'], stagger: 0.4, when: { all: ['esik:wait'] } },
   { id: 'the-list', seg: 'list', from: 0.25, to: 1.05, slot: 'rail', kind: 'narration', purpose: 'reveal', lines: ['Bir liste vardı. Mira hepsini tanıyordu.', 'Sonuncusu hariç.'], stagger: 0.45 },
@@ -219,7 +219,7 @@ export const CHOICES: ChoiceGate<SegmentId>[] = [
   {
     id: 'word',
     seg: 'words',
-    at: 0.45,
+    at: 0.9,
     style: 'query',
     title: 'TERMİNAL',
     prompt: 'Bir kelime seç.',
@@ -232,7 +232,7 @@ export const CHOICES: ChoiceGate<SegmentId>[] = [
   {
     id: 'open',
     seg: 'around',
-    at: 0.7,
+    at: 0.97,
     style: 'choice',
     title: 'DO NOT OPEN',
     prompt: 'Kapıyı açacak mısın?',

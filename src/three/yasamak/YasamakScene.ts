@@ -33,10 +33,12 @@ const ELDER = { x: -4.5, z: ROW2 }
 const NEAR_ELDER = { x: -3.75, z: -0.95 }
 const SEATS1 = [-3.75, -2.25, -0.75, 0.75, 2.25, 3.75]
 const SEATS2 = [-4.5, -3, -1.5, 0, 1.5, 3, 4.5]
-/** Where the cashier stands to serve Arif, and where the tea goes. */
-const SERVE = { x: 1.42, z: 1.05 }
-const TEA_SPOT = new THREE.Vector3(1.12, 0.765, 0.06)
-const TEA_SPOT_2 = new THREE.Vector3(0.98, 0.765, 0.1)
+/** Where the cashier stands to serve Arif (at the desk, on his right) and where the tea goes. */
+const SERVE = { x: 1.46, z: 0.5, yaw: -2.42 }
+const TEA_SPOT = new THREE.Vector3(1.12, 0.765, 0.1)
+const TEA_SPOT_2 = new THREE.Vector3(0.98, 0.765, 0.12)
+/** The serve, as fractions of 'tea' / 'lastTea': out, the glass set down, back. */
+const SERVE_AT = { arrive: 0.44, down: 0.55, leave: 0.66 }
 const PHONE_HELD = { x: 0.82, y: 1.02, z: 0.28 }
 
 function palette() {
@@ -174,10 +176,12 @@ const P_SERVE = makePath([
   [-3.5, 4.75],
   [-2.2, 3.3],
   [0.2, 2.2],
+  [1.5, 1.35],
   [SERVE.x, SERVE.z],
 ])
 const P_SERVE_BACK = makePath([
   [SERVE.x, SERVE.z],
+  [1.5, 1.35],
   [0.2, 2.2],
   [-2.2, 3.3],
   [-3.5, 4.75],
@@ -205,8 +209,8 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
   ],
   tea: [
     [0, [3.2, 1.55, 2.6, 0.9, 1.05, 0.6, 40]],
-    [0.45, [2.7, 1.45, -0.15, 1.0, 1.0, 0.6, 40]],
-    [0.62, [2.6, 1.42, -0.1, 1.0, 1.0, 0.55, 38]],
+    [0.45, [2.95, 1.7, -0.3, 1.1, 0.98, 0.5, 42]],
+    [0.62, [2.85, 1.66, -0.25, 1.1, 0.98, 0.5, 40]],
     [1, [1.75, 1.05, 1.15, 0.85, 0.55, 0.6, 38]],
   ],
   start: [
@@ -299,10 +303,12 @@ const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
     [0, [3.3, 1.9, 4.4, -1.0, 0.9, -1.0, 50]],
     [1, [3.0, 1.85, 4.2, -1.0, 0.9, -1.2, 48]],
   ],
+  // He brings it from behind; then, across the desk, the glass and the hand that takes it.
   lastTea: [
     [0, [2.6, 1.42, 1.6, 1.0, 0.95, 0.3, 38]],
-    [0.6, [1.75, 1.15, 1.0, 0.95, 0.78, 0.15, 34]],
-    [1, [1.6, 1.08, 0.85, 0.98, 0.78, 0.1, 30]],
+    [0.42, [2.45, 1.45, 1.5, 1.0, 0.95, 0.3, 37]],
+    [0.42, [1.62, 1.3, -0.4, 1.0, 0.86, 0.25, 40]],
+    [1, [1.5, 1.2, -0.3, 0.98, 0.8, 0.16, 32]],
   ],
   depart: [
     [0, [0.95, 1.5, 1.9, 0.75, 1.3, -8, 50]],
@@ -364,6 +370,8 @@ class YasamakDirector implements SetDirector {
   private childAway = 0
   private motherGone = false
   private motherAway = 0
+  private motherHere = false
+  private motherSeatAway = 0
   private crowdState: Array<{ shown: boolean; age: number; away: number }> = []
   private v = new THREE.Vector3()
   private arifChair!: THREE.Group
@@ -703,11 +711,16 @@ class YasamakDirector implements SetDirector {
         if (seg === 'answer' && u > 0.6) arif.walk(P_BACK, smoothstep(0.6, 1, u), P.STAND, -2.4, PI)
         break
       case 'tea':
-        arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_TYPE).lookAt(SERVE.x, SERVE.z, 0.7 * smoothstep(0.1, 0.3, u) * (1 - smoothstep(0.6, 0.8, u)))
+        arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_TYPE).lookAt(cashier.x, cashier.z, 0.7 * smoothstep(0.1, 0.3, u) * (1 - smoothstep(0.6, 0.8, u)))
         break
       case 'spend':
-        arif.place(ARIF.x, ARIF.z, PI).hold(f.flags.has('hour:window') && u > 0.3 ? P.SIT_BACK : P.SIT_TYPE)
-        if (f.flags.has('hour:window') && u > 0.3) arif.lookAt(ARIF.x + 1.2, -5, 0.5)
+        arif.place(ARIF.x, ARIF.z, PI)
+        if (f.flags.has('hour:window'))
+          arif.blend([
+            [0.3, P.SIT_TYPE],
+            [0.44, P.SIT_BACK],
+          ], u).lookAt(ARIF.x + 1.2, -5, 0.5 * smoothstep(0.3, 0.44, u))
+        else arif.hold(P.SIT_TYPE)
         break
       case 'life':
       case 'closing':
@@ -717,7 +730,13 @@ class YasamakDirector implements SetDirector {
       case 'phone': {
         const talk = f.flags.has('mom:talk')
         const out = smoothstep(0.04, 0.16, u) * (1 - smoothstep(talk ? 0.48 : 0.6, talk ? 0.56 : 0.72, u))
-        arif.place(ARIF.x, ARIF.z, PI).hold(talk && u > 0.5 ? P.SIT_LOOK : P.SIT_STILL)
+        arif.place(ARIF.x, ARIF.z, PI)
+        if (talk)
+          arif.blend([
+            [0.5, P.SIT_STILL],
+            [0.6, P.SIT_LOOK],
+          ], u)
+        else arif.hold(P.SIT_STILL)
         arif.reach('r', out, PHONE_HELD.x, PHONE_HELD.y, PHONE_HELD.z - 0.05, 0.3)
         if (talk) arif.lookAt(MOTHER.x, MOTHER.z, smoothstep(0.5, 0.62, u) * (1 - smoothstep(0.85, 1, u)))
         break
@@ -726,9 +745,16 @@ class YasamakDirector implements SetDirector {
         arif.place(ARIF.x, ARIF.z, PI).hold(P.SIT_STILL)
         arif.reach('r', Math.sin(PI * smoothstep(0.55, 0.95, u)), TEA_SPOT_2.x + 0.02, TEA_SPOT_2.y + 0.06, TEA_SPOT_2.z, 0.35)
         break
+      case 'after':
+        // Still bent over the empty chair, then back in his own.
+        arif.place(ARIF.x, ARIF.z, PI).blend([
+          [0.5, P.SIT_SLUMP],
+          [0.95, P.SIT_BACK],
+        ], u)
+        break
       case 'depart':
         arif.place(ARIF.x, ARIF.z, PI).blend([
-          [0, P.STAND],
+          [0, P.SIT_STILL],
           [0.3, P.SIT_TYPE],
         ], u)
         break
@@ -747,13 +773,17 @@ class YasamakDirector implements SetDirector {
     child.place(CHILD.x, CHILD.z, PI).hold(this.childStage === 0 ? P.SIT_TYPE : this.childStage === 1 ? P.SIT_BACK : P.SIT_TYPE)
     child.visible = f.p < SEG.dilation.start + SEG.dilation.len * 0.3
 
-    // Mother: there, always — until no one is looking.
+    // Mother: there, always — she sits down while no one is looking, and leaves the same way.
+    this.v.set(MOTHER.x, 1.2, MOTHER.z)
+    this.motherSeatAway = f.inView(this.v, 0.5) ? 0 : this.motherSeatAway + f.dt
+    if (f.p < SEG.returns.start) this.motherHere = false
+    else if (!this.motherHere && (this.motherSeatAway > 0.4 || f.p >= SEG.mother.start)) this.motherHere = true
     this.motherAway = this.track(mother.figure, f, this.motherAway)
     if (f.p < SEG.gone.start) this.motherGone = false
     else if (!this.motherGone && (this.motherAway > 0.4 || f.p > SEG.gone.end)) this.motherGone = true
     mother.place(MOTHER.x, MOTHER.z, PI).hold(P.SIT_TYPE)
     if (seg === 'phone' && f.flags.has('mom:talk')) mother.lookAt(ARIF.x, ARIF.z, smoothstep(0.5, 0.6, u) * (1 - smoothstep(0.8, 0.95, u)))
-    mother.visible = f.p >= SEG.mother.start - SEG.clock.len && !this.motherGone
+    mother.visible = this.motherHere && !this.motherGone
 
     elder.place(ELDER.x, ELDER.z, PI).hold(f.p >= SEG.answer.start + SEG.answer.len * 0.4 ? P.SIT_BACK : P.SIT_SLUMP)
     if (seg === 'owner') elder.lookAt(NEAR_ELDER.x, NEAR_ELDER.z, smoothstep(0.05, 0.2, u))
@@ -808,11 +838,12 @@ class YasamakDirector implements SetDirector {
     this.hemi.color.setRGB(1, lerp(0.89, 0.7, away), lerp(0.75, 0.55, away))
 
     arif.apply(f.time, !f.reduced)
-    this.props(f, seg, u)
     child.apply(f.time, !f.reduced)
     mother.apply(f.time, !f.reduced)
     elder.apply(f.time, !f.reduced)
     cashier.apply(f.time, !f.reduced)
+    // After the figures: the glass and the phone follow this frame's hands.
+    this.props(f, seg, u)
 
     // ——— Camera ———
     keyed(SHOTS[seg] ?? SHOTS.open!, held(u, f.reduced), shot)
@@ -824,14 +855,20 @@ class YasamakDirector implements SetDirector {
   private serve(seg: SegmentId, u: number) {
     const c = this.cashier
     if (seg !== 'tea' && seg !== 'lastTea') return
-    const a = seg === 'tea' ? 0.04 : 0.0
-    if (u < a + 0.4) c.walk(P_SERVE, smoothstep(a, a + 0.4, u), P.CARRY, PI, -2.6)
-    else if (u < 0.66) {
-      c.place(SERVE.x, SERVE.z, -2.6).hold(P.STAND)
+    const { arrive, down, leave } = SERVE_AT
+    if (u < arrive) c.walk(P_SERVE, smoothstep(0.04, arrive, u), P.CARRY, PI, SERVE.yaw)
+    else if (u < leave) {
+      // He bends to the desk; the hand reaches the spot exactly when the glass is set down.
+      c.place(SERVE.x, SERVE.z, SERVE.yaw).blend([
+        [arrive, P.CARRY],
+        [down - 0.03, P.LEAN],
+        [down + 0.03, P.LEAN],
+        [leave, P.STAND],
+      ], u)
       const spot = seg === 'tea' ? TEA_SPOT : TEA_SPOT_2
-      c.reach('r', Math.sin(PI * smoothstep(a + 0.4, 0.66, u)), spot.x, spot.y + 0.06, spot.z, 0.4)
-      c.lookAt(ARIF.x, ARIF.z, 0.6)
-    } else c.walk(P_SERVE_BACK, smoothstep(0.66, 1, u), P.STAND, -2.6, PI)
+      c.reach('r', Math.sin(PI * smoothstep(arrive, leave, u)), spot.x, spot.y + 0.03, spot.z, 0.4)
+      c.lookAt(ARIF.x, ARIF.z, 0.6 * (1 - smoothstep(arrive, down, u)) + 0.6 * smoothstep(down, leave, u))
+    } else c.walk(P_SERVE_BACK, smoothstep(leave, 1, u), P.STAND, SERVE.yaw, PI)
   }
 
   /** The short chair leg, the glasses of tea, the phone in his hand. */
@@ -843,13 +880,14 @@ class YasamakDirector implements SetDirector {
     // Tea: carried, then on the desk until the cafe is gone.
     const cashierHand = this.cashier.figure.rGrip
     const glass = (g: THREE.Group, s: SegmentId, spot: THREE.Vector3) => {
-      const from = SEG[s].start + SEG[s].len * 0.04
-      const down = SEG[s].start + SEG[s].len * 0.53
-      g.visible = p >= from && p < SEG.zero.start + SEG.zero.len * 0.4
+      const down = at(s, SERVE_AT.down)
+      g.visible = p >= at(s, 0.04) && p < SEG.zero.start + SEG.zero.len * 0.4
       if (!g.visible) return
       if (p < down) {
         cashierHand.getWorldPosition(this.v)
-        g.position.set(this.v.x, this.v.y - 0.03, this.v.z)
+        this.v.y -= 0.03
+        // Into its place over the last of the reach, so it never jumps.
+        g.position.lerpVectors(this.v, spot, smoothstep(at(s, SERVE_AT.down - 0.08), down, p))
       } else g.position.copy(spot)
     }
     glass(this.teas[0], 'tea', TEA_SPOT)

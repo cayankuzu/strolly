@@ -225,7 +225,7 @@ export class Figure {
 
     // Head
     const headR = look.build === 'f' ? 0.1 : 0.105
-    this.headMeshes.push(mesh(headGeometry(headR, look.face), look.skinHead, 0, 0.108, 0.008, J.head))
+    this.headMeshes.push(mesh(headGeometry(headR, look.face, look.hairStyle), look.skinHead, 0, 0.108, 0.008, J.head))
     this.headMeshes.push(mesh(hairGeometry(headR, look.hairStyle), look.hair, 0, 0.108, 0.008, J.head))
     const k = headR / 0.105
     const white = eyeWhite()

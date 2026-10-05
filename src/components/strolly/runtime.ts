@@ -67,6 +67,7 @@ export type JournalEntry = { gate: ChoiceGate; picked: ChoiceOption[] }
 const IDLE_AFTER = 3.2
 const LEAVE_MS = 560
 const NO_MOTION: AudioFrame['motion'] = { step: 0, walking: 0, robots: 0, doors: 0, frame: 0 }
+const NO_FLAGS: ReadonlySet<string> = new Set()
 
 type Reading = {
   story: StoryContent
@@ -501,7 +502,7 @@ export class StoryRuntime {
     const r = this.reading
     if (!r) {
       this.stage?.clear()
-      this.audio.update({ p: 0, dt, motion: NO_MOTION, set: 'menu', listener: null })
+      this.audio.update({ p: 0, dt, motion: NO_MOTION, set: 'menu', flags: NO_FLAGS, listener: null })
       return
     }
     // Paused: the last frame stays on screen; nothing advances.
@@ -568,7 +569,7 @@ export class StoryRuntime {
       l.fz = after.forward.z
       listener = l
     }
-    this.audio.update({ p, dt, motion: after?.motion ?? NO_MOTION, set: after?.set ?? 'none', listener })
+    this.audio.update({ p, dt, motion: after?.motion ?? NO_MOTION, set: after?.set ?? 'none', flags: r.flags, listener })
     r.lastP = p
   }
 
@@ -603,7 +604,7 @@ export class StoryRuntime {
 
     // Sound captions on forward crossings.
     if (forward && settings.get().captions)
-      for (let i = 0; i < r.captions.length; i++) if (r.lastP < r.captionAt[i] && p >= r.captionAt[i]) this.cb.caption(r.captions[i].text)
+      for (let i = 0; i < r.captions.length; i++) if (r.lastP < r.captionAt[i] && p >= r.captionAt[i] && meets(r.captions[i].when, r.flags)) this.cb.caption(r.captions[i].text)
 
     // What is in view.
     const info = this.stageInfo

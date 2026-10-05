@@ -27,10 +27,15 @@ function Brand() {
       }}
     >
       <div style={{ fontSize: 84, letterSpacing: 40, fontWeight: 300, paddingLeft: 40 }}>STROLLY</div>
-      <div style={{ display: 'flex', marginTop: 56, fontSize: 20, letterSpacing: 10, opacity: 0.55 }}>
-        {STORY_ORDER.map((id, i) => (
-          <div key={id} style={{ display: 'flex', marginLeft: i ? 40 : 0 }}>
-            {String(i + 1).padStart(2, '0')} {STORIES[id].meta.title}
+      {/* Six titles do not fit one line at this size: two rows of three. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 56, fontSize: 20, letterSpacing: 10, opacity: 0.55 }}>
+        {[STORY_ORDER.slice(0, 3), STORY_ORDER.slice(3)].map((row, r) => (
+          <div key={r} style={{ display: 'flex', marginTop: r ? 18 : 0, paddingLeft: 10 }}>
+            {row.map((id, i) => (
+              <div key={id} style={{ display: 'flex', marginLeft: i ? 40 : 0 }}>
+                {String(r * 3 + i + 1).padStart(2, '0')} {STORIES[id].meta.title}
+              </div>
+            ))}
           </div>
         ))}
       </div>
