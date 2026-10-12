@@ -41,8 +41,8 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [140.0, 1.9, 13.6, 140.6, 2.15, 0, 42]],
   ],
   welcome: [
-    [0, [140.55, 1.66, -1.85, 140.0, 1.5, -4.6, 38]],
-    [1, [140.5, 1.64, -2.05, 140.0, 1.52, -4.6, 36]],
+    [0, [140.95, 1.7, -1.05, 140.05, 1.45, -4.4, 36]],
+    [1, [140.9, 1.68, -1.3, 140.05, 1.45, -4.4, 34]],
   ],
   helmet: [
     [0, [136.3, 1.55, -13.6, 138.0, 1.3, -15.2, 40]],
@@ -59,24 +59,24 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [136.85, 1.48, -14.1, 138.25, 1.3, -15.65, 38]],
   ],
   pill: [
-    [0, [139.05, 1.4, -14.3, 138.1, 1.32, -15.35, 32]],
-    [1, [138.95, 1.38, -14.45, 138.1, 1.32, -15.35, 30]],
+    [0, [138.98, 1.42, -15.62, 137.85, 1.25, -15.0, 36]],
+    [1, [138.9, 1.4, -15.68, 137.85, 1.25, -15.0, 34]],
   ],
   how: [
-    [0, [135.15, 1.3, -13.1, 136.3, 1.72, -18.95, 40]],
-    [1, [135.25, 1.32, -13.4, 136.2, 1.74, -18.95, 38]],
+    [0, [135.72, 1.42, -14.3, 136.05, 1.76, -18.95, 23]],
+    [1, [135.76, 1.45, -14.6, 136.05, 1.78, -18.95, 22]],
   ],
   reveal: [
-    [0, [135.3, 1.4, -13.6, 136.1, 1.75, -18.95, 38]],
-    [1, [135.8, 1.55, -15.9, 136.0, 1.78, -18.95, 38]],
+    [0, [135.76, 1.46, -14.65, 136.05, 1.78, -18.95, 24]],
+    [1, [135.92, 1.62, -16.3, 136.02, 1.8, -18.95, 30]],
   ],
   again: [
-    [0, [138.6, 1.52, -14.6, 135.2, 1.35, -17.2, 44]],
-    [1, [138.4, 1.5, -14.8, 135.1, 1.35, -17.3, 44]],
+    [0, [136.95, 1.58, -14.15, 135.55, 1.52, -17.6, 40]],
+    [1, [136.85, 1.56, -14.3, 135.5, 1.5, -17.65, 40]],
   ],
   hallu: [
-    [0, [135.15, 1.68, -15.55, 134.42, 1.55, -16.75, 30]],
-    [1, [135.05, 1.66, -15.7, 134.42, 1.55, -16.75, 28]],
+    [0, [135.5, 1.7, -15.7, 134.72, 1.5, -16.82, 30]],
+    [1, [135.45, 1.69, -15.78, 134.72, 1.5, -16.82, 28]],
   ],
   nolimit: [
     [0, [136.05, 1.65, -16.4, 136.0, 1.78, -18.95, 36]],
@@ -152,6 +152,33 @@ function seated(w: World, a: Actor) {
   return a
 }
 
+/** A towel draped round the neck: an arc behind the neck, two ends down the chest (built once per figure). */
+const neckTowels = new WeakMap<Actor, THREE.Group>()
+function neckTowel(w: World, a: Actor) {
+  let g = neckTowels.get(a)
+  if (!g) {
+    g = new THREE.Group()
+    g.userData.neckTowel = true
+    const mat = (w.towel.material as THREE.Material).clone()
+    const arc = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.032, 8, 24, PI * 1.25), mat)
+    arc.rotation.set(PI / 2, 0, -PI * 0.125 + PI)
+    arc.scale.set(1, 1.15, 0.8)
+    arc.position.set(0, 0.0, -0.01)
+    g.add(arc)
+    for (const sx of [-1, 1]) {
+      const end = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.3, 0.025), mat)
+      end.position.set(sx * 0.075, -0.15, 0.09)
+      end.rotation.set(-0.12, 0, sx * 0.08)
+      g.add(end)
+    }
+    g.traverse((o) => ((o as THREE.Mesh).castShadow = true))
+    a.figure.joints.neck.add(g)
+    g.position.set(0, 0.0, 0.0)
+    neckTowels.set(a, g)
+  }
+  return g
+}
+
 /** Glasses on his face or not. */
 function glassesOn(a: Actor, on: boolean) {
   a.figure.glasses.visible = on
@@ -182,6 +209,8 @@ function carAt(w: World, x: number, door: number) {
   w.carHolder.rotation.y = PI / 2
   w.car.door.rotation.y = -1.05 * door
   w.car.card.visible = true
+  w.car.shell.visible = true
+  w.car.inner.visible = false
 }
 
 /** The driver's seat in the car at the curb, in world terms. */
@@ -204,10 +233,12 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
   sv.setHelmet(0, v.set(CHAIR.x, 1.4, CHAIR.z))
   bands(w, 0, 0, t)
   sv.mapScreen.redraw((cx, W, H) => S.prepScreen(cx, W, H, { kind: 'idle' }), 'idle')
-  sv.lens.pose(v.set(139.4, 3.0, -15.4), v2.set(139.4, 1.85, -15.4), new THREE.Vector3(139.25, 1.6, -15.2), new THREE.Vector3(-0.4, 0, 0.2))
+  sv.lens.pose(v.set(138.95, 3.0, -15.95), v2.set(138.95, 1.95, -15.95), new THREE.Vector3(139.2, 1.62, -15.65), new THREE.Vector3(-0.35, 0, 1))
   sv.cupPill.visible = true
   sv.cupWater.visible = true
+  sv.mapArm.visible = true
   sv.towel.visible = false
+  neckTowel(w, c.arifO).visible = false
   sv.logoScreen.redraw((cx, W, H) => S.logoLoop(cx, W, H, (t * 0.25) % 1), `logo:${Math.floor(t * 4) % 8}`)
   sv.info.redraw((cx, W, H) => S.explainer(cx, W, H, 0, 0, two(f)), `ex:0:${two(f)}`)
   for (const g of [c.g1, c.g2]) w.use(g)
@@ -228,8 +259,8 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       const d = driver(x)
       if (u < 0.36) {
         a.place(d.x, d.z, -PI / 2).hold(C.DRIVE)
-        a.reach('l', 1, d.x - 0.36, 1.03, d.z - 0.14, 0.5)
-        a.reach('r', 1, d.x - 0.36, 1.03, d.z + 0.16, 0.5)
+        a.reach('l', 1, d.x - 0.54, 0.97, d.z - 0.17, 0.5)
+        a.reach('r', 1, d.x - 0.54, 0.97, d.z + 0.17, 0.5)
       } else if (u < 0.45) {
         const k = sub(u, 0.36, 0.45)
         a.place(lerp(d.x, d.x - 0.05, k), lerp(d.z, d.z + 0.75, k), lerp(-PI / 2, 0.2, k)).blend(
@@ -265,11 +296,11 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       const az = lerp(-1.2, -2.6, ss(0, 0.18, u))
       if (u < 0.18) a.walk(makePath([[140.1, -0.6], [140.2, -2.6]]), sub(u, 0, 0.18), P.STAND, PI, PI)
       else a.place(140.2, az, PI).hold(P.STAND)
-      a.lookAt(139.7, -4.3, 0.5)
+      a.lookAt(140.35, -4.25, 0.5)
       const g1 = c.g1
       const g2 = w.use(c.g2)
       const step = ss(0, 0.2, u)
-      g1.place(lerp(139.4, 139.65, step), lerp(-5.0, -4.3, step), lerp(0.2, 0.15, step)).blend(
+      g1.place(lerp(140.1, 140.35, step), lerp(-4.95, -4.25, step), -0.1).blend(
         [
           [0.02, C.HOST],
           [0.08, C.BOW],
@@ -277,7 +308,7 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         ],
         u,
       )
-      g2.place(lerp(141.0, 140.8, step), lerp(-5.1, -4.45, step), -0.2).blend(
+      g2.place(lerp(141.45, 141.25, step), lerp(-5.1, -4.5, step), -0.35).blend(
         [
           [0.0, C.HOST],
           [0.7, C.HOST],
@@ -315,7 +346,8 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       const down = ss(0.25, 0.55, u)
       sv.setHelmet(down, v)
       bands(w, ss(0.3, 0.55, u), ss(0.55, 0.65, u), t)
-      if (u > 0.3) sv.mapScreen.redraw((cx, W, H) => S.prepScreen(cx, W, H, { kind: 'scan', t: Math.floor(t * 6) / 6, thumb: 1 }), `scan:${Math.floor(t * 6)}`)
+      const prog = sub(u, 0.3, 0.98)
+      if (u > 0.28) sv.mapScreen.redraw((cx, W, H) => S.prepScreen(cx, W, H, { kind: 'scan', t: Math.floor(t * 6) / 6, thumb: 1, p: prog }), `scan:${Math.floor(t * 6)}:${Math.round(prog * 50)}`)
       // The blue band lights the room a little.
       w.lights.setPoint(4, 0x5a86ff, 2.5 * down, [v.x, v.y + 0.1, v.z - 0.2], 2.5)
       motion.robots = win(u, 0.24, 0.28, 0.52, 0.56)
@@ -371,20 +403,20 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       w.apply(t)
       glassesOn(a, off < 0.5)
       if (off >= 0.5) inHand(w.heldGlasses, a.figure, 'l', [0, -0.01, 0.02], [0, 0, PI / 2])
-      // The arm swings in and the twin cups touch his eyes.
+      // The arm swings in from the front and the twin cups touch his eyes.
       jointPos(a.figure, 'head', v)
       const inK = win(u, 0.18, 0.36, 0.46, 0.58)
-      const eyes = new THREE.Vector3(v.x, v.y + 0.04, v.z - 0.12)
-      const park = new THREE.Vector3(139.25, 1.6, -15.2)
+      const eyes = new THREE.Vector3(v.x, v.y + 0.11, v.z - 0.2)
+      const park = new THREE.Vector3(139.2, 1.62, -15.65)
       const at = park.clone().lerp(eyes, inK)
-      const toward = new THREE.Vector3(-0.4, 0, 0.2).lerp(new THREE.Vector3(0, -0.05, 1), inK)
-      sv.lens.pose(v2.set(139.4, 3.0, -15.4), new THREE.Vector3(lerp(139.4, 138.6, inK), lerp(1.85, 1.75, inK), lerp(-15.4, -15.6, inK)), at, toward)
+      const toward = new THREE.Vector3(-0.35, 0, 1).lerp(new THREE.Vector3(0, -0.15, 1), inK)
+      sv.lens.pose(v2.set(138.95, 3.0, -15.95), new THREE.Vector3(lerp(138.95, 138.3, inK), lerp(1.95, 1.9, inK), lerp(-15.95, -15.75, inK)), at, toward)
       w.mouth(g2, 0)
       motion.robots = win(u, 0.18, 0.22, 0.52, 0.58)
       if (u < 0.5) {
-        shot.pos.set(139.3, 1.42, -15.0).lerp(v2.set(139.0, 1.4, -15.0), sub(u, 0, 0.5))
-        shot.tgt.set(138.0, 1.36, -15.15)
-        shot.fov = 30
+        shot.pos.set(139.25, 1.48, -15.35).lerp(v2.set(139.1, 1.46, -15.45), sub(u, 0, 0.5))
+        shot.tgt.set(138.0, 1.38, -15.05)
+        shot.fov = 32
       } else {
         // His eyes: Görevli 2's smiling face, soft, then sharp, a mint shimmer at the edges.
         a.visible = false
@@ -404,14 +436,15 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
     }
     case 'pill': {
       serviceLight(w, 'prep')
+      sv.lens.pose(v.set(138.95, 3.0, -15.95), v2.set(138.95, 1.95, -15.95), new THREE.Vector3(139.2, 1.62, -15.65), new THREE.Vector3(-0.35, 0, 1))
       const a = seated(w, w.use(c.arifS))
       glassesOn(a, false)
       const g1 = w.use(c.g1)
-      g1.place(138.7, -15.75, -0.75).hold(C.HOST)
+      g1.place(137.42, -15.62, 0.85).hold(C.HOST)
       // She hands him the cup with the pill, then the water; he swallows.
       const give = win(u, 0.04, 0.16, 0.3, 0.38)
       const give2 = win(u, 0.4, 0.5, 0.62, 0.7)
-      g1.reach('r', Math.max(give, give2), 138.32, 1.15, -15.45, 0.5)
+      g1.reach('r', Math.max(give, give2), 137.86, 1.12, -15.38, 0.5)
       w.apply(t)
       jointPos(a.figure, 'head', v)
       const mouth = new THREE.Vector3(v.x, v.y - 0.06, v.z - 0.1)
@@ -439,24 +472,30 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       shelf(w, !dressed, dressed, u > 0.86)
       const a = w.use(dressed ? c.arifO : c.arifS)
       glassesOn(a, false)
-      a.place(135.05, -16.15, -PI / 2 + 0.25).hold(P.STAND)
+      const ax = 135.0
+      const az = -16.0
+      const fx = Math.sin(-1.8)
+      const fz = Math.cos(-1.8)
+      const front = (d: number, y: number): [number, number, number] => [ax + fx * d, y, az + fz * d]
+      a.place(ax, az, -1.8).hold(P.STAND)
       if (!dressed) {
         // Tie, buttons.
         const tieK = win(u, 0.08, 0.12, 0.2, 0.24)
-        a.reach('l', tieK, 134.85, 1.42, -16.13, 0.5)
-        a.reach('r', tieK, 134.86, 1.4, -16.2, 0.5)
+        a.reach('l', tieK, ...front(0.14, 1.42), 0.5)
+        a.reach('r', tieK, ...front(0.14, 1.4), 0.5)
         const btn = win(u, 0.2, 0.23, 0.28, 0.3)
-        a.reach('r', btn, 134.84, 1.28 - 0.1 * sub(u, 0.22, 0.3), -16.15, 0.5)
+        a.reach('r', btn, ...front(0.14, 1.3 - 0.12 * sub(u, 0.22, 0.3)), 0.5)
         for (const m of w.ties.get(c.arifS) ?? []) m.visible = u < 0.2
       } else {
         // The zip, then the glasses: the hesitation, then laid on the shirt.
-        a.reach('r', win(u, 0.3, 0.33, 0.42, 0.46), 134.84, 1.05 + 0.35 * sub(u, 0.32, 0.44), -16.15, 0.5)
+        a.reach('r', win(u, 0.3, 0.33, 0.42, 0.46), ...front(0.15, 1.02 + 0.38 * sub(u, 0.32, 0.44)), 0.5)
         const look = win(u, 0.55, 0.62, 0.72, 0.76)
-        a.reach('l', look, 134.8, 1.3, -16.05, 0.45)
-        a.reach('l', win(u, 0.76, 0.82, 0.9, 0.95), 134.35, 1.6, -16.42, 0.5)
+        a.reach('l', look, ...front(0.32, 1.32), 0.45)
+        a.reach('l', win(u, 0.76, 0.82, 0.9, 0.95), 134.36, 1.6, -16.42, 0.5)
+        if (look > 0.5) a.lookAt(...([front(0.32, 0)[0], front(0.32, 0)[2]] as [number, number]), 0.3)
       }
       const g1 = w.use(c.g1)
-      g1.place(135.75, -17.35, -0.9).blend(
+      g1.place(136.0, -16.75, -1.0).blend(
         [
           [0.0, C.HOST],
           [0.03, makePose({ rUpper: [-1.1, 0, -0.3], rFore: [-0.4, 0, 0] }, C.HOST)],
@@ -472,9 +511,9 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       w.mouth(g1, win(u, 0.52, 0.56, 0.96, 1) * speech(t, 0.7))
       motion.doors = win(u, 0.03, 0.05, 0.1, 0.12)
       if (u < 0.6) {
-        shot.pos.set(135.75, 1.42, -14.5).lerp(v.set(135.65, 1.42, -14.75), sub(u, 0, 0.6))
-        shot.tgt.set(134.4, 1.3, -16.45)
-        shot.fov = 40
+        shot.pos.set(135.98, 1.52, -14.85).lerp(v.set(135.9, 1.5, -15.0), sub(u, 0, 0.6))
+        shot.tgt.set(134.6, 1.32, -16.35)
+        shot.fov = 42
       } else {
         // Insert on the shelf: the glasses set down on the folded shirt.
         shot.pos.set(134.82, 1.62, -16.05).lerp(v.set(134.74, 1.6, -16.15), sub(u, 0.6, 1))
@@ -491,6 +530,7 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
     case 'nolimit':
     case 'executed': {
       serviceLight(w, 'prep')
+      sv.mapArm.visible = false
       explainerScreen(w, f, seg, u)
       locker(w, seg === 'again' ? ss(0.48, 0.56, u) : seg === 'hallu' || seg === 'nolimit' ? 1 : 0)
       shelf(w, false, true, true)
@@ -529,23 +569,14 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         }
         a.reach('l', win(u, 0.44, 0.48, 0.54, 0.58), 134.62, 1.0, -16.3, 0.5)
       } else {
-        // At the mirror.
-        a.place(135.05, -16.0, -PI / 2 + 0.45).hold(P.STAND)
+        // At the mirror (on the inside of locker 17's open door).
+        a.place(135.02, -16.02, -2.76).hold(P.STAND)
       }
       w.apply(t)
       if (seg === 'reveal' && u < 0.48) inHand(w.cupWater, a.figure, 'r', [0, -0.03, 0.03], [win(u, 0.1, 0.18, 0.3, 0.38) * 1.5, 0, 0])
       // The towel round his neck.
-      if (seg !== 'hallu' && seg !== 'nolimit') {
-        jointPos(a.figure, 'neck', v)
-        towel.visible = true
-        towel.position.set(v.x, v.y - 0.02, v.z)
-        towel.rotation.set(0, a.yaw, 0)
-        towel.scale.set(1.2, 0.5, 1.5)
-      }
-      if (seg === 'nolimit') {
-        // His reflection on the screen's glass, pulling the zip down.
-        w.post.ghost = 0.14
-      }
+      neckTowel(w, a).visible = seg !== 'hallu' && seg !== 'nolimit'
+      towel.visible = false
       keyed(KEYS[seg]!, held(u, f.reduced), shot)
       break
     }
@@ -594,18 +625,21 @@ function awayScene(w: World, f: SetFrame, shot: Shot, u: number) {
   explainerScreen(w, f, 'executed', 0.9)
   if (u < 0.58) {
     serviceLight(w, 'prep')
+    sv.mapArm.visible = false
     locker(w, 1)
     const own = u >= 0.17
     const jacket = u >= 0.46
     shelf(w, false, !own, !own || u < 0.28)
     const a = w.use(jacket ? c.arifJ : own ? c.arifS : c.arifO)
-    a.place(135.05, -16.0, -PI / 2 + 0.45).hold(P.STAND)
+    a.place(135.02, -16.02, -2.76).hold(P.STAND)
     // Fingers through the hair; later the tie knot; the last look.
-    a.reach('r', win(u, 0.03, 0.05, 0.09, 0.11), 134.95, 1.78, -16.08, 0.4)
-    a.reach('l', win(u, 0.24, 0.27, 0.29, 0.31), 134.45, 1.6, -16.4, 0.5)
+    const fx = Math.sin(-2.76)
+    const fz = Math.cos(-2.76)
+    a.reach('r', win(u, 0.03, 0.05, 0.09, 0.11), 135.02 + fx * 0.04, 1.8, -16.02 + fz * 0.04, 0.4)
+    a.reach('l', win(u, 0.24, 0.27, 0.29, 0.31), 134.36, 1.58, -16.42, 0.5)
     const tieK = win(u, 0.31, 0.35, 0.42, 0.45)
-    a.reach('l', tieK, 134.9, 1.43, -16.0, 0.5)
-    a.reach('r', tieK, 134.9, 1.43, -15.96, 0.5)
+    a.reach('l', tieK, 135.02 + fx * 0.14 + 0.02, 1.43, -16.02 + fz * 0.14, 0.5)
+    a.reach('r', tieK, 135.02 + fx * 0.14 - 0.02, 1.43, -16.02 + fz * 0.14, 0.5)
     if (own && !jacket) for (const m of w.ties.get(c.arifS) ?? []) m.visible = u > 0.33
     w.apply(t)
     glassesOn(a, u >= 0.29)
@@ -675,8 +709,8 @@ function awayScene(w: World, f: SetFrame, shot: Shot, u: number) {
     )
   } else {
     a.place(d.x, d.z, -PI / 2).hold(C.DRIVE)
-    a.reach('l', 1, d.x - 0.36, 1.03, d.z - 0.14, 0.5)
-    a.reach('r', 1, d.x - 0.36, 1.03, d.z + 0.16, 0.5)
+    a.reach('l', 1, d.x - 0.54, 0.97, d.z - 0.17, 0.5)
+    a.reach('r', 1, d.x - 0.54, 0.97, d.z + 0.17, 0.5)
   }
   w.apply(t)
   motion.step = a.step

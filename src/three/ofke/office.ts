@@ -109,7 +109,7 @@ function cityBelow(m: OfficeMats, parent: THREE.Object3D, along: 'x' | 'z', faci
   for (let i = 0; i < 9; i++) {
     const w = 8 + rand() * 10
     const d = 8 + rand() * 8
-    const h = 14 + rand() * 30
+    const h = 8 + rand() * 17
     const f = facade({ w, h, d, wall: walls[i % 3], facing: 1, seed: seed + i, lit: 0.2, ground: false })
     const lat = -40 + i * 10 + rand() * 4
     const dep = near + rand() * (far - near)
@@ -543,6 +543,10 @@ export class Office {
       }
     this.arif = makeDesk(0, 5.6, 3, false)
     this.arifMonitor = this.arif.group.children.find((c) => c.type === 'Group' && c.position.y > 0.9) as THREE.Group
+    // At the end of the aisle nobody sits across: no privacy panel, the monitor to one side, so his face shows from the door.
+    for (const c of this.arif.group.children) if ((c as THREE.Mesh).isMesh && Math.abs(c.position.y - 0.92) < 0.01 && c.position.z < -0.3) c.visible = false
+    this.arifMonitor.position.x = 0.44
+    this.arifMonitor.rotation.y = -0.28
     // Arif's desk things: the stapler on the letter, the notepads.
     this.letter = new THREE.Group()
     this.letter.position.set(-0.35, 0.742, 5.45)

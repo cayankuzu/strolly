@@ -28,6 +28,8 @@ export function palette() {
     doorFrame: pbr('painted', 0x9c8a6c, { roughness: 0.6 }),
     handle: pbr('metal', 0xc8c4bb, { roughness: 0.3 }),
     alu: pbr('metal', 0xb9bcbf, { roughness: 0.42 }),
+    /** The door ramp: brushed and worn — less of a mirror, so it reads as aluminum in the door's shade. */
+    rampAlu: Object.assign(pbr('metal', 0xc9ccce, { roughness: 0.5 }), { metalness: 0.55 }),
     cork: pbr('fabric', 0xa87d4f, { roughness: 1, bump: 2 }),
     corkFrame: pbr('wood', 0x6e5034, { roughness: 0.7 }),
     hook: pbr('metal', 0x8b8f93, { roughness: 0.45 }),

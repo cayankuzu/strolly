@@ -11,7 +11,8 @@ import { Figure, type FigureLook } from '../figure/Figure'
 import { Actor } from '../kit/direct'
 import { rbox, std, tube } from '../kit/props'
 import { pbr } from '../kit/surfaces'
-import { cyl, mesh } from '../util'
+import { mesh } from '../util'
+import { knittedBand, needles } from './scarf'
 
 const PI = Math.PI
 export const SCARF_RED = 0xa4472c
@@ -204,7 +205,7 @@ export class Cast {
     this.benAdult.figure.joints.chest.add(this.scarf)
     // Emre now: brown leather jacket.
     this.emreAdult = make(
-      base('Emre', 'm', 'mid', 0x1a1410, own(std(0x5b3b26, 0.6)), jeans(0x262b33), m.shoeDark, {
+      base('Emre', 'm', 'mid', 0x1a1410, own(std(0x3a2a21, 0.55)), jeans(0x262b33), m.shoeDark, {
         face: { jaw: 0.36, nose: 0.22, lips: 0.045, stubble: 0.5 },
         topSurface: 'leather',
         bottomSurface: 'denim',
@@ -216,7 +217,7 @@ export class Cast {
     this.apron(this.kemalYoung.figure, own(pbr('fabric', 0x26282a)))
     // Kemal Abi now: grey, glasses on a cord, brown cardigan, faded apron.
     this.kemalOld = make(
-      base('Kemal Abi (yaşlı)', 'm', 'tan', 0xa8a49e, own(std(0x6a4e38, 0.95)), own(std(0x3a3836, 0.9)), m.shoeDark, {
+      base('Kemal Abi (yaşlı)', 'm', 'tan', 0xa8a49e, own(std(0x4e4339, 0.95)), own(std(0x3a3836, 0.9)), m.shoeDark, {
         face: { jaw: 0.38, nose: 0.27, lips: 0.04, stubble: 0.3 },
         height: HEIGHT.kemalOld,
         topSurface: 'knit',
@@ -224,11 +225,11 @@ export class Cast {
       }),
     )
     this.moustache(this.kemalOld.figure, own(std(0x9a958e, 0.85)))
-    this.apron(this.kemalOld.figure, own(pbr('fabric', 0x4f4c46)))
+    this.apron(this.kemalOld.figure, own(pbr('fabric', 0x5f6b70)))
     // The mother young: long dark hair, beige trench coat.
     this.anneYoung = make(base('Anne (genç)', 'f', 'light', 0x2a1d17, own(std(0xb9a27c, 0.85)), own(std(0x3a3530, 0.9)), m.shoeDark, { height: HEIGHT.anneYoung }))
     // The mother now: grey bun, mauve cardigan, dark skirt, reading glasses.
-    const cardigan = own(std(0x8a6878, 0.95))
+    const cardigan = own(std(0x6b4a60, 0.95))
     this.anneOld = make(
       base('Anne', 'f', 'old', 0xb5afa8, cardigan, own(std(0x2e2a30, 0.9)), m.shoeDark, {
         hairStyle: 'short',
@@ -241,7 +242,7 @@ export class Cast {
     this.bun(this.anneOld.figure)
     this.tops.anneOld = cardigan
     // Dede: white hair and moustache, brown wool vest.
-    const vest = own(std(0x6b5240, 0.95))
+    const vest = own(std(0x5d5850, 0.95))
     this.dede = make(
       base('Dede', 'm', 'old', 0xe0ddd6, vest, own(std(0x4a4845, 0.9)), m.shoeBrown, {
         face: { jaw: 0.3, nose: 0.27, lips: 0.035, stubble: 0.2 },
@@ -380,25 +381,68 @@ export class Cast {
     return b
   }
 
-  /** The mother's unfinished scarf, wrapped once round his neck, the needles stuck in its end. */
+  /**
+   * The mother's unfinished scarf, wrapped once round his neck: a soft knitted
+   * roll resting on his shoulders and collarbones, the long end hanging down
+   * his chest with the two needles still through its last row, the short end
+   * tucked under the roll. Built in the chest bone's frame (adult build).
+   */
   private scarfProp() {
     const knit = pbr('knit', SCARF_RED, { scale: 0.5 })
     const needle = pbr('metal', 0xc0c4c8, { roughness: 0.3 })
     this.materials.push(knit, needle)
+    const meters = (knit.userData.meters as number | undefined) ?? 0.135
+    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z)
     const g = new THREE.Group()
-    const wrap = mesh(new THREE.TorusGeometry(0.078, 0.028, 10, 28), knit, 0, 0.3, 0.004, g)
-    wrap.rotation.x = PI / 2 - 0.15
-    wrap.scale.set(1.05, 1, 0.85)
-    const tail = rbox(0.1, 0.34, 0.02, knit, 0.055, 0.12, 0.115, g, 0.008)
-    tail.rotation.set(0.12, 0, -0.08)
-    const tail2 = rbox(0.1, 0.2, 0.02, knit, -0.03, 0.2, 0.12, g, 0.008)
-    tail2.rotation.set(0.1, 0, 0.1)
-    for (const dx of [-0.02, 0.02]) {
-      const n = cyl(0.0022, 0.0022, 0.3, needle, 0.055 + dx, -0.04, 0.125, g, 6)
-      n.rotation.z = PI / 2 + 0.25 * Math.sign(dx)
-      cyl(0.005, 0.005, 0.006, needle, 0.055 + dx + Math.sign(dx) * 0.14, -0.04 + 0.035 * Math.sign(dx), 0.125, g, 8).rotation.z = PI / 2
-    }
-    g.traverse((c) => (c.castShadow = true))
+    g.name = 'scarf'
+    // The wrap: a soft roll, higher at the back of the neck, sunk onto the collarbones in
+    // front, its band folding over on itself as it goes round (the twist of a real scarf).
+    const R = 1.04
+    const loop = new THREE.CatmullRomCurve3(
+      [V(0, 0.328, -0.1), V(0.078, 0.322, -0.076), V(0.11, 0.31, -0.004), V(0.09, 0.288, 0.076), V(0.018, 0.272, 0.112), V(-0.072, 0.281, 0.09), V(-0.11, 0.307, 0.004), V(-0.08, 0.322, -0.074)].map((v) =>
+        v.set(v.x * R, v.y, (v.z + 0.005) * R - 0.005),
+      ),
+      true,
+      'centripetal',
+    )
+    const radial = new THREE.Vector3()
+    const roll = new THREE.Mesh(
+      knittedBand(loop, {
+        width: (s) => 0.066 + 0.012 * Math.max(0, Math.cos((s - 0.55) * Math.PI * 2)),
+        thick: (s) => 0.039 + 0.007 * Math.sin(s * Math.PI * 6 + 1.1),
+        side: (s, out, at) => {
+          radial.set(at.x, 0, at.z + 0.005).normalize()
+          const t = 0.22 + 0.42 * Math.sin(s * Math.PI * 6 + 0.7)
+          return out.set(0, Math.cos(t), 0).addScaledVector(radial, Math.sin(t))
+        },
+        meters,
+        lenSeg: 140,
+        ringSeg: 18,
+        round: 2.6,
+        ridgeDepth: 0.0022,
+      }),
+      knit,
+    )
+    roll.name = 'scarf-roll'
+    // The long end: out from under the roll on his left, down his chest, a little twisted.
+    const endA = new THREE.CatmullRomCurve3([V(0.048, 0.285, 0.1), V(0.058, 0.245, 0.13), V(0.066, 0.18, 0.142), V(0.07, 0.1, 0.146), V(0.068, 0.025, 0.142)], false, 'centripetal')
+    const twist = (k: number) => (s: number, out: THREE.Vector3) => out.set(Math.cos(k * Math.sin(s * 5)), 0, -Math.sin(k * Math.sin(s * 5)))
+    const long = new THREE.Mesh(knittedBand(endA, { width: (s) => 0.118 + 0.008 * s, thick: 0.016, side: twist(0.22), meters, lenSeg: 56, ringSeg: 12, round: 3.5 }), knit)
+    long.name = 'scarf-end'
+    // The short end, tucked: a hand's length showing over the long one.
+    const endB = new THREE.CatmullRomCurve3([V(-0.032, 0.282, 0.112), V(-0.024, 0.245, 0.152), V(-0.01, 0.19, 0.165), V(0.002, 0.148, 0.166)], false, 'centripetal')
+    const short = new THREE.Mesh(knittedBand(endB, { width: 0.11, thick: 0.016, side: twist(-0.3), meters, lenSeg: 30, ringSeg: 12, round: 3.5 }), knit)
+    short.name = 'scarf-end'
+    g.add(roll, long, short)
+    // The needles through the last row of the long end, tips out on both sides.
+    const nd = needles(needle)
+    nd.position.set(0.068, 0.034, 0.146)
+    nd.rotation.set(-0.05, 0, 0.04)
+    g.add(nd)
+    g.traverse((c) => {
+      c.castShadow = true
+      c.receiveShadow = true
+    })
     g.visible = false
     return g
   }

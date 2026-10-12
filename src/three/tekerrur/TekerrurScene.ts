@@ -18,7 +18,7 @@ import * as THREE from 'three'
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
 import { angleLerp, clamp, lerp, linear, smoothstep, window4 } from '@/lib/math'
 import { evalNumber, type Key } from '@/lib/track'
-import { BASE_ITERATION, SEG, at, eraAt, local, recordAt, segmentAt, type SegmentId } from '@/stories/tekerrur/timeline'
+import { BASE_ITERATION, SEG, TOTAL_SCREENS, at, eraAt, local, recordAt, segmentAt, type SegmentId } from '@/stories/tekerrur/timeline'
 import { RECORDER_LENS, iterationDate } from '@/stories/tekerrur/text'
 import type { SceneInfo, SceneOptions, StoryScene } from '../Stage'
 import { createSetScene, makeShot, type BuildContext, type SetDirector, type SetFrame, type Shot } from '../kit/SetScene'
@@ -28,7 +28,7 @@ import { makePath, pointAt, type Path, type Sample } from '../figure/paths'
 import * as P from '../figure/poses'
 import { fitFov } from '../lens'
 import { mesh } from '../util'
-import { ASLEEP, BEND_SEAT, HAND_OUT, LEAN_DESK, LISTENING, RUB, SIP, SIT_BACK_SLOW, SIT_UP, STAND_SHIFT, THROW_COCK, THROW_RELEASE, arifLooks, makeArif, setEyes, setGlasses } from './cast'
+import { ASLEEP, BEND_SEAT, HAND_OUT, LEAN_DESK, LISTENING, RUB, SIP, SIT_BACK_SLOW, SIT_QUIET, SIT_TALL, SIT_UP, STAND_SHIFT, THROW_COCK, THROW_RELEASE, arifLooks, makeArif, setEyes, setGlasses } from './cast'
 import { RoomSet, BUTTON, CENTER_SCREEN, CHAIR_IN, CHAIR_OUT, DESK, MARKS, NICHES, type ScreenSet } from './room'
 import { Robot } from './robots'
 import { ArchiveSet } from './archive'
@@ -124,22 +124,24 @@ const R = {
     [7.6, 0.0],
     [8.0, 1.15],
   ]),
+  // In single file through the walkway and the door, then fanning out on three separate
+  // arcs (checked in a simulation: never closer than 0.7 m to each other or to Arif).
   coffeeIn: makePath([
     [NICHES.coffee[0], NICHES.coffee[1]],
-    [6.3, 0.15],
+    [6.2, 0.2],
     [5.0, 0.0],
-    [3.7, 0.75],
-    [2.3, 1.85],
-    [1.25, 1.85],
+    [3.6, 0.7],
+    [2.2, 1.45],
+    [1.4, 1.62],
     [MARKS.coffee[0], MARKS.coffee[1]],
   ]),
   snackIn: makePath([
     [NICHES.snack[0], NICHES.snack[1]],
     [7.0, 0.05],
     [5.0, 0.0],
-    [3.7, 0.75],
-    [2.2, 2.05],
-    [0.6, 2.4],
+    [3.7, 0.95],
+    [2.3, 2.0],
+    [0.5, 2.35],
     [-0.5, 2.15],
     [MARKS.snack[0], MARKS.snack[1]],
   ]),
@@ -147,11 +149,11 @@ const R = {
     [NICHES.recorder[0], NICHES.recorder[1]],
     [7.8, 0.0],
     [5.0, 0.0],
-    [3.6, 0.8],
-    [2.0, 2.25],
-    [0.2, 2.75],
-    [-1.6, 2.2],
-    [-2.7, 1.2],
+    [3.9, 1.3],
+    [2.5, 2.8],
+    [0.4, 3.1],
+    [-1.5, 2.9],
+    [-2.7, 1.7],
     [MARKS.recorder[0], MARKS.recorder[1]],
   ]),
   recHalt: makePath([
@@ -166,9 +168,30 @@ const R_OUT = { coffee: reversed(R.coffeeIn), snack: reversed(R.snackIn) }
 const k = (p: number, v: number): Key<number> => [p, v, linear]
 /** How far along its path the recorder is while it follows Arif to the right door. */
 const REC_FOLLOW: Key<number>[] = [k(at('rise', 0.6), 0), k(at('walk', 0), 0.1), k(at('walk', 1), 0.42), k(at('floor', 0.7), 0.5), k(at('rightDoor', 0.55), 0.53), k(at('rightDoor', 0.83), 0.55), k(at('rightDoor', 0.94), 0.76), k(at('forty', 0.25), 1)]
-const COFFEE_IN: Key<number>[] = [k(at('reopen', 0.55), 0), k(at('robots', 1), 0.86), k(at('sits', 0.45), 1)]
-const SNACK_IN: Key<number>[] = [k(at('reopen', 0.68), 0), k(at('robots', 1), 0.8), k(at('sits', 0.5), 1)]
-const REC_IN: Key<number>[] = [k(at('reopen', 0.8), 0), k(at('robots', 1), 0.62), k(at('sits', 0.75), 1)]
+/** Screens after the start of `reopen`, as progress. */
+const rp = (screens: number) => SEG.reopen.start + screens / TOTAL_SCREENS
+/** [screens after `reopen` starts, metres along the path] → progress keys. */
+const glide = (path: Path, keys: Array<[number, number]>): Key<number>[] => keys.map(([sc, m]) => [rp(sc), m / path.total, linear])
+const COFFEE_IN = glide(R.coffeeIn, [
+  [1.1, 0],
+  [1.83, 2.187],
+  [4.1, R.coffeeIn.total],
+])
+const SNACK_IN = glide(R.snackIn, [
+  [1.45, 0],
+  [2.5, 3.119],
+  [3.1, 4.73],
+  [5.1, R.snackIn.total],
+])
+const REC_IN = glide(R.recIn, [
+  [1.65, 0],
+  [2.97, 3.967],
+  [3.45, 5.67],
+  [5.36, R.recIn.total],
+])
+
+/** Development tuning knobs (QA sets `globalThis.__tekTune`); production uses the defaults. */
+const tune = (k: string, d: number) => (process.env.NODE_ENV !== 'production' ? ((globalThis as { __tekTune?: Record<string, number> }).__tekTune?.[k] ?? d) : d)
 
 const sample: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
 const ahead: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
@@ -239,6 +262,8 @@ type State = {
   eraT: number
   hook: number
   spill: number
+  /** The archive's own light (bands, shelves, core): 1 on … 0 out. */
+  archiveFade: number
   record: number
 }
 
@@ -272,10 +297,10 @@ class TekerrurDirector implements SetDirector {
   private thumb!: THREE.Mesh
   private thumbMat!: THREE.MeshBasicMaterial
   private player!: { mesh: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
-  private hudVignette!: THREE.Mesh
-  private hudCode!: { mesh: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
-  private hudGhost!: THREE.Mesh
-  private hudGhostMat!: THREE.MeshBasicMaterial
+  private hudVignette!: THREE.Sprite
+  private hudCode!: { mesh: THREE.Sprite; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
+  private hudGhost!: THREE.Sprite
+  private hudGhostMat!: THREE.SpriteMaterial
   private windowCtx!: CanvasRenderingContext2D
   private windowTex!: THREE.CanvasTexture
   private windowKey = ''
@@ -288,6 +313,7 @@ class TekerrurDirector implements SetDirector {
   private size = new THREE.Vector2()
   private motionInfo = { step: 0, walking: 0, robots: 0, doors: 0, frame: 0 }
   private lastRobots = new THREE.Vector3()
+  private lastShotPos = new THREE.Vector3()
   private stepBase = 0
 
   async build(scene: THREE.Scene, ctx: BuildContext) {
@@ -334,11 +360,13 @@ class TekerrurDirector implements SetDirector {
     this.arifC.figure.rGrip.getWorldPosition(this.releasePoint)
 
     // Drool: a thin strand from the corner of his mouth to the glass, and the wet mark it leaves.
-    const droolMat = new THREE.MeshPhysicalMaterial({ color: 0xe8eef0, roughness: 0.05, transparent: true, opacity: 0.55, depthWrite: false, clearcoat: 1 })
-    const dg = new THREE.CylinderGeometry(0.0016, 0.003, 1, 6, 1)
+    // A hair-thin, glassy strand (it catches light; it is not a white stick).
+    const droolMat = new THREE.MeshPhysicalMaterial({ color: 0xbfc8cc, roughness: 0.04, transparent: true, opacity: 0.32, depthWrite: false, clearcoat: 1, envMapIntensity: 2 })
+    const dg = new THREE.CylinderGeometry(0.0007, 0.0014, 1, 6, 1)
     dg.translate(0, -0.5, 0)
     this.drool = mesh(dg, droolMat, 0, 0, 0, this.room.group)
-    this.wetMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.0, depthWrite: false, envMapIntensity: 2.5, polygonOffset: true, polygonOffsetFactor: -3 })
+    // The wet mark: a faint glossy smear on the dark glass, not a white disc.
+    this.wetMat = new THREE.MeshStandardMaterial({ color: 0x8c979c, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.0, depthWrite: false, envMapIntensity: 2.5, polygonOffset: true, polygonOffsetFactor: -3 })
     this.wetSpot = mesh(new THREE.CircleGeometry(0.035, 20), this.wetMat, CHEEK_SPOT.x, DESK.y + 0.0012, CHEEK_SPOT.z, this.room.group)
     this.wetSpot.rotation.x = -PI / 2
     this.wetSpot.scale.set(1.4, 0.8, 1)
@@ -396,26 +424,31 @@ class TekerrurDirector implements SetDirector {
     this.player = { mesh: pmesh, ctx: pc.getContext('2d')!, tex: ptex, key: '' }
 
     // ——— The record frame: a vignette and a timecode laid in front of the lens ———
+    // Screen-aligned sprites (not solid geometry): they always face the lens and never read as props.
     const vc = document.createElement('canvas')
     vc.width = 512
     vc.height = 288
     drawVignette(vc.getContext('2d')!, 512, 288)
     const vtex = new THREE.CanvasTexture(vc)
     vtex.colorSpace = THREE.SRGBColorSpace
-    this.hudVignette = mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: vtex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), 0, 0, 0, scene)
-    this.hudVignette.renderOrder = 20
+    const hud = (map: THREE.Texture, order: number, toneMapped = false) => {
+      const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthTest: false, depthWrite: false, toneMapped, fog: false }))
+      s.renderOrder = order
+      s.frustumCulled = false
+      s.name = 'record-hud'
+      scene.add(s)
+      return s
+    }
+    this.hudVignette = hud(vtex, 20)
     const cc = document.createElement('canvas')
     cc.width = 640
     cc.height = 100
     const ctex = new THREE.CanvasTexture(cc)
     ctex.colorSpace = THREE.SRGBColorSpace
-    const cmesh = mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: ctex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), 0, 0, 0, scene)
-    cmesh.renderOrder = 21
-    this.hudCode = { mesh: cmesh, ctx: cc.getContext('2d')!, tex: ctex, key: '' }
-    this.hudGhostMat = new THREE.MeshBasicMaterial({ map: this.rt.texture, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: true })
-    this.hudGhost = mesh(new THREE.PlaneGeometry(1, 1), this.hudGhostMat, 0, 0, 0, scene)
-    this.hudGhost.renderOrder = 19
-    for (const m of [this.hudVignette, cmesh, this.hudGhost]) m.frustumCulled = false
+    this.hudCode = { mesh: hud(ctex, 21), ctx: cc.getContext('2d')!, tex: ctex, key: '' }
+    this.hudGhost = hud(this.rt.texture, 19, true)
+    this.hudGhostMat = this.hudGhost.material
+    this.hudGhostMat.opacity = 0
   }
 
   // ————————————————————————————————————————————————————————————————
@@ -445,6 +478,7 @@ class TekerrurDirector implements SetDirector {
       r.setRenderTarget(prev)
     }
     this.compose(f.p, f, shot, false)
+    this.lastShotPos.copy(shot.pos)
   }
 
   /** Which shots need a picture of somewhere else first. */
@@ -520,6 +554,7 @@ class TekerrurDirector implements SetDirector {
       eraT: 0,
       hook: 0,
       spill: 0,
+      archiveFade: 1,
       record: -1,
     }
   }
@@ -567,7 +602,7 @@ class TekerrurDirector implements SetDirector {
     }
     // The chair.
     const out = CHAIR_OUT.z
-    if (p >= at('rise', 0.15) && p < at('sits', 0.4)) st.chairZ = seg === 'rise' ? lerp(CHAIR_IN.z, out, ramp(0.15, 0.45, u)) : seg === 'sits' ? lerp(out, CHAIR_IN.z, ramp(0.25, 0.4, u)) : out
+    if (p >= at('rise', 0.1) && p < at('sits', 0.4)) st.chairZ = seg === 'rise' ? lerp(CHAIR_IN.z, out, ramp(0.1, 0.32, u)) : seg === 'sits' ? lerp(out, CHAIR_IN.z, ramp(0.25, 0.4, u)) : out
     if (p >= at('hover', 0.75) && p < at('whistle', 0.95)) st.chairZ = seg === 'hover' ? lerp(CHAIR_IN.z, out, ramp(0.75, 0.95, u)) : seg === 'whistle' ? lerp(out, CHAIR_IN.z, ramp(0.78, 0.95, u)) : out
     if (p >= SEG.halt.start) st.chairZ = out
     // Doors.
@@ -645,7 +680,7 @@ class TekerrurDirector implements SetDirector {
         C.walk(W.walk, u, LISTENING, undefined, undefined, 0.85)
         this.heavy(C)
         st.clothFolded = false
-        this.follow(shot, C, 1.2, 0.35)
+        this.follow(shot, C, 1.0, 0)
         break
       }
       case 'floor':
@@ -695,7 +730,9 @@ class TekerrurDirector implements SetDirector {
         break
       case 'toLeft':
         S.walk(W.toLeft, u, P.STAND, PI, -PI / 2)
-        this.follow(shot, S, 0.25, 0)
+        // Behind him, between his shoulders and the heavy door ahead.
+        this.follow(shot, S, 1.3, 0)
+        shot.tgt.lerp(this.v.set(-5, 1.4, 0), 0.35)
         break
       case 'leftDoor':
         this.leftDoor(S, u)
@@ -719,14 +756,14 @@ class TekerrurDirector implements SetDirector {
         break
       // ——— 05 TARİH ———
       case 'red':
-        this.seated(S, P.SIT_STRAIGHT)
+        this.seated(S, SIT_TALL)
         S.lookAt(0, -2, 1)
         st.center = { mode: 'sort', a: 1, b: 0, t: ramp(0.5, 1, u), level: ramp(0.5, 0.58, u) }
         st.left = { mode: 'sort', a: 1, b: 0, t: ramp(0.55, 1, u), level: ramp(0.52, 0.6, u) }
         st.right = { mode: 'sort', a: 1, b: 0, t: ramp(0.58, 1, u), level: ramp(0.55, 0.62, u) }
         break
       case 'dive':
-        this.seated(S, P.SIT_STRAIGHT)
+        this.seated(S, SIT_TALL)
         st.center = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
         st.left = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
         st.right = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
@@ -799,12 +836,12 @@ class TekerrurDirector implements SetDirector {
         this.button(S, u, 'press')
         break
       case 'dark':
-        this.seated(S, P.SIT_STILL)
+        this.seated(S, SIT_QUIET)
         st.set = 'black'
         shot.fade = 0
         break
       case 'word':
-        this.seated(S, P.SIT_STILL)
+        this.seated(S, SIT_QUIET)
         st.onT = 1
         st.grid = 1
         st.wallDim = 1 - 0.7 * ramp(0.62, 1, u)
@@ -815,9 +852,12 @@ class TekerrurDirector implements SetDirector {
         st.left = u < 0.62 ? screenOff() : { mode: 'grid', a: ramp(0.65, 1, u), b: 0, t: 0, level: 0.25 }
         st.right = st.left
         if (u < 0.05) shot.fade = 0
+        // The archive's light comes back with the screens, faintly.
+        st.archiveFade = 0.5 * ramp(0.62, 1, u)
+        st.spill = 0.5 * ramp(0.62, 1, u)
         break
       case 'law':
-        this.seated(S, P.SIT_STILL)
+        this.seated(S, SIT_QUIET)
         S.lookAt(-1.5, -4, 0.4)
         st.grid = 0.5
         st.circle = 1
@@ -834,7 +874,7 @@ class TekerrurDirector implements SetDirector {
         this.records(p, u, shot)
         break
       case 'engine':
-        this.seated(S, P.SIT_STILL)
+        this.seated(S, SIT_QUIET)
         st.circle = 1
         st.grid = 0.4
         st.wallDim = 0.3
@@ -848,6 +888,7 @@ class TekerrurDirector implements SetDirector {
           const a = (u - 0.5) * (10 * PI) / 180
           shot.pos.set(Math.sin(a) * 0.01, 14, Math.cos(a) * 0.01)
           shot.locked = true
+          shot.handheld = 0
         }
         break
       case 'again':
@@ -866,10 +907,12 @@ class TekerrurDirector implements SetDirector {
         this.observer(C, 1, shot)
         st.wallDim = ramp(0.0, 0.35, u)
         st.ceilDim = ramp(0.3, 0.6, u)
-        st.center = { mode: 'observer', a: 1 - ramp(0.55, 0.8, u), b: 1 - ramp(0.55, 0.8, u), t: 0, level: 1 - ramp(0.55, 0.8, u) }
+        // The screen's words stay (dimmer, so the centre lines read), then go last.
+        st.center = { mode: 'observer', a: 1 - ramp(0.55, 0.8, u), b: 1 - ramp(0.55, 0.8, u), t: 0, level: (1 - 0.45 * ramp(0.0, 0.1, u)) * (1 - ramp(0.55, 0.8, u)) }
         st.lamp = 1 - ramp(0.2, 0.7, u)
         st.roomLight = 1 - ramp(0.0, 0.75, u)
         st.spill *= 1 - ramp(0.2, 0.7, u)
+        st.archiveFade = 1 - ramp(0.2, 0.7, u)
         break
       case 'end':
         this.observer(C, 1, shot)
@@ -878,6 +921,7 @@ class TekerrurDirector implements SetDirector {
         st.lamp = 0
         st.roomLight = 0
         st.spill = 0
+        st.archiveFade = 0
         shot.fade = 0
         break
     }
@@ -932,7 +976,8 @@ class TekerrurDirector implements SetDirector {
       a.apply(this.time, false)
       a.figure.glasses.getWorldPosition(this.v)
       this.v.y -= 0.01
-      a.reach('r', wr, this.v.x, this.v.y, this.v.z, 0.7)
+      // The elbow stays low behind the desk's edge; the forearm comes up over it to the face.
+      a.reach('r', wr, this.v.x, this.v.y + tune('wakeDy', 0.02), this.v.z, tune('wakeOut', 0.3))
     }
     // Both hands to the face, rubbing.
     const wf = ramp(0.8, 0.88, u)
@@ -971,8 +1016,9 @@ class TekerrurDirector implements SetDirector {
     if (wc > 0) {
       a.apply(this.time, false)
       const s = Math.sin(((u - 0.12) / 0.2) * PI * 2) * 0.03
-      a.figure.joints.head.localToWorld(this.v.set(0.085, 0.07, 0.06 + s))
-      a.reach('l', wc, this.v.x, this.v.y, this.v.z, 0.8)
+      // The back of the left hand along the cheek, from the corner of the mouth back toward the ear.
+      a.figure.joints.head.localToWorld(this.v.set(0.07, 0.06, 0.07 + s))
+      a.reach('l', wc, this.v.x, this.v.y, this.v.z, 0.25)
     }
     // Down to the cloth under the seat.
     const wb = window4(0.48, 0.56, 0.6, 0.66, u)
@@ -1031,6 +1077,12 @@ class TekerrurDirector implements SetDirector {
         ],
         u,
       )
+      // He pushes himself up off the glass: the hands stay where they lay, then leave it.
+      const push = ramp(0.04, 0.1, u) * (1 - ramp(0.3, 0.4, u))
+      if (push > 0) {
+        a.reach('l', push, -0.27, DESK.y + 0.05, 0.52, 0.4)
+        a.reach('r', push, 0.27, DESK.y + 0.05, 0.52, 0.4)
+      }
       this.st.who = 'c'
     } else a.walk(W.rise, (u - 0.6) / 0.4, P.STAND, PI)
     this.st.who = 'c'
@@ -1094,8 +1146,7 @@ class TekerrurDirector implements SetDirector {
       [
         [0.1, P.STAND],
         [0.22, P.LEAN_SOFT],
-        [0.4, P.SIT],
-        [0.6, SIT_UP],
+        [0.4, SIT_UP],
       ],
       u,
     )
@@ -1235,8 +1286,7 @@ class TekerrurDirector implements SetDirector {
         [
           [0.75, P.STAND],
           [0.8, P.LEAN_SOFT],
-          [0.92, P.SIT],
-          [1, SIT_UP],
+          [0.92, SIT_UP],
         ],
         u,
       )
@@ -1326,11 +1376,13 @@ class TekerrurDirector implements SetDirector {
     st.lamp = 1 - ramp(0.42, 0.6, u)
     st.roomLight = 1 - ramp(0.4, 0.78, u)
     st.spill = 1 - ramp(0.55, 0.75, u)
+    st.archiveFade = st.spill
     st.rain = st.rain * (1 - off)
     if (u > 0.75) {
       // Only the ring.
       st.roomLight = 0
       st.spill = 0
+      st.archiveFade = 0
       st.offT = 1.1
     }
   }
@@ -1341,7 +1393,7 @@ class TekerrurDirector implements SetDirector {
     st.record = record
     if (u < 0.02) {
       // The centre screen flashes: the match cut into the first record.
-      this.seated(this.arifS, P.SIT_STILL)
+      this.seated(this.arifS, SIT_QUIET)
       st.grid = 0.5
       st.circle = 1
       st.wallDim = 0.25
@@ -1487,7 +1539,7 @@ class TekerrurDirector implements SetDirector {
         ],
         u,
       )
-    this.follow(shot, a, 1.15, 0.5)
+    this.follow(shot, a, 1.0, 0)
   }
 
   private turnAct(a: Actor, u: number) {
@@ -1674,8 +1726,8 @@ class TekerrurDirector implements SetDirector {
     }
     // The desk lamp: warm, the face always readable.
     const lampOn = st.lamp * sky.lamp + (sky.lamp < 0.5 ? st.lamp * 0.0 : 0)
-    r.lamp.position.set(-1.16, DESK.y + 0.56, 0.22)
-    r.lamp.target.position.set(-0.05, DESK.y, 0.5)
+    r.lamp.position.copy(room.lampAt)
+    r.lamp.target.position.set(-0.05, DESK.y + 0.12, 0.72)
     r.lamp.intensity = 2.6 * lampOn
     r.lamp.angle = 0.95
     r.lamp.penumbra = 0.75
@@ -1695,7 +1747,7 @@ class TekerrurDirector implements SetDirector {
     r.spill.color.set(p >= at('lever', 0.5) ? 0xfff6ea : 0xeef2f6)
     if (this.archive.group.visible) {
       const cascade = seg === 'lever' ? ramp(0.45, 1, u) : p > SEG.lever.end ? 1 : 0
-      this.archive.update(time, cascade, seg === 'lever' ? ramp(0.38, 0.45, u) : p > SEG.lever.end ? 1 : 0, seg === 'lever' ? window4(0.9, 0.95, 0.98, 1, u) : 0)
+      this.archive.update(time, cascade, seg === 'lever' ? ramp(0.38, 0.45, u) : p > SEG.lever.end ? 1 : 0, seg === 'lever' ? window4(0.9, 0.95, 0.98, 1, u) : 0, st.archiveFade)
       if (camInArchive) {
         // Inside the hall: an even, cool light from the bands.
         r.hemi.color.set(0xeef1f3)
@@ -1764,7 +1816,7 @@ class TekerrurDirector implements SetDirector {
         this.windowTex.needsUpdate = true
       }
     }
-    this.wetMat.opacity = 0.65 * st.wet
+    this.wetMat.opacity = 0.2 * st.wet
     this.wetSpot.visible = st.wet > 0.01
     // ——— The screens ———
     this.screen(room.center, st.center, 'c', time)
@@ -1918,10 +1970,9 @@ class TekerrurDirector implements SetDirector {
       r.place(sample.x, sample.z, yaw)
     }
     const markYaw = (x: number, z: number) => Math.atan2(0 - x, 0.9 - z)
-    const arrived = p >= at('sits', 0.45)
-    // Coffee and snack.
-    if (p >= at('reopen', 0.55) && p < SEG.again.start) {
-      if (!arrived || p < at('sits', 0.5)) {
+    // Coffee and snack: out of their niches behind him, then on their marks all night.
+    if (p >= SEG.reopen.start && p < SEG.again.start) {
+      if (p < SEG.sits.end) {
         onPath(co, R.coffeeIn, evalNumber(COFFEE_IN, p), markYaw(MARKS.coffee[0], MARKS.coffee[1]))
         onPath(sn, R.snackIn, evalNumber(SNACK_IN, p), markYaw(MARKS.snack[0], MARKS.snack[1]))
       } else {
@@ -1990,8 +2041,8 @@ class TekerrurDirector implements SetDirector {
     this.cup.visible = this.room.group.visible
     // The recorder: follows him to the right door, back with the robots, and in the end follows him halfway.
     if (p >= at('rise', 0.6) && p < at('forty', 0.25)) onPath(re, R.recOut, evalNumber(REC_FOLLOW, p))
-    else if (p >= at('forty', 0.25) && p < at('reopen', 0.8)) re.place(NICHES.recorder[0], NICHES.recorder[1], PI)
-    else if (p >= at('reopen', 0.8) && p < at('sits', 0.75)) onPath(re, R.recIn, evalNumber(REC_IN, p), Math.atan2(3.3, 0.6))
+    else if (p >= at('forty', 0.25) && p < REC_IN[0][0]) re.place(NICHES.recorder[0], NICHES.recorder[1], PI)
+    else if (p >= REC_IN[0][0] && p < SEG.sits.end) onPath(re, R.recIn, evalNumber(REC_IN, p), Math.atan2(3.3, 0.6))
     if (seg === 'halt') onPath(re, R.recHalt, ease(ramp(0.0, 0.55, u)), Math.atan2(2.5, -0.7))
     if (p >= SEG.turn.start) re.place(-0.3, 1.9, Math.atan2(2.5, -0.7))
     re.group.visible = !st.hideRecorder
@@ -2039,9 +2090,8 @@ class TekerrurDirector implements SetDirector {
     const fwd = this.v.copy(shot.tgt).sub(shot.pos).normalize()
     const right = this.v2.crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize()
     const up = this.v3.crossVectors(right, fwd).normalize()
-    const place = (m: THREE.Mesh, x: number, y: number, sw: number, sh: number) => {
+    const place = (m: THREE.Sprite, x: number, y: number, sw: number, sh: number) => {
       m.position.copy(shot.pos).addScaledVector(fwd, d).addScaledVector(right, x).addScaledVector(up, y)
-      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, fwd.clone().negate()))
       m.scale.set(sw, sh, 1)
     }
     if (this.hudGhost.visible) {
@@ -2088,6 +2138,87 @@ class TekerrurDirector implements SetDirector {
     m.frame = this.motionInfo.frame
   }
 
+  /**
+   * Development QA: what touches what in the current frame — Arif's hands and
+   * arms against the desk glass, the chair and the robots; robots against the
+   * desk, each other and him; the camera against his head. Read by the
+   * headless tools through `globalThis.__tek.probe()`.
+   */
+  probe() {
+    const st = this.st
+    const out: string[] = []
+    const w = (o: THREE.Object3D) => o.getWorldPosition(new THREE.Vector3())
+    const r3 = (p: THREE.Vector3) => `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`
+    const a = st.who === 'c' ? this.arifC : st.who === 's' ? this.arifS : null
+    const joints: Record<string, string> = {}
+    const inDesk = (p: THREE.Vector3, m = 0) => Math.abs(p.x) < DESK.w / 2 + m && Math.abs(p.z) < DESK.d / 2 + m
+    const robots = [this.coffee, this.snack, this.rec].filter((r) => r.group.visible)
+    if (a && a.visible && this.room.group.visible) {
+      const J = a.figure.joints
+      for (const n of ['head', 'chest', 'hips', 'lUpper', 'rUpper', 'lFore', 'rFore', 'lHand', 'rHand', 'lShin', 'rShin', 'lFoot', 'rFoot'] as const) joints[n] = r3(w(J[n]))
+      joints.rGrip = r3(w(a.figure.rGrip))
+      joints.mouth = r3(w(a.figure.mouth))
+      joints.lGrip = r3(w(a.figure.lGrip))
+      const hb = new THREE.Box3().setFromObject(a.figure.headMeshes[0])
+      joints.headBox = `${r3(hb.min)} → ${r3(hb.max)}`
+      if (inDesk(hb.getCenter(new THREE.Vector3())) && hb.min.y < DESK.y - 0.005) out.push(`head ${(DESK.y - hb.min.y).toFixed(3)} into the glass`)
+      // Arm segments against the glass slab (y 0.75–0.79).
+      for (const s of ['l', 'r'] as const) {
+        const e = w(J[`${s}Fore`])
+        const h = w(s === 'l' ? a.figure.lGrip : a.figure.rGrip)
+        const sh = w(J[`${s}Upper`])
+        for (const [n, p0, p1] of [
+          ['upper', sh, e],
+          ['fore', e, h],
+        ] as const) {
+          for (let k = 0; k <= 8; k++) {
+            const p = p0.clone().lerp(p1, k / 8)
+            if (inDesk(p) && p.y > DESK.y - 0.06 && p.y < DESK.y + 0.012) {
+              out.push(`${s}${n} in desk glass @${r3(p)}`)
+              break
+            }
+          }
+        }
+        for (const r of robots) {
+          const d = Math.hypot(h.x - r.x, h.z - r.z)
+          if (d < 0.19 && h.y < 0.8) out.push(`${s}hand inside robot ${r.kind}`)
+        }
+      }
+      const hp = w(J.hips)
+      for (const r of robots) {
+        const d = Math.hypot(hp.x - r.x, hp.z - r.z)
+        if (d < 0.38) out.push(`arif hips ${d.toFixed(2)} from robot ${r.kind}`)
+      }
+      // Standing up: knees and shins must clear the seat (a cushion 0.48 wide, 0.4–0.5 high).
+      if (hp.y > 0.75)
+        for (const n of ['lShin', 'rShin'] as const) {
+          const kp = w(J[n])
+          const fp = w(J[n === 'lShin' ? 'lFoot' : 'rFoot'])
+          for (let k = 0; k <= 4; k++) {
+            const q = kp.clone().lerp(fp, k / 4)
+            if (Math.abs(q.x) < 0.27 && Math.abs(q.z - st.chairZ) < 0.26 && q.y > 0.36 && q.y < 0.52) {
+              out.push(`${n} in the seat`)
+              break
+            }
+          }
+        }
+      const head = w(J.head)
+      head.y += 0.1
+      const cd = head.distanceTo(this.lastShotPos)
+      if (cd < 0.35) out.push(`camera ${cd.toFixed(2)} from his head`)
+    }
+    for (let i = 0; i < robots.length; i++) {
+      const r = robots[i]
+      if (this.room.group.visible && Math.abs(r.x) < DESK.w / 2 + 0.2 && Math.abs(r.z) < DESK.d / 2 + 0.2 && r.kind !== 'recorder') out.push(`robot ${r.kind} under the desk`)
+      for (let j = i + 1; j < robots.length; j++) {
+        const d = Math.hypot(r.x - robots[j].x, r.z - robots[j].z)
+        if (d < 0.42) out.push(`robots ${r.kind}/${robots[j].kind} overlap ${d.toFixed(2)}`)
+      }
+      if (Math.abs(r.x) < 0.35 && Math.abs(r.z - st.chairZ) < 0.45) out.push(`robot ${r.kind} in the chair`)
+    }
+    return { issues: out, who: st.who, cam: r3(this.lastShotPos), joints, robots: robots.map((r) => `${r.kind}@${r.x.toFixed(2)},${r.z.toFixed(2)}`) }
+  }
+
   dispose() {
     this.room.dispose()
     this.rt.dispose()
@@ -2098,6 +2229,7 @@ class TekerrurDirector implements SetDirector {
 /** The scene; the wrapper hands the director each pass's iteration (dates and numbers advance on every loop). */
 export const createTekerrurScene = (options: SceneOptions): StoryScene => {
   const director = new TekerrurDirector()
+  if (process.env.NODE_ENV !== 'production') (globalThis as { __tek?: unknown }).__tek = director
   const inner = createSetScene(director, options)
   return {
     get info() {

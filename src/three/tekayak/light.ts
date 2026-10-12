@@ -222,7 +222,9 @@ export class Sunlight {
           float inside = smoothstep(1.0, 0.8, abs(q.x / uHalf.x)) * smoothstep(1.0, 0.85, abs(q.y / uHalf.y)) * step(0.0, q.z);
           vA = inside * (0.4 + 0.6 * fract(seed * 13.7)) * (0.6 + 0.4 * sin(uTime * 0.8 + s * 7.0));
           vec4 mv = modelViewMatrix * vec4(p, 1.0);
-          gl_PointSize = uSize * (1.2 + 2.6 * fract(seed * 7.1)) * (300.0 / -mv.z) * 0.012;
+          // Motes right at the lens would be white blobs: fade them out close to the camera, and keep them small.
+          vA *= smoothstep(0.45, 1.1, -mv.z);
+          gl_PointSize = min(uSize * 5.0, uSize * (1.2 + 2.6 * fract(seed * 7.1)) * (300.0 / -mv.z) * 0.012);
           gl_Position = projectionMatrix * mv;
         }
       `,

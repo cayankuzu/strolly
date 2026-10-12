@@ -71,16 +71,18 @@ export function setGlasses(f: Figure, askew: number) {
 export const ASLEEP = makePose(
   {
     hipZ: -0.02,
-    spine: [0.62, 0.0, 0.0],
-    chest: [0.44, 0.0, 0.06],
+    spine: [0.6, 0.0, 0.0],
+    chest: [0.42, 0.0, 0.06],
     neck: [0.18, 0.3, 0.2],
     head: [0.1, 0.62, 0.5],
-    lUpper: [0.98, 0.0, 0.16],
-    rUpper: [0.98, 0.0, -0.16],
-    lFore: [-0.05, 0, 0],
-    rFore: [-0.05, 0, 0],
-    lHand: [0.05, 0, 0],
-    rHand: [0.05, 0, 0],
+    // The chest is folded ~1.06 rad forward: −1.06 brings the arms back to plumb; they splay
+    // out past the thighs and the seat's front edge and dangle beside the chair, in front of its arms.
+    lUpper: [-1.02, 0.0, 0.3],
+    rUpper: [-1.02, 0.0, -0.3],
+    lFore: [-0.14, 0, 0],
+    rFore: [-0.14, 0, 0],
+    lHand: [0.08, 0, 0.05],
+    rHand: [0.08, 0, -0.05],
   },
   P.SIT,
 )
@@ -88,20 +90,38 @@ export const ASLEEP = makePose(
 /** The same, the head a little lifted (waking under it). */
 export const ASLEEP_LIFT = makePose({ spine: [0.56, 0, 0], chest: [0.4, 0, 0.04], neck: [0.12, 0.25, 0.14], head: [0.06, 0.5, 0.38] }, ASLEEP)
 
-/** Sitting up, slack. */
+/**
+ * Forearms resting on the glass: the elbows come forward to the desk's edge so
+ * the hands lie on the surface (the shared seated poses put them through it).
+ * `lean` is how far the chest is pitched forward, so the arms keep their place.
+ */
+const deskArms = (lean: number, fore = -0.46) =>
+  ({
+    lUpper: [-0.9 - lean, 0, 0.14],
+    rUpper: [-0.9 - lean, 0, -0.14],
+    lFore: [fore, 0.25, 0],
+    rFore: [fore, -0.25, 0],
+    lHand: [0.14, 0, 0],
+    rHand: [0.14, 0, 0],
+  }) as const
+
+/** Sitting up, slack, forearms on the desk. */
 export const SIT_UP = makePose(
   {
     spine: [0.06, 0, 0],
     chest: [0.04, 0, 0],
     neck: [0.04, 0, 0],
     head: [0.06, 0, 0],
-    lUpper: [-0.3, 0, 0.12],
-    rUpper: [-0.3, 0, -0.12],
-    lFore: [-0.95, 0.2, 0],
-    rFore: [-0.95, -0.2, 0],
+    ...deskArms(0.1),
   },
   P.SIT,
 )
+
+/** Sitting straight (the screens waking), forearms on the desk. */
+export const SIT_TALL = makePose({ spine: [0, 0, 0], chest: [0, 0, 0], neck: [0, 0, 0], head: [0, 0, 0], ...deskArms(0) }, P.SIT)
+
+/** Still, the head lowered, forearms on the desk (after the word). */
+export const SIT_QUIET = makePose({ spine: [0.1, 0, 0], chest: [0.08, 0, 0], neck: [0.16, 0, 0], head: [0.36, 0, 0], ...deskArms(0.18) }, P.SIT)
 
 /** Both hands to the face. */
 export const RUB = makePose(
@@ -135,17 +155,14 @@ export const BEND_SEAT = makePose(
   P.SIT,
 )
 
-/** Leaning over the desk (wiping, checking a screen). */
+/** Leaning over the desk (wiping, checking a screen), forearms on the glass. */
 export const LEAN_DESK = makePose(
   {
     spine: [0.32, 0, 0],
     chest: [0.18, 0, 0],
     neck: [0.08, 0, 0],
     head: [0.22, 0, 0],
-    lUpper: [-0.65, 0, 0.18],
-    lFore: [-1.1, 0.1, 0],
-    rUpper: [-0.6, 0, -0.18],
-    rFore: [-1.0, 0, 0],
+    ...deskArms(0.42, -0.36),
   },
   P.SIT,
 )
@@ -156,8 +173,9 @@ export const THROW_COCK = makePose(
     spine: [0.0, -0.25, 0],
     chest: [-0.06, -0.2, 0],
     head: [0.04, 0.42, 0],
-    lUpper: [-0.4, 0, 0.12],
-    lFore: [-1.0, 0, 0],
+    lUpper: [-0.86, 0, 0.14],
+    lFore: [-0.46, 0.25, 0],
+    lHand: [0.14, 0, 0],
     rUpper: [-2.3, 0, -0.45],
     rFore: [-1.35, 0, 0],
     rHand: [0.3, 0, 0],
@@ -171,8 +189,9 @@ export const THROW_RELEASE = makePose(
     spine: [0.06, 0.15, 0],
     chest: [0.04, 0.2, 0],
     head: [0.06, -0.3, 0],
-    lUpper: [-0.4, 0, 0.12],
-    lFore: [-1.0, 0, 0],
+    lUpper: [-1.0, 0, 0.14],
+    lFore: [-0.46, 0.25, 0],
+    lHand: [0.14, 0, 0],
     rUpper: [-1.75, 0.0, -0.75],
     rFore: [-0.2, 0, 0],
     rHand: [-0.2, 0, 0],
@@ -185,8 +204,9 @@ export const HAND_OUT = makePose(
   {
     spine: [0.04, 0, 0],
     head: [0.04, 0, 0],
-    lUpper: [-0.45, 0, 0.12],
-    lFore: [-1.05, 0.2, 0],
+    lUpper: [-0.94, 0, 0.14],
+    lFore: [-0.46, 0.25, 0],
+    lHand: [0.14, 0, 0],
     rUpper: [-0.55, 0, -0.75],
     rFore: [-0.6, 1.2, 0],
     rHand: [0, 0, 0],
@@ -200,16 +220,30 @@ export const SIP = makePose(
     spine: [0.02, 0, 0],
     neck: [-0.06, 0, 0],
     head: [-0.1, 0, 0],
-    lUpper: [-0.45, 0, 0.12],
-    lFore: [-1.05, 0.2, 0],
+    lUpper: [-0.94, 0, 0.14],
+    lFore: [-0.46, 0.25, 0],
+    lHand: [0.14, 0, 0],
     rUpper: [-0.55, 0.35, -0.3],
     rFore: [-2.0, 0, 0],
   },
   P.SIT,
 )
 
-/** Leaning back slowly in the chair. */
-export const SIT_BACK_SLOW = makePose({ spine: [-0.1, 0, 0], chest: [-0.06, 0, 0], head: [0.1, 0, 0] }, P.SIT_BACK)
+/** Leaning back slowly in the chair, the hands sliding back into his lap. */
+export const SIT_BACK_SLOW = makePose(
+  {
+    spine: [-0.1, 0, 0],
+    chest: [-0.06, 0, 0],
+    head: [0.1, 0, 0],
+    lUpper: [-0.19, 0, 0.16],
+    rUpper: [-0.19, 0, -0.16],
+    lFore: [-0.72, 0.3, 0],
+    rFore: [-0.72, -0.3, 0],
+    lHand: [0.2, 0, 0],
+    rHand: [0.2, 0, 0],
+  },
+  P.SIT_BACK,
+)
 
 /** On the threshold, the head lowered: listening. */
 export const LISTENING = makePose({ neck: [0.22, 0, 0.05], head: [0.28, 0.05, 0.08], lUpper: [0.04, 0, 0.06], rUpper: [-0.1, 0, -0.08], rFore: [-0.3, 0, 0] }, P.STAND)

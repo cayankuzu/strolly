@@ -25,6 +25,11 @@ import { RoofsSet } from './sets/roofs'
 import { AtriumSet } from './sets/atrium'
 import { BridgeSet } from './sets/bridge'
 import { HillSet } from './sets/hill'
+import { SeaSet } from './sets/sea'
+import { BikeSet } from './sets/bike'
+import { SlopeSet } from './sets/slope'
+import { BedroomSet } from './sets/bedroom'
+import { ArchiveSet } from './sets/archive'
 
 const FAR = 4000
 
@@ -79,6 +84,11 @@ class ParalelDirector implements SetDirector {
       [new AtriumSet(), ['glass', 'rooms', 'crack', 'glassBroke']],
       [new BridgeSet(), ['river', 'beams', 'slip', 'ironSlipped']],
       [new HillSet(), ['cliff', 'stone', 'rehearsal']],
+      [new SeaSet(), ['flag', 'waves', 'under', 'up', 'waveKept']],
+      [new BikeSet(), ['bike', 'air']],
+      [new SlopeSet(), ['slope', 'bargain', 'earthFell']],
+      [new BedroomSet(), ['socket', 'spark', 'normal', 'powerKept']],
+      [new ArchiveSet(), ['bodies', 'room', 'devil', 'exception', 'diorama']],
     ]
     for (const [set, segs] of plan) {
       await set.build(ctx)

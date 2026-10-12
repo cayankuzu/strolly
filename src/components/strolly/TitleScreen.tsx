@@ -1,10 +1,11 @@
 'use client'
 
 /** The title screen: the first thing STROLLY says is that it is a game. */
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { STORY_ORDER } from '@/stories/registry'
-import { settings } from '@/lib/settings'
+import { settings, useSettings } from '@/lib/settings'
 import { countWord, useLang, useT, type Lang } from '@/lib/i18n'
+import { STORY_ART } from './StoryArt'
 import { MenuButton, useMenuKeys, useUiSound } from './ui'
 
 export type ContinueInfo = { title: string; chapter: number; chapterTitle: string; percent: number }
@@ -55,6 +56,29 @@ function LangSwitch() {
   )
 }
 
+/** Behind the title: the stories' cards, one after another, faint and slow (a still card without motion). */
+function TitleReel({ active }: { active: boolean }) {
+  const reduced = useSettings().reducedMotion
+  const [shown, setShown] = useState(0)
+  useEffect(() => {
+    if (!active || reduced) return
+    const id = setInterval(() => setShown((k) => (k + 1) % STORY_ORDER.length), 7000)
+    return () => clearInterval(id)
+  }, [active, reduced])
+  return (
+    <div className="title-reel" aria-hidden="true">
+      {STORY_ORDER.map((sid, k) => {
+        const Art = STORY_ART[sid]
+        return (
+          <div key={sid} className="ss-art" data-on={k === shown}>
+            <Art />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function TitleScreen({ active, resume, onContinue, onStories, onNewGame, onSettings, onArchive, onExit }: Props) {
   const menu = useRef<HTMLElement>(null)
   const lang = useLang()
@@ -62,6 +86,7 @@ export default function TitleScreen({ active, resume, onContinue, onStories, onN
   useMenuKeys(menu, active)
   return (
     <section className="screen title-screen" aria-hidden={!active} inert={!active} aria-labelledby="title-mark">
+      <TitleReel active={active} />
       <LangSwitch />
       <div className="title-inner">
         <h1 id="title-mark" className="title-mark">

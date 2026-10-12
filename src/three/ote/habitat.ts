@@ -31,6 +31,12 @@ export const E = {
   side: new THREE.Vector3(302.54, 1.5, -4.75),
   doorway: { x: 311.5, z: 4.0 },
   pantry: { x: 302.0, z: 2.0 },
+  /** The three floor lamps (out of the cameras' ways). */
+  lamps: [
+    [302.6, 3.45],
+    [311.25, 1.3],
+    [304.15, -5.7],
+  ] as ReadonlyArray<readonly [number, number]>,
 }
 
 /** A flat ribbon along a polyline (for the scarf and the deckchair slings). Returns the geometry and the cumulative lengths. */
@@ -418,11 +424,7 @@ export class Habitat {
       L.add(ac)
     }
     // Floor lamps (drum shades) and a side table with a lamp.
-    for (const [x, z] of [
-      [303.0, 1.6],
-      [311.2, 1.4],
-      [305.4, -3.6],
-    ] as const) {
+    for (const [x, z] of E.lamps) {
       cyl(0.16, 0.18, 0.03, m.blackMetal, x, 0.015, z, L, 24)
       cyl(0.012, 0.012, 1.45, m.brass, x, 0.75, z, L, 10)
       const shade = mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.3, 32, 1, true), this.lampShade, x, 1.55, z, L)
@@ -466,7 +468,7 @@ export class Habitat {
       [311.5, 2.5, 3.98, PI],
       [311.98, 1.9, -2.0, -PI / 2],
     ] as const) {
-      rbox(0.64, 0.3, 0.03, m.screenBezel, x - Math.sin(ry) * 0.01, y, z - Math.cos(ry) * 0.01, L, 0.01).rotation.y = ry
+      rbox(0.64, 0.3, 0.03, m.screenBezel, x - Math.sin(ry) * 0.022, y, z - Math.cos(ry) * 0.022, L, 0.01).rotation.y = ry
       const c = canvasPlane(0.6, 0.26, 512, drawDayCounter('0'), { emissive: true })
       c.mesh.position.set(x, y, z)
       c.mesh.rotation.y = ry
@@ -531,12 +533,14 @@ export class Habitat {
       [
         lap,
         new THREE.Vector3(E.armchair.x + 0.3, 0.42, E.armchair.z + 0.55),
-        new THREE.Vector3(E.armchair.x + 0.5, 0.02, E.armchair.z + 0.85),
-        new THREE.Vector3(307.8, 0.012, -1.2),
-        new THREE.Vector3(308.6, 0.012, 0.2),
-        new THREE.Vector3(310.2, 0.012, 2.2),
-        new THREE.Vector3(311.4, 0.012, 3.6),
-        new THREE.Vector3(311.6, 0.012, 4.5),
+        new THREE.Vector3(E.armchair.x + 0.5, 0.012, E.armchair.z + 0.9),
+        new THREE.Vector3(307.85, 0.012, -1.0),
+        new THREE.Vector3(307.75, 0.012, 0.1),
+        new THREE.Vector3(307.05, 0.012, 1.4),
+        new THREE.Vector3(307.5, 0.012, 2.4),
+        new THREE.Vector3(309.4, 0.012, 3.15),
+        new THREE.Vector3(311.0, 0.012, 3.7),
+        new THREE.Vector3(311.5, 0.012, 4.45),
         new THREE.Vector3(312.6, 0.012, 4.85),
         new THREE.Vector3(314.6, 0.012, 4.7),
         new THREE.Vector3(317.2, 0.012, 4.9),
@@ -546,6 +550,7 @@ export class Habitat {
     )
     const out = ribbon(outPts, 0.15)
     this.scarfOut = mesh(out.geo, m.yarn, 0, 0, 0, L)
+    this.scarfOut.name = 'scarfOut'
     this.scarfOutLen = out.len
     this.scarfOut.receiveShadow = true
     // Coiled around the armchair, finished.

@@ -36,18 +36,22 @@ const helixPoint = (turn: number, deg: number, out: THREE.Vector3) => {
 
 function labelSprite(text: string, color = '#d8dadc') {
   const c = document.createElement('canvas')
-  c.width = 256
+  const font = '500 54px ui-monospace, Menlo, Consolas, monospace'
+  const probe = c.getContext('2d')!
+  probe.font = font
+  // The canvas fits the whole label (a long one used to be cut at 256 px).
+  c.width = Math.max(256, Math.ceil(probe.measureText(text).width + 28))
   c.height = 96
   const g = c.getContext('2d')!
   g.fillStyle = color
-  g.font = '500 54px ui-monospace, Menlo, Consolas, monospace'
+  g.font = font
   g.textBaseline = 'middle'
   g.fillText(text, 12, 50)
   const t = new THREE.CanvasTexture(c)
   t.colorSpace = THREE.SRGBColorSpace
   const m = new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0, fog: false })
   const s = new THREE.Sprite(m)
-  s.scale.set(1.6, 0.6, 1)
+  s.scale.set((0.6 * c.width) / 96, 0.6, 1)
   s.center.set(0, 0.5)
   return s
 }
@@ -196,8 +200,7 @@ export class NetworkSet {
     G.add(this.stackLines)
     // Year labels beside the main nodes.
     for (const m of MAIN) {
-      const s = labelSprite(m.year === '2047' ? '2047 · BUGÜN' : m.year)
-      if (m.year === '2047') s.scale.set(2.6, 0.6, 1)
+      const s = labelSprite(m.year === '2047' ? '2047 · TODAY' : m.year)
       const p = helixPoint(m.turn, m.deg, new THREE.Vector3())
       s.position.set(p.x + 0.25, p.y + 0.18, p.z)
       G.add(s)

@@ -32,9 +32,18 @@ const PI = Math.PI
 export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   const textures: THREE.Texture[] = []
   const tex = <T extends THREE.Texture>(t: T) => (textures.push(t), t)
+  // Every unnamed thing a section adds is named after it (readable camera-collision reports).
+  let mark = scene.children.length
+  let current = ''
+  const section = (name: string) => {
+    for (let i = mark; i < scene.children.length; i++) if (!scene.children[i].name && current) scene.children[i].name = current
+    mark = scene.children.length
+    current = name
+  }
   const W = ROOM.x1 - ROOM.x0
   const D = ROOM.z1 - ROOM.z0
 
+  section('floor')
   // ——— Floor: 0.3 m linoleum tiles, a seam exactly on z −2.62 ———
   const lino = tex(linoleum())
   lino.wrapS = lino.wrapT = THREE.RepeatWrapping
@@ -64,6 +73,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   ceil.castShadow = true
   ;(ceil.material as THREE.Material).shadowSide = THREE.DoubleSide
 
+  section('walls')
   // ——— Two coats of oil paint: a darker dado to 1.0 m with a brown line ———
   const dado = (x0: number, x1: number, wall: 'n' | 's' | 'e' | 'w') => {
     const len = x1 - x0
@@ -94,6 +104,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   dado(DOOR.z + DOOR.w / 2 + 0.08, ROOM.z1, 'e')
   dado(ROOM.z0, ROOM.z1, 'w')
 
+  section('windows')
   // ——— Windows: painted casements, a fanlight, glass, radiators under them ———
   const glass: THREE.Mesh[] = []
   for (const z of WINDOWS) {
@@ -143,6 +154,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
     mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 12), m.handle, ROOM.x0 + 0.12, 0.12, z + 0.66, scene)
   }
 
+  section('outside')
   // ——— Outside: a bright yard, trees in October, the school's other wing ———
   const yard = tex(
     canvasTexture(2048, 1024, (g, w, h) => {
@@ -201,6 +213,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   ground.rotation.x = -PI / 2
   ground.receiveShadow = false
 
+  section('door')
   // ——— The door (right wall), a small window, the class sign; the ramp on the threshold ———
   {
     const g = new THREE.Group()
@@ -252,13 +265,15 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
     shape.lineTo(-0.22, 0.004)
     const wedge = new THREE.ExtrudeGeometry(shape, { depth: 1.0, bevelEnabled: false })
     wedge.translate(0, 0, -0.5)
-    const ramp = mesh(wedge, m.alu, DOOR.x - 0.06, 0, DOOR.z, scene)
+    const alu = m.rampAlu
+    const ramp = mesh(wedge, alu, DOOR.x - 0.06, 0, DOOR.z, scene)
     ramp.receiveShadow = true
     ramp.castShadow = true
     // Diamond plate: a few ridges.
-    for (let i = 0; i < 9; i++) rbox(0.3, 0.003, 0.012, m.alu, DOOR.x - 0.08, 0.02 + (i % 2) * 0.001, DOOR.z - 0.4 + i * 0.1, scene, 0.001).rotation.z = 0.08
+    for (let i = 0; i < 9; i++) rbox(0.3, 0.003, 0.012, alu, DOOR.x - 0.08, 0.02 + (i % 2) * 0.001, DOOR.z - 0.4 + i * 0.1, scene, 0.001).rotation.z = 0.08
   }
 
+  section('board-wall')
   // ——— The board wall ———
   const bw = BOARD.w
   const bh = BOARD.h
@@ -328,6 +343,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   clock.group.scale.setScalar(1.0)
   scene.add(clock.group)
 
+  section('back-wall')
   // ——— Back wall: cork board with drawings and the unit poster; coat hooks ———
   rbox(3.46, 1.06, 0.03, m.corkFrame, -1.5, 1.5, ROOM.z1 - 0.015, scene, 0.006)
   const cork = mesh(new THREE.PlaneGeometry(3.4, 1.0), m.cork, -1.5, 1.5, ROOM.z1 - 0.032, scene)
@@ -346,6 +362,7 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   // Hook rail.
   rbox(2.95, 0.07, 0.02, m.corkFrame, 2.45, 1.58, ROOM.z1 - 0.012, scene, 0.004)
 
+  section('ceiling')
   // ——— Ceiling: switched-off fluorescent fittings, the stain ———
   for (const x of [-2.4, 0, 2.4])
     for (const z of [-1.7, 1.3]) {
@@ -369,5 +386,6 @@ export function buildShell(scene: THREE.Scene, m: Pal): Shell {
   rbox(0.08, 0.12, 0.012, m.fixture, ROOM.x1 - 0.006, 1.1, DOOR.z + 0.75, scene, 0.006).rotation.y = PI / 2
   rbox(0.08, 0.08, 0.012, m.fixture, -3.3, 0.35, ROOM.z0 + 0.006, scene, 0.006)
 
+  section('')
   return { clock, title, law, titleAt, lawAt, floor, outside, glass, textures }
 }

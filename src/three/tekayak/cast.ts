@@ -38,6 +38,8 @@ export class Person {
   private earBase = new THREE.Color()
   /** Extra things worn (for disposal). */
   readonly extras: THREE.Object3D[] = []
+  /** A ponytail, hung by gravity every frame (see hang). */
+  tail: THREE.Group | null = null
 
   constructor(
     readonly name: string,
@@ -72,8 +74,9 @@ export class Person {
     arc.rotateZ(Math.PI + Math.PI * 0.1)
     this.grin = mesh(arc, m.mouth, 0, 0.008, 0.001, this.mouth)
     // The tip of a tongue, for concentration (Salim folding).
-    this.tip = mesh(new THREE.SphereGeometry(0.0065, 10, 8), m.tongue, 0.004, -0.004, 0.002, this.mouth)
-    this.tip.scale.set(1.3, 0.6, 1)
+    // (Tucked behind the lips: seen from the side it must not read as a drop on the chin.)
+    this.tip = mesh(new THREE.SphereGeometry(0.0045, 10, 8), m.tongue, 0.004, 0.0, -0.003, this.mouth)
+    this.tip.scale.set(1.3, 0.55, 0.7)
     this.tip.visible = false
     for (const o of [this.lips, this.teeth, this.grin]) {
       o.castShadow = false
@@ -96,10 +99,27 @@ export class Person {
     this.grin.scale.set(0.7 + smile * 0.6, 0.5 + smile * 0.5, 1)
   }
 
+  /**
+   * After `apply`: the ponytail hangs down (a little behind the head), whatever the head does — it is
+   * not stuck out like a horn when she bends over her notebook.
+   */
+  hang() {
+    const t = this.tail
+    if (!t) return
+    const head = this.figure.joints.head
+    head.getWorldQuaternion(hq)
+    fwd.set(0, 0, 1).applyQuaternion(hq)
+    fwd.y = 0
+    if (fwd.lengthSq() > 1e-6) fwd.normalize()
+    down.set(0, -1, 0).addScaledVector(fwd, -0.3).normalize()
+    down.applyQuaternion(hq.invert())
+    t.quaternion.setFromUnitVectors(NEG_Y, down)
+  }
+
   /** The tip of the tongue between the teeth (0 … 1), after `face`. */
   tongue(amount: number) {
     this.tip.visible = amount > 0.05
-    this.tip.position.z = 0.0 + 0.005 * amount
+    this.tip.position.z = -0.003 + 0.002 * amount
   }
 
   /** Holds the eyelids (0 open … 1 shut) and the eyes' direction (radians), after `apply`. */
@@ -129,6 +149,11 @@ export class Person {
     this.earMat?.dispose()
   }
 }
+
+const hq = new THREE.Quaternion()
+const fwd = new THREE.Vector3()
+const down = new THREE.Vector3()
+const NEG_Y = new THREE.Vector3(0, -1, 0)
 
 // ——— Dressing ———
 
@@ -414,7 +439,7 @@ export function buildCast(scene: THREE.Scene, m: Pal, seats: Seat[]): Cast {
       f.root.scale.z *= spec.girth
     }
     shirtFront(f, m.shirtBlue, key === 'eren' ? 0.07 : 0.085, true)
-    if (spec.ponytail) ponytail(f, kidLook(spec, m).hair, m.hairTie, 0.16)
+    if (spec.ponytail) p.tail = ponytail(f, kidLook(spec, m).hair, m.hairTie, 0.16)
     if (spec.glasses) rectGlasses(f, m.glassesFrame, m.lens, 0.042, 0.03)
     if (key === 'salim') {
       tufts(f, m.hairBlack, 5)

@@ -20,7 +20,8 @@ function gownPrint() {
   const c = document.createElement('canvas')
   c.width = c.height = S
   const g = c.getContext('2d')!
-  g.fillStyle = '#d3cdb4'
+  // Cooler than skin (ivory, a little grey), so the two never merge under warm light.
+  g.fillStyle = '#d8d6c8'
   g.fillRect(0, 0, S, S)
   const rand = mulberry32(31)
   // Faint vertical weave streaks.
@@ -28,24 +29,24 @@ function gownPrint() {
     g.fillStyle = `rgba(120,110,80,${0.02 + rand() * 0.04})`
     g.fillRect(x, 0, 1, S)
   }
-  // Sprigs on a half-drop grid: a stem and three small petals, washed out.
-  for (let row = 0; row < 6; row++)
-    for (let col = 0; col < 6; col++) {
-      const x = col * (S / 6) + (row % 2 ? S / 12 : 0) + (rand() - 0.5) * 6
-      const y = row * (S / 6) + 12 + (rand() - 0.5) * 6
+  // Sprigs on a half-drop grid: a stem and three small petals, faded but legible.
+  for (let row = 0; row < 7; row++)
+    for (let col = 0; col < 7; col++) {
+      const x = col * (S / 7) + (row % 2 ? S / 14 : 0) + (rand() - 0.5) * 6
+      const y = row * (S / 7) + 12 + (rand() - 0.5) * 6
       g.save()
       g.translate(x, y)
       g.rotate((rand() - 0.5) * 1.2)
-      g.strokeStyle = 'rgba(105,118,104,0.55)'
-      g.lineWidth = 1.4
+      g.strokeStyle = 'rgba(84,104,86,0.8)'
+      g.lineWidth = 1.8
       g.beginPath()
       g.moveTo(0, 6)
       g.quadraticCurveTo(2, 1, 0, -5)
       g.stroke()
-      g.fillStyle = 'rgba(112,122,150,0.5)'
+      g.fillStyle = 'rgba(86,100,140,0.78)'
       for (let k = 0; k < 3; k++) {
         g.beginPath()
-        g.ellipse(Math.cos(k * 2.1) * 3, -5 + Math.sin(k * 2.1) * 3, 2.4, 1.6, k, 0, Math.PI * 2)
+        g.ellipse(Math.cos(k * 2.1) * 3.4, -5 + Math.sin(k * 2.1) * 3.4, 2.9, 1.9, k, 0, Math.PI * 2)
         g.fill()
       }
       g.restore()
@@ -66,7 +67,8 @@ function gownPrint() {
 
 function gownMaterial(print: THREE.Texture, side: THREE.Side) {
   const { maps } = mapsFor('fabric')
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, map: print, normalMap: maps.normal, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: maps.orm, roughness: 1, side })
+  // A soft weave (a strong relief reads as fur at grazing light).
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, map: print, normalMap: maps.normal, normalScale: new THREE.Vector2(0.28, 0.28), roughnessMap: maps.orm, roughness: 1, side })
   // A real-scale print: one tile every 16 cm (also stops the rig from re-dressing it).
   m.userData.meters = 0.16
   return m
@@ -78,18 +80,19 @@ export function castPalette() {
     eye: std(0x2a1d14, 0.25),
     boySkin: std(0xc99f84, 0.6),
     boySkinHead: std(0xc99f84, 0.58, { vertexColors: true }),
-    boyHair: std(0x17120f, 0.85),
+    boyHair: std(0x34261c, 0.95),
     boyTop: std(0x2b3550, 0.95),
     boyBottom: std(0x6a6d72, 0.95),
     momSkin: std(0xc7ad9c, 0.72),
     momSkinHead: std(0xc7ad9c, 0.7, { vertexColors: true }),
     // Cool grey, so the yellow dawn does not turn it blonde.
-    momHair: std(0x8c8f94, 0.7),
+    momHair: std(0x7c7f84, 0.9),
     gown: gownMaterial(print, THREE.FrontSide),
     skirt: gownMaterial(print, THREE.DoubleSide),
     // Near-black, matte: against a lit wall it is a silhouette, never a lit surface.
     body: new THREE.MeshStandardMaterial({ color: 0x150605, roughness: 0.92, metalness: 0, envMapIntensity: 0.04 }),
-    feetWet: new THREE.MeshStandardMaterial({ color: 0x4a1410, roughness: 0.38, metalness: 0, envMapIntensity: 0.3 }),
+    // Dark and wet: a sheen, never a colour.
+    feetWet: new THREE.MeshStandardMaterial({ color: 0x2a0a08, roughness: 0.42, metalness: 0, envMapIntensity: 0.25 }),
   }
 }
 export type CastPalette = ReturnType<typeof castPalette>
@@ -349,21 +352,34 @@ function messyHair(f: Figure) {
   const geo = new THREE.SphereGeometry(0.03, 8, 6)
   const c = new THREE.Vector3(0, 0.108, 0.008)
   const d = new THREE.Vector3()
-  for (let i = 0; i < 26; i++) {
-    // Over the crown and the back, a few falling onto the forehead.
+  for (let i = 0; i < 64; i++) {
+    // Over the crown, the back (seen most, from behind him) and down to a ragged nape;
+    // a few falling onto the forehead.
     const a = rand() * Math.PI * 2
-    const up = 0.35 + rand() * 0.6
+    const back = i >= 30
+    const up = back ? -0.15 + rand() * 0.75 : 0.35 + rand() * 0.6
     d.set(Math.cos(a) * Math.sqrt(1 - up * up), up, Math.sin(a) * Math.sqrt(1 - up * up))
+    if (back && d.z > -0.2) d.z = -0.2 - rand() * 0.6
     if (d.z > 0.55 && d.y < 0.55) d.y += 0.2
     d.normalize()
     const t = new THREE.Mesh(geo, mat)
-    t.position.copy(c).addScaledVector(d, 0.098 + rand() * 0.006)
+    t.position.copy(c).addScaledVector(d, (back ? 0.094 : 0.098) + rand() * 0.008)
     t.lookAt(t.position.clone().add(d))
     t.rotateZ(rand() * Math.PI)
-    t.scale.set(0.7 + rand() * 0.5, 0.45 + rand() * 0.35, 0.22)
+    t.scale.set(0.7 + rand() * 0.6, 0.45 + rand() * 0.4, 0.24)
     t.castShadow = true
     f.joints.head.add(t)
   }
+}
+
+/** The rig's hair is a glossy physical material; a boy's slept-on hair at night is matte (no helmet sheen). */
+function matteHair(f: Figure) {
+  const mat = f.headMeshes[1]?.material as THREE.MeshStandardMaterial | undefined
+  if (!mat?.isMeshStandardMaterial) return
+  mat.roughnessMap = null
+  mat.roughness = 0.94
+  mat.envMapIntensity = 0.3
+  mat.needsUpdate = true
 }
 
 export function createCast(m: CastPalette): Cast {
@@ -373,6 +389,7 @@ export function createCast(m: CastPalette): Cast {
   boy.root.scale.z *= 0.9
   boy.joints.head.scale.setScalar(1.1)
   messyHair(boy)
+  matteHair(boy)
   const boySkin = wornSkin(boy, 'Çocuk')
   if (boySkin) for (const f of footMeshes(boy)) f.material = boySkin
 
@@ -384,11 +401,21 @@ export function createCast(m: CastPalette): Cast {
   for (const h of [mother.joints.lHand, mother.joints.rHand]) h.scale.set(0.78, 1.08, 0.82)
   const momSkin = wornSkin(mother, 'Anne')
   if (momSkin) {
-    for (const f of footMeshes(mother)) f.material = momSkin
+    // Bare, narrow old feet (the rig's foot is shaped for a shoe).
+    for (const f of footMeshes(mother)) {
+      f.material = momSkin
+      f.scale.x = 0.78
+    }
     // Bare legs under the nightgown's skirt (the rig would dress them as trousers), no cuffs.
     const legs = mother.root.children.find((o) => o.name === 'Anne-bottom') as THREE.Mesh | undefined
     if (legs) legs.material = momSkin
     for (const j of [mother.joints.lShin, mother.joints.rShin]) for (const c of j.children) if ((c as THREE.Mesh).isMesh) c.visible = false
+  }
+  // Old grey hair, dull: no sheen (a glossy cap reads as a helmet from behind).
+  const mh = mother.headMeshes[1]?.material as THREE.MeshStandardMaterial | undefined
+  if (mh?.isMeshStandardMaterial) {
+    mh.roughness = Math.max(mh.roughness, 0.92)
+    mh.envMapIntensity = 0.5
   }
   const hairMat = (mother.headMeshes[1]?.material as THREE.Material) ?? pbr('hair', 0x9d9a95)
   const hairBack = new THREE.Mesh(hairSheet(0.27, 0.5, 0.17, 0.25), hairMat)
@@ -419,6 +446,15 @@ export function createCast(m: CastPalette): Cast {
   for (const i of [2, 10]) if (mother.headMeshes[i]) mother.headMeshes[i].visible = false
   const legMesh = mother.root.children.find((o) => o.name === 'Anne-bottom') as THREE.Mesh | undefined
   const momLegs = legMesh ? { mesh: legMesh, bare: legMesh.material as THREE.Material } : null
+
+  // Every surface of the cast receives shadows (the rig leaves the heads out): the street lamp
+  // must never light a head through a wall or past the flag at the window.
+  for (const f of [boy, mother, body])
+    f.root.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) o.receiveShadow = true
+    })
+  hairBack.receiveShadow = true
+  for (const h of hairSides) h.receiveShadow = true
 
   return { boy, mother, body, bodyFeet, hairBack, hairSides, skirt, momLegs }
 }
@@ -638,7 +674,7 @@ export const STAMP = makePose({
 export const SEW = makePose(
   {
     // A tall woman on a low stool: the knees ride up, the shins stand on the treadle.
-    hipY: 0.53,
+    hipY: 0.6,
     spine: [0.3, 0, 0],
     chest: [0.18, 0, 0],
     neck: [0.18, 0, 0],
@@ -720,8 +756,9 @@ export const FLOOR_SIT = makePose({
   rThigh: [-1.45, -0.1, -0.1],
   lShin: [0.06, 0, 0],
   rShin: [0.12, 0, 0],
-  lFoot: [-0.25, 0, 0.3],
-  rFoot: [-0.25, 0, -0.3],
+  // Dead feet fall open, toes outward and down.
+  lFoot: [0.35, 0, 0.95],
+  rFoot: [0.35, 0, -0.95],
   lUpper: [0.18, 0, 0.18],
   rUpper: [0.18, 0, -0.18],
   lFore: [-0.15, 0, 0],

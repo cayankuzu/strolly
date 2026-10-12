@@ -45,6 +45,8 @@ const BOY_K = { x: -0.3, z: -7.3 }
 /** In the hallway, looking through the half-open door (shadow); on the threshold's south side (CALL). */
 const AT_GAP = { x: 0.1, z: -0.4 }
 const AT_SILL = { x: 0.6, z: -0.78 }
+/** IN: two steps inside the room, a little north of the door line (clear of the camera's view of her). */
+const IN_SPOT = { x: 1.6, z: -1.72 }
 const GAP_LOOK = { x: 1.6, z: -2.6 }
 const MOM_K = { x: -0.5, z: -9.2 }
 const NEEDLE = new THREE.Vector3(4.588, 0.81, -2.405)
@@ -94,9 +96,9 @@ const P_ANGER = makePath([
   [0.08, -0.25],
 ])
 const P_IN = makePath([
-  [0.5, -0.7],
-  [0.95, -1.05],
-  [1.5, -1.2],
+  [0.5, -0.98],
+  [1.0, -1.22],
+  [IN_SPOT.x, IN_SPOT.z],
 ])
 const P_CALL = makePath([
   [0.3, -0.45],
@@ -104,8 +106,8 @@ const P_CALL = makePath([
   [0.6, -0.78],
 ])
 const P_OUT_IN = makePath([
-  [1.5, -1.2],
-  [0.95, -1.05],
+  [IN_SPOT.x, IN_SPOT.z],
+  [1.0, -1.22],
   [0.5, -1.0],
 ])
 const P_UP = makePath([
@@ -198,6 +200,7 @@ class TakintiDirector implements SetDirector {
   private lampAGlass: THREE.Mesh[] = []
   private lampBulb!: THREE.MeshBasicMaterial
   private underDoor!: THREE.Mesh
+  private underGlow!: THREE.Mesh
   private flies!: THREE.InstancedMesh
   private moths!: THREE.InstancedMesh
   private wall!: WallShadow
@@ -223,6 +226,8 @@ class TakintiDirector implements SetDirector {
 
   async build(scene: THREE.Scene, ctx: BuildContext) {
     this.scene = scene
+    // QA only: the director, for inspecting positions from the console.
+    if (process.env.NODE_ENV !== 'production') (globalThis as { __tak?: unknown }).__tak = this
     this.fallbackEnv = ctx.environment
     scene.background = this.bg.set(0x05080f)
     const [envNight, envDay, models] = await Promise.all([
@@ -332,7 +337,7 @@ class TakintiDirector implements SetDirector {
       scene.add(rags)
     }
     // Lace on the window's north half, a rod above it.
-    const lc = (this.laceMesh = lace(0.62, 1.45))
+    const lc = (this.laceMesh = lace(0.62, 1.3))
     // A flag (as on a film set): invisible, it only casts shadow, keeping the
     // street lamp off the north-east corner where the body sits; only its feet
     // are reached by the light through the window's south half.
@@ -342,7 +347,8 @@ class TakintiDirector implements SetDirector {
     this.flag.rotation.y = PI / 2
     this.flag.castShadow = true
     lc.rotation.y = -PI / 2
-    lc.position.set(4.93, 1.52, -2.6)
+    // (Its hem hangs a hand's breadth above the sewing table.)
+    lc.position.set(4.93, 1.6, -2.6)
     scene.add(lc)
     mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.4, 8), this.pal.brass, 4.94, 2.3, -2.3, scene).rotation.x = PI / 2
     this.sc = scissors()
@@ -356,6 +362,24 @@ class TakintiDirector implements SetDirector {
     // A thin line of light under the closed door (hallway side).
     this.underDoor = mesh(new THREE.PlaneGeometry(0.035, 0.88), new THREE.MeshBasicMaterial({ color: 0x9fb5ac, transparent: true, opacity: 0 }), 0.775, 0.003, -1.15, scene)
     this.underDoor.rotation.x = -PI / 2
+    this.underDoor.name = 'underDoor'
+    // …and its faint fan on the hallway boards (additive, fading away from the door).
+    const fan = document.createElement('canvas')
+    fan.width = 64
+    fan.height = 8
+    const fg = fan.getContext('2d')!
+    const grad = fg.createLinearGradient(0, 0, 64, 0)
+    grad.addColorStop(0, 'rgba(255,255,255,1)')
+    grad.addColorStop(0.25, 'rgba(255,255,255,0.35)')
+    grad.addColorStop(1, 'rgba(255,255,255,0)')
+    fg.fillStyle = grad
+    fg.fillRect(0, 0, 64, 8)
+    const fanTex = new THREE.CanvasTexture(fan)
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x6f8580, map: fanTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+    this.extra.push(glowMat)
+    this.underGlow = mesh(new THREE.PlaneGeometry(0.42, 0.86), glowMat, 0.585, 0.004, -1.15, scene)
+    this.underGlow.rotation.set(-PI / 2, 0, PI)
+    this.underGlow.name = 'underGlow'
     // Flies turning in the morning sun.
     this.flies = new THREE.InstancedMesh(new THREE.SphereGeometry(0.006, 6, 4), new THREE.MeshBasicMaterial({ color: 0x0c0a08 }), 14)
     this.flies.frustumCulled = false
@@ -543,13 +567,15 @@ class TakintiDirector implements SetDirector {
         }
         break
       case 'voice':
-        // At the sink, hands on its edge (only the first part shows him).
-        a.place(-1.25, -3.7, PI).hold(SINK)
-        a.reach('l', 1, -1.08, y0 + 0.84, -4.05, 0.4)
-        a.reach('r', 1, -1.42, y0 + 0.84, -4.05, 0.4)
-        // Recognition: the head turns toward the door and the floor (the sound below).
-        a.lookAt(-0.4, -3.1, 0.75 * smoothstep(0.08, 0.3, u))
-        addRot(a.pose, 'head', 0.12 * smoothstep(0.2, 0.4, u))
+        // At the sink, hands on its edge, the body turned a little from the mirror (only the first part shows him).
+        a.place(-1.22, -3.7, PI + 0.5).hold(SINK)
+        a.reach('l', 1, -1.42, y0 + 0.84, -4.05, 0.4)
+        a.reach('r', 1, -1.08, y0 + 0.84, -4.05, 0.4)
+        // Recognition: the head turns from the mirror toward the floor at his side (the sound below).
+        a.lookAt(-2.0, -3.2, 0.6 * smoothstep(0.06, 0.26, u))
+        addRot(a.pose, 'head', 0.2 * smoothstep(0.12, 0.32, u))
+        // …then a tired clench: the shoulders rise a little.
+        addRot(a.pose, 'neck', 0.08 * smoothstep(0.28, 0.4, u))
         break
       case 'landing':
         if (u < 0.08) a.place(-1.05, -2.95, PI / 2).hold(P.STAND)
@@ -625,7 +651,7 @@ class TakintiDirector implements SetDirector {
           if (u < 0.3) {
             // Two steps up to the door, pushing it open with his left hand.
             const t = smoothstep(0.0, 0.14, u)
-            a.place(lerp(AT_GAP.x, 0.5, t), lerp(AT_GAP.z, -0.7, t), yawTo(AT_GAP.x, AT_GAP.z, GAP_LOOK.x, GAP_LOOK.z)).blend(
+            a.place(lerp(AT_GAP.x, 0.5, t), lerp(AT_GAP.z, -0.98, t), yawTo(AT_GAP.x, AT_GAP.z, GAP_LOOK.x, GAP_LOOK.z)).blend(
               [
                 [0, PEER],
                 [0.12, P.STAND],
@@ -635,7 +661,7 @@ class TakintiDirector implements SetDirector {
             a.walking = 0.5 * bump(0, 0.14, u)
             const door = this.doorEdge(this.doorAngle('enter', u, false), 0.6)
             a.reach('l', smoothstep(0.06, 0.12, u) * (1 - smoothstep(0.27, 0.32, u)), door.x - 0.03, 1.0, door.z + 0.02, 0.5)
-          } else a.walk(P_IN, smoothstep(0.3, 0.7, u), P.STAND, undefined, yawTo(1.5, -1.2, STOOL.x, STOOL.z))
+          } else a.walk(P_IN, smoothstep(0.3, 0.7, u), P.STAND, undefined, yawTo(IN_SPOT.x, IN_SPOT.z, STOOL.x, STOOL.z))
         } else {
           a.walk(P_CALL, smoothstep(0, 0.4, u), P.STAND, undefined, yawTo(AT_SILL.x, AT_SILL.z, GAP_LOOK.x, GAP_LOOK.z))
           const door = this.doorEdge(50, 0.22)
@@ -643,7 +669,7 @@ class TakintiDirector implements SetDirector {
         }
         break
       case 'shout': {
-        const [x, z] = call ? [AT_SILL.x, AT_SILL.z] : [1.5, -1.2]
+        const [x, z] = call ? [AT_SILL.x, AT_SILL.z] : [IN_SPOT.x, IN_SPOT.z]
         a.place(x, z, yawTo(x, z, STOOL.x, STOOL.z)).blend(
           [
             [0.0, P.STAND],
@@ -661,7 +687,7 @@ class TakintiDirector implements SetDirector {
         break
       }
       case 'trance': {
-        const [x, z] = call ? [AT_SILL.x, AT_SILL.z] : [1.5, -1.2]
+        const [x, z] = call ? [AT_SILL.x, AT_SILL.z] : [IN_SPOT.x, IN_SPOT.z]
         a.place(x, z, call ? yawTo(x, z, GAP_LOOK.x, GAP_LOOK.z) : yawTo(x, z, STOOL.x, STOOL.z)).hold(P.STAND).lookAt(4.6, -2.6, call ? 0 : 0.4)
         if (call) {
           const door = this.doorEdge(50, 0.22)
@@ -726,25 +752,26 @@ class TakintiDirector implements SetDirector {
               u,
             )
           } else a.walk(P_GAMES, smoothstep(0.08, 0.3, u), P.STAND, 0, -PI / 2)
-        } else if (u < 0.75) {
-          const turn = smoothstep(0.37, 0.45, u) * (1 - smoothstep(0.6, 0.67, u))
+        } else if (u < 0.92) {
+          // Picks it up (L1), turns to the window's light with it: the thumb, the smile (L2), puts it back.
+          const turn = smoothstep(0.42, 0.5, u) * (1 - smoothstep(0.78, 0.85, u))
           a.place(PAD_SPOT.x, PAD_SPOT.z, -PI / 2 + turn * PI).blend(
             [
               [0.3, P.STAND],
-              [0.36, HOLD_LOW],
-              [0.66, HOLD_LOW],
-              [0.74, PURPOSE],
+              [0.38, HOLD_LOW],
+              [0.82, HOLD_LOW],
+              [0.9, PURPOSE],
             ],
             u,
           )
           const pad = this.boys.padHome
-          const pick = bump(0.28, 0.37, u) + bump(0.66, 0.74, u)
+          const pick = bump(0.3, 0.39, u) + bump(0.83, 0.91, u)
           if (pick > 0.01) {
             a.reach('r', pick, pad.x + 0.02, pad.y + 0.03, pad.z - 0.02, 0.3)
             a.reach('l', pick * 0.6, pad.x + 0.05, pad.y + 0.03, pad.z + 0.06, 0.3)
           }
           // Holding it in both hands in front of his belly, looking down at it.
-          const held = smoothstep(0.35, 0.39, u) * (1 - smoothstep(0.64, 0.68, u))
+          const held = smoothstep(0.37, 0.41, u) * (1 - smoothstep(0.8, 0.84, u))
           if (held > 0.01) {
             const hx = a.x + Math.sin(a.yaw) * 0.26
             const hz = a.z + Math.cos(a.yaw) * 0.26
@@ -756,11 +783,11 @@ class TakintiDirector implements SetDirector {
             a.lookAt(hx, hz, 0)
           }
           // The thumb across the dust; then the small smile: chin up.
-          if (u > 0.45 && u < 0.58) addRot(a.pose, 'rHand', 0.25 * Math.sin((u - 0.45) * 70))
-          const smile = bump(0.52, 0.68, u)
+          if (u > 0.55 && u < 0.7) addRot(a.pose, 'rHand', 0.25 * Math.sin((u - 0.55) * 70))
+          const smile = bump(0.62, 0.84, u)
           addRot(a.pose, 'head', -0.3 * smile)
           addRot(a.pose, 'neck', -0.15 * smile)
-        } else a.walk(P_TODOOR, smoothstep(0.75, 1.0, u) * 0.6, PURPOSE, -PI / 2)
+        } else a.walk(P_TODOOR, smoothstep(0.92, 1.0, u) * 0.45, PURPOSE, -PI / 2)
         a.y = y0
         break
       }
@@ -979,11 +1006,12 @@ class TakintiDirector implements SetDirector {
     const h = this.house
     // Doors.
     h.sewDoor.rotation.y = PI - (this.doorAngle(seg, u, call) * PI) / 180
-    const toiletOpen = p < SEG.toilet.start ? 70 : seg === 'toilet' ? lerp(70, 12, smoothstep(0.06, 0.2, u)) : seg === 'landing' ? lerp(12, 80, smoothstep(0.0, 0.12, u)) : 80
+    const toiletOpen = p < SEG.toilet.start ? 70 : seg === 'toilet' ? lerp(70, 12, smoothstep(0.06, 0.2, u)) : seg === 'voice' ? 12 : seg === 'landing' ? lerp(12, 80, smoothstep(0.0, 0.12, u)) : 80
     h.toiletDoor.rotation.y = PI + (toiletOpen * PI) / 180
-    h.boysDoor.rotation.y = (80 * PI) / 180
+    // At night it stands folded back toward the TV cabinet (clear of the camera in the doorway corner).
+    h.boysDoor.rotation.y = ((morning ? 80 : 140) * PI) / 180
     // Blind: tilted open at night (bars), half raised in the morning.
-    h.blind.set(morning ? 1 : 0.62, morning ? 0.5 : 0)
+    h.blind.set(morning ? 1 : 0.62, morning ? 0.82 : 0)
     // The boy's duvet.
     const duvet = seg === 'wake' ? smoothstep(0.08, 0.2, u) : seg === 'street' ? 0 : seg === 'wakeup' ? smoothstep(0.2, 0.42, u) * 0.6 : morning ? 0.6 : p < SEG.wakeup.start && p > SEG.wake.end ? 1 : 0
     // How much of him is under it: lying (1), sitting with his legs in (0.5), out (0).
@@ -998,7 +1026,7 @@ class TakintiDirector implements SetDirector {
     this.boys.setDuvet(duvet, under)
     // The dusty controller: in his hands in `games`, the dust thinner after the thumb.
     const pad = this.boys.pad
-    const inHand = seg === 'games' && u > 0.37 && u < 0.67
+    const inHand = seg === 'games' && u > 0.39 && u < 0.82
     if (inHand) {
       pad.position.copy(this.padAt)
       pad.rotation.set(0.5, this.boy.yaw, 0, 'YXZ')
@@ -1006,7 +1034,7 @@ class TakintiDirector implements SetDirector {
       pad.position.copy(this.boys.padHome)
       pad.rotation.set(0, -0.25, 0)
     }
-    this.boys.dust.opacity = seg === 'games' ? lerp(0.88, 0.45, smoothstep(0.45, 0.58, u)) : p > SEG.games.end ? 0.45 : 0.88
+    this.boys.dust.opacity = seg === 'games' ? lerp(0.88, 0.45, smoothstep(0.55, 0.7, u)) : p > SEG.games.end ? 0.45 : 0.88
     // The tap drips (a drop falls and resets on the clock).
     const drip = (f.time * 0.9) % 1
     this.toi.drip.position.y = UP + 0.86 - 0.2 * drip * drip
@@ -1031,8 +1059,10 @@ class TakintiDirector implements SetDirector {
     this.placePieces(seg, u, morning, night)
     // The line of light under the closed door.
     const shut = this.doorAngle(seg, u, call) < 2 && night
-    ;(this.underDoor.material as THREE.MeshBasicMaterial).opacity = shut ? 0.75 : 0
+    ;(this.underDoor.material as THREE.MeshBasicMaterial).opacity = shut ? 0.85 : 0
     this.underDoor.visible = shut
+    ;(this.underGlow.material as THREE.MeshBasicMaterial).opacity = shut ? 0.55 : 0
+    this.underGlow.visible = shut
     // Flies in the sun of the open room.
     const mothsOn = night && (seg === 'street' || seg === 'flayed')
     this.moths.visible = mothsOn
@@ -1160,6 +1190,8 @@ class TakintiDirector implements SetDirector {
     pointA.distance = 7
     let pA = 0
     let pB = 0
+    pointB.color.setHex(0x8ea3c4)
+    pointB.distance = 5
     let glowI = 0
     let env = 0.03
     let envTex = this.envNight
@@ -1167,13 +1199,22 @@ class TakintiDirector implements SetDirector {
     const ch = (id: SegmentId) => p >= SEG[id].start
     // Night in the sewing room: the hard band (lamp A through the window) and the wall patch with her shadow.
     let wI = 0
+    /** The lower hallway at night: moonlight from the landing window, down the stairwell (faint, cold). */
+    const hallNight = (i: number) => {
+      pB = i
+      pointB.color.setHex(0x7d91b4)
+      pointB.distance = 9
+      pointB.position.set(-0.6, 2.45, 2.4)
+    }
     const sewNight = (on: boolean, wall = true) => {
       if (!on) return
       aI = BAND
       if (wall) wI = WALL_I
-      // Outside the band the room is near black.
-      hemiI = 0.02
-      env = 0.006
+      // Outside the band the room is dark but readable: a cold, faint moonlight
+      // fill (the night sky through the window, the band's own bounce).
+      hemiI = 0.1
+      hemi.color.setHex(0x2b3a52)
+      env = 0.022
     }
     switch (seg) {
       case 'street':
@@ -1185,13 +1226,17 @@ class TakintiDirector implements SetDirector {
         keyA.angle = 0.8
         keyA.penumbra = 0.8
         aI = 150
+        // Lamp B pours down on the road and the pavement; the house front catches only the soft
+        // edge of its cone (no disc of light on the façade).
         keyB.position.copy(h.lampB)
-        keyB.target.position.set(5.6, 1.2, -1.6)
-        keyB.angle = 0.5
-        keyB.penumbra = 0.9
-        bI = 320
+        keyB.target.position.set(8.2, 0, -0.8)
+        keyB.angle = 1.0
+        keyB.penumbra = 1
+        bI = 300
         glowI = 3
-        hemiI = 0.07
+        // Cold night sky over everything, so the dark house still reads.
+        hemiI = 0.16
+        hemi.color.setHex(0x30425e)
         break
       case 'wake':
         this.barsUpstairs(keyB)
@@ -1240,22 +1285,34 @@ class TakintiDirector implements SetDirector {
         // The spill from the door gap, growing as he comes down.
         pA = seg === 'descent' ? lerp(1.6, 3.2, u) : seg === 'words' ? 2.2 : 3.4
         pointA.position.set(1.05, 0.55, -1.25)
-        pB = seg === 'words' ? 0.35 : 0
-        pointB.position.set(-0.4, 1.3, 0.2)
         sewNight(seg === 'anger')
+        if (seg === 'words') {
+          // A faint cheat on his face from the door's spill.
+          pB = 0.35
+          pointB.position.set(-0.4, 1.3, 0.2)
+        } else hallNight(seg === 'anger' ? 1.4 : 0.9)
         break
       case 'shadow':
         sewNight(true)
         pA = 1.2
         pointA.position.set(1.05, 0.55, -1.25)
+        hallNight(1.4)
         break
       case 'enter':
         sewNight(true)
         pA = 0.6
         pointA.position.set(1.05, 0.55, -1.25)
+        hallNight(1.2)
         break
       case 'shout':
         sewNight(true)
+        // A faint cheat from the band's bounce catches his face (the frontal half).
+        if (!call && u < 0.52) {
+          pB = 0.55
+          pointB.color.setHex(0x9fb2b4)
+          pointB.distance = 3
+          pointB.position.set(2.9, 1.7, -1.95)
+        }
         break
       case 'trance':
         sewNight(true)
@@ -1265,8 +1322,7 @@ class TakintiDirector implements SetDirector {
         pA = this.doorAngle('close', u, call) > 2 ? 1.2 : 0
         pointA.position.set(1.05, 0.55, -1.25)
         // The hallway's faint night.
-        pB = 0.25
-        pointB.position.set(0, 2.2, 0.8)
+        hallNight(1.6)
         break
       case 'corner':
         sewNight(true)
@@ -1427,11 +1483,24 @@ class TakintiDirector implements SetDirector {
     }
     if (seg === 'anger') shot.handheld = 1.6
     // QA only: a free camera from the console (`window.__takCam = [px,py,pz, tx,ty,tz, fov]`).
-    const dbg = typeof window !== 'undefined' ? (window as unknown as { __takCam?: number[] }).__takCam : undefined
+    const qa = typeof window !== 'undefined' ? (window as unknown as { __takCam?: number[]; __takYaw?: number }) : undefined
+    const dbg = qa?.__takCam
     if (dbg && dbg.length === 7) {
       shot.pos.set(dbg[0], dbg[1], dbg[2])
       shot.tgt.set(dbg[3], dbg[4], dbg[5])
       shot.fov = dbg[6]
+      shot.fade = 1
+    }
+    // QA only: turn the view around the camera (`window.__takYaw = radians`), for 360° checks.
+    const yawDbg = qa?.__takYaw
+    if (typeof yawDbg === 'number') {
+      const dx = shot.tgt.x - shot.pos.x
+      const dz = shot.tgt.z - shot.pos.z
+      const c = Math.cos(yawDbg)
+      const s = Math.sin(yawDbg)
+      shot.tgt.x = shot.pos.x + dx * c + dz * s
+      shot.tgt.z = shot.pos.z - dx * s + dz * c
+      shot.tgt.y = shot.pos.y + (shot.tgt.y - shot.pos.y) * 0.3
       shot.fade = 1
     }
   }

@@ -6,11 +6,12 @@ import * as THREE from 'three'
 import { clamp, lerp, smoothstep } from '@/lib/math'
 import { at } from '@/stories/ote/timeline'
 import { makePath } from '../figure/paths'
+import type { Actor } from '../kit/direct'
 import * as P from '../figure/poses'
 import { blendPose, makePose } from '../figure/Figure'
 import { A } from './signing'
 import { B } from './corridor'
-import { POSES, setEyes } from './cast'
+import { POSES, setEyes, setGrip } from './cast'
 import { env, face, hemi, point, pulse, show, spot, sunAt, type Rig, type St } from './rig'
 
 const PI = Math.PI
@@ -33,11 +34,13 @@ const P_THROUGH = makePath([
   [0.0, -5.2],
 ])
 const P_CORRIDOR = makePath([
-  [40, -0.9],
+  [40, -1.45],
   [40, -11.0],
 ])
 /** Standing up from the chair. */
 const RISE = makePose({ hipY: 0.8, hipZ: 0.05, spine: [0.45, 0, 0], chest: [0.15, 0, 0], head: [0.1, 0, 0], lThigh: [-0.9, 0, 0.06], rThigh: [-0.9, 0, -0.06], lShin: [0.9, 0, 0], rShin: [0.9, 0, 0], lUpper: [-0.3, 0, 0.1], rUpper: [-0.3, 0, -0.1], lFore: [-0.4, 0, 0], rFore: [-0.4, 0, 0] })
+/** Sitting upright, looking down at the page in front of him. */
+const READ_UP = makePose({ spine: [-0.02, 0, 0], chest: [0.0, 0, 0], neck: [0.25, 0, 0], head: [0.42, 0, 0] }, POSES.SIT_TABLE)
 /** The official leaning in to slide a sheet. */
 const G_LEAN = makePose({ spine: [0.3, 0, 0], chest: [0.12, 0, 0], head: [0.15, 0, 0] }, POSES.SIT_STILL_UP)
 
@@ -49,6 +52,27 @@ function penAt(r: Rig, grip: THREE.Vector3, dir: THREE.Vector3, along = 0.0) {
   q.setFromUnitVectors(up, axis)
   pen.quaternion.copy(q)
   pen.position.copy(grip).addScaledVector(axis, along)
+}
+const hq = new THREE.Quaternion()
+const Z = new THREE.Vector3(0, 0, 1)
+/** The pen in the curled right hand, in the hand's own frame: its axis (tip → cap) and the pinch point. */
+const PEN_AXIS = new THREE.Vector3(0.4, 0.8, 0.3).normalize()
+const PEN_PINCH = new THREE.Vector3(0.022, -0.095, -0.022)
+/**
+ * The pen in someone's right hand, placed from the hand itself (after the pose is applied),
+ * so it is always between the thumb and the fingers; `twirl` spins it in the palm's plane.
+ */
+function penInHand(r: Rig, a: Actor, time: number, twirl = 0) {
+  setGrip(a.figure, true)
+  a.apply(time, true)
+  const hand = a.figure.joints.rHand
+  hand.getWorldQuaternion(hq)
+  const dbg = (globalThis as { __otePen?: number[] }).__otePen
+  const ax = dbg && dbg.length >= 3 ? new THREE.Vector3(dbg[0], dbg[1], dbg[2]).normalize() : PEN_AXIS
+  const pinch = dbg && dbg.length >= 6 ? new THREE.Vector3(dbg[3], dbg[4], dbg[5]) : PEN_PINCH
+  hand.localToWorld(v.copy(pinch))
+  axis.copy(ax).applyAxisAngle(Z, twirl).applyQuaternion(hq)
+  penAt(r, v, axis, dbg && dbg.length >= 7 ? dbg[6] : 0.022)
 }
 function penRest(r: Rig, at: THREE.Vector3, yaw: number) {
   const pen = r.A.pen
@@ -69,31 +93,27 @@ function stageM(r: Rig, st: St) {
     case 'glass': {
       seat().hold(POSES.SIT_BOWED)
       const turn = seg === 'glass' ? smoothstep(0.2, 0.75, u) * PI * 2 : 0
-      const g = v.set(0.13, 0.86, 0.43)
-      rh(g.x, g.y - 0.02, g.z)
+      rh(0.13, 0.84, 0.43)
       lh(-0.14, 0.795, 0.33)
-      penAt(r, g, axis.set(Math.cos(turn + 0.5), 0.35 * Math.sin(turn + 0.5) + 0.25, -0.4))
+      penInHand(r, a, st.time, turn)
       break
     }
     case 'pen': {
       seat().hold(POSES.SIT_BOWED)
       // One slow turn per 0.4 u; the thumb stops it at 0.52.
       const t = Math.min(u, 0.52)
-      const turn = (t / 0.4) * PI * 2 + 0.5
-      const g = v.set(0.14, 0.86 + 0.01 * Math.sin(turn), 0.43)
-      rh(g.x, g.y - 0.02, g.z)
-      penAt(r, g, axis.set(Math.cos(turn), 0.3 * Math.sin(turn) + 0.25, -0.35))
+      const turn = (t / 0.4) * PI * 2
+      rh(0.14, 0.84 + 0.008 * Math.sin(turn), 0.43)
       // Two fingers flat on the page at 0.7.
       const flat = smoothstep(0.62, 0.74, u)
       lh(lerp(-0.18, -0.06, flat), 0.795, lerp(0.36, 0.3, flat))
+      penInHand(r, a, st.time, turn)
       break
     }
     case 'pages': {
       seat().hold(POSES.SIT_BOWED)
       a.look = 0
-      const g = v.set(0.16, 0.81, 0.46)
-      rh(g.x, g.y, g.z)
-      penAt(r, g, axis.set(0.9, 0.2, -0.35))
+      rh(0.16, 0.81, 0.46)
       // Three turns: lift the corner, carry it across, let go.
       let hx = 0.0
       let hz = 0.36
@@ -115,6 +135,7 @@ function stageM(r: Rig, st: St) {
         hz = 0.25
       }
       lh(hx, hy, hz)
+      penInHand(r, a, st.time)
       break
     }
     case 'refund': {
@@ -126,25 +147,25 @@ function stageM(r: Rig, st: St) {
         u,
       )
       a.lookAt(0, -0.85, 0.3 * smoothstep(0.06, 0.18, u))
-      const g = v.set(0.16, 0.81, 0.46)
-      rh(g.x, g.y, g.z)
-      penAt(r, g, axis.set(0.9, 0.2, -0.35))
+      rh(0.16, 0.81, 0.46)
       lh(-0.08, 0.792, 0.27)
+      penInHand(r, a, st.time)
       break
     }
     case 'lastPage': {
+      // Upright, reading down at the sheet (his head clear of the insert's lens).
       seat().blend(
         [
           [0, POSES.SIT_TABLE],
-          [0.3, POSES.SIT_BOWED],
+          [0.26, READ_UP],
         ],
         u,
       )
       const down = smoothstep(0.08, 0.18, u)
       rh(lerp(0.16, A.penRest1.x - 0.02, down), lerp(0.81, 0.8, down), lerp(0.46, A.penRest1.z + 0.03, down))
-      if (u < 0.16) penAt(r, v.set(lerp(0.16, A.penRest1.x, down), 0.81, lerp(0.46, A.penRest1.z, down)), axis.set(0.9, 0.2, -0.35))
+      lh(-0.24, 0.795, 0.5)
+      if (u < 0.16) penInHand(r, a, st.time)
       else penRest(r, A.penRest1, 0.5)
-      lh(-0.2, 0.795, 0.45)
       break
     }
     case 'fortune': {
@@ -352,11 +373,10 @@ function stageNext(r: Rig, st: St) {
   const n = show(r, 'N')
   n.place(A.chairM.x, A.chairM.z, PI).hold(POSES.SIT_BOWED)
   const t = Math.min(st.u, 0.55)
-  const turn = (t / 0.4) * PI * 2 + 0.5
-  const g = v.set(0.13, 0.86 + 0.01 * Math.sin(turn), 0.43)
-  n.reach('r', 1, g.x, g.y - 0.02, g.z, 0.35)
+  const turn = (t / 0.4) * PI * 2
+  n.reach('r', 1, 0.13, 0.84 + 0.008 * Math.sin(turn), 0.43, 0.35)
   n.reach('l', 1, -0.14, 0.795, 0.33, 0.35)
-  penAt(r, g, axis.set(Math.cos(turn), 0.3 * Math.sin(turn) + 0.25, -0.35))
+  penInHand(r, n, st.time, turn)
   const S = r.A
   S.setHeader(0)
   S.setTurning(0, 0)
@@ -369,6 +389,8 @@ function stageNext(r: Rig, st: St) {
 
 export function stageSigning(r: Rig, st: St) {
   const { seg, u } = st
+  const w2x = A.watchers[1].x
+  const w2z = A.watchers[1].z
   r.A.group.visible = true
   r.A.pen.visible = true
   r.A.tablet.visible = false
@@ -389,15 +411,20 @@ export function stageSigning(r: Rig, st: St) {
   // The lamp's mirror image in the glass, seen only from the room side.
   // ——— Light ———
   const L = r.lights
-  spot(L, { x: 0, y: 1.73, z: 0 }, { x: 0, y: 0.76, z: 0.02 }, 0xffc98e, 22, 0.66, 0.5, 9, 1.5)
-  point(L, 0, 0, 0.12, 3.25, 0xffe6c4, 1.2, 1.6)
-  point(L, 1, -3.42, 1.18, 0.02, 0x9fbadf, 0.35, 1.0)
-  point(L, 2, 0, 0.95, 0.1, 0xffc58a, 1.0, 3.2)
-  hemi(L, 0x2a2c33, 0x0c0a08, 0.12)
+  // The pendant's cone on the table; almost no fill.
+  spot(L, { x: 0, y: 1.73, z: 0 }, { x: 0, y: 0.76, z: 0.02 }, 0xffc98e, 26, 0.7, 0.55, 9, 1.5)
+  // Daylight under door 1, and a little on its lower leaf.
+  point(L, 0, 0, 0.25, 2.62, 0xffe2bc, 2.4, 2.3, 1.6)
+  const behindGlass = seg === 'open' || seg === 'glass' || seg === 'next'
+  if (behindGlass) point(L, 1, w2x + 0.2, 1.2, w2z, 0x9fbadf, 0.5, 1.1)
+  else point(L, 1, 0, 2.55, -3.05, 0xc6d6f2, 1.6 * (1 - open) + 0.4, 3.2, 1.6)
+  // Warm bounce off the table onto the faces.
+  point(L, 2, 0, 0.95, 0.1, 0xffc58a, 1.3, 3.2)
+  hemi(L, 0x2a2c33, 0x0c0a08, 0.14)
   // The cold light beyond door 2: long shadows back toward the table.
-  sunAt(L, { x: 0.15, y: 1.6, z: -7.5 }, { x: 0, y: 0.4, z: 1.5 }, 0xe8f0ff, 3.2 * open, 5)
-  r.m.coldLight.color.setScalar(0.25 + 3.5 * open)
-  env(r, 'brown_photostudio_02', 0.12)
+  sunAt(L, { x: 0.15, y: 1.7, z: -8.5 }, { x: 0, y: 0.2, z: 1.5 }, 0xe8f0ff, 5.5 * open, 5)
+  r.m.coldLight.color.setScalar(0.015 + 3.5 * open)
+  env(r, 'brown_photostudio_02', 0.14)
   r.motion.doors = open
 }
 
@@ -414,8 +441,7 @@ export function stageCorridor(r: Rig, st: St) {
     // Walking the corridor in formation: two ahead, two behind, one each side.
     m.walk(P_CORRIDOR, smoothstep(0.0, 0.39, u) * 0.92, P.STAND, PI, PI)
     const z = m.z
-    const ph = m.pose
-    const offs: Record<(typeof ids)[number], [number, number]> = { Q1: [-0.35, -1.1], Q2: [0.35, -1.1], Q3: [-0.35, 1.1], Q4: [0.35, 1.1], O1: [-0.62, 0.05], O2: [0.62, 0.05] }
+    const offs: Record<(typeof ids)[number], [number, number]> = { Q1: [-0.33, -1.0], Q2: [0.33, -1.0], Q3: [-0.33, 0.9], Q4: [0.33, 0.9], O1: [-0.66, 0.05], O2: [0.66, 0.05] }
     for (const id of ids) {
       const a = show(r, id)
       const [dx, dz] = offs[id]

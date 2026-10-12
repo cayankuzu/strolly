@@ -127,7 +127,7 @@ export class Service {
     const mintGlow = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 1.1, 0.95) })
     const floorPale = pbr('tile', 0xe7e4dc, { roughness: 0.5 })
     const glass = new THREE.MeshPhysicalMaterial({ color: 0xdff2ee, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false })
-    const steel = pbr('metal', 0xc2c6c8, { roughness: 0.3 })
+    const steel = std(0xc2c6c8, 0.28, { metalness: 0.85 })
     const dark = std(0x0d1012, 0.3)
 
     // ——— Street in front ———
@@ -472,7 +472,7 @@ export class Service {
     this.mapScreen.mesh.position.set(0, 1.25, -0.003)
     this.mapArm.add(this.mapScreen.mesh)
     // The lens applicator (shares its model with the line's injection station).
-    this.lens = lensArm(pbr('plastic', 0xf2f3f3, { roughness: 0.3 }), std(0x16303a, 0.1))
+    this.lens = lensArm(std(0xf2f4f4, 0.28), std(0x16303a, 0.1))
     this.prep.add(this.lens.group)
     // The side table with the tray: a pill in a paper cup, a cup of water.
     const table = new THREE.Group()
@@ -525,7 +525,7 @@ export class Service {
         this.locker17 = door
         // The mirror on the inside of its door.
         this.mirror = new Reflector(new THREE.PlaneGeometry(0.26, 0.36), { textureWidth: 512, textureHeight: 704, color: 0xb8bcbe, clipBias: 0.003 })
-        this.mirror.position.set(-0.013, 1.42, 0.235)
+        this.mirror.position.set(-0.021, 1.42, 0.235)
         this.mirror.rotation.y = -PI / 2
         door.add(this.mirror)
         rbox(0.008, 0.38, 0.28, steel, -0.011, 1.42, 0.235, door, 0.003)

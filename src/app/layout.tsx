@@ -55,7 +55,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="tr" className={`${sans.variable} ${mono.variable}`}>
+    // The player's language and accessibility settings are applied to <html> on the client before hydration.
+    <html lang="tr" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
         {children}
         <noscript>

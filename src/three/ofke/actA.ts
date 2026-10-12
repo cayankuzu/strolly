@@ -19,8 +19,8 @@ import * as S from './screens'
 
 const KEYS: Partial<Record<Seg, ShotKeys>> = {
   open: [
-    [0, [0, 1.52, -3.3, 0, 1.18, 6.2, 30]],
-    [1, [0, 1.48, -1.4, 0, 1.18, 6.2, 27]],
+    [0, [-0.08, 1.5, -3.3, 0.0, 1.22, 6.2, 30]],
+    [1, [-0.08, 1.46, -1.3, 0.0, 1.22, 6.2, 24]],
   ],
   rise: [
     [0, [-1.6, 1.38, 3.55, 0, 1.15, 5.9, 40]],
@@ -44,16 +44,16 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [1.4, 1.6, -7.5, 0, 1.35, -4.5, 40]],
   ],
   boss: [
-    [0, [0.25, 1.64, -4.6, 0, 1.0, -7.6, 40]],
-    [1, [0.2, 1.62, -4.95, 0, 1.0, -7.6, 36]],
+    [0, [0.55, 1.64, -4.6, 0, 1.0, -7.5, 40]],
+    [1, [0.45, 1.62, -4.95, 0, 1.0, -7.5, 36]],
   ],
   ask: [
     [0, [-2.2, 1.5, -5.4, 0.1, 1.25, -6.6, 42]],
     [1, [-2.05, 1.48, -5.55, 0.1, 1.25, -6.6, 40]],
   ],
   laugh: [
-    [0, [0.75, 1.3, -6.05, -0.1, 1.1, -7.8, 38]],
-    [1, [0.6, 1.28, -6.25, -0.1, 1.1, -7.8, 36]],
+    [0, [1.35, 1.8, -5.25, 0.0, 1.28, -7.85, 34]],
+    [1, [1.2, 1.78, -5.45, 0.0, 1.28, -7.85, 32]],
   ],
   shh: [
     [0, [0.45, 1.45, -8.45, 0, 1.6, -5.6, 34]],
@@ -70,8 +70,8 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [-5.55, 1.64, 2.62, -7.6, 1.4, 2.0, 38]],
   ],
   route: [
-    [0, [82.32, 1.06, 1.86, 82.24, 0.99, 1.55, 26]],
-    [1, [82.3, 1.03, 1.76, 82.24, 0.99, 1.55, 24]],
+    [0, [82.37, 1.14, 1.82, 82.25, 1.07, 1.39, 32]],
+    [1, [82.34, 1.12, 1.74, 82.25, 1.07, 1.39, 30]],
   ],
 }
 
@@ -110,13 +110,14 @@ const v2 = new THREE.Vector3()
 function officeLight(w: World, time: 'morning' | 'dusk', focus: 'open' | 'boss') {
   const L = w.lights
   if (time === 'morning') {
-    env(w, 'office', 0.42, 0x9fb4c6)
-    L.setHemi(0xe8eef4, 0x8a7f70, 0.5)
-    L.setSun(0xfff0d8, 3.4, focus === 'boss' ? [14, 15, -17] : [22, 16, -8], focus === 'boss' ? [0, 0, -6.5] : [0, 0, 2], focus === 'boss' ? 6 : 12)
+    env(w, 'office', 0.6, 0x9fb4c6)
+    L.setHemi(0xeaf0f6, 0x8a7f70, 0.85)
+    L.setSun(0xffe6c0, 5.2, focus === 'boss' ? [14, 15, -17] : [22, 16, -8], focus === 'boss' ? [0, 0, -6.5] : [0, 0, 2], focus === 'boss' ? 6 : 12)
     if (focus === 'boss') {
-      L.setKey(0xffe2b0, 28, [1.0, 2.55, -8.85], [0, 1.0, -7.5], 0.9, 6)
-      L.setPoint(0, 0xf4f6ff, 2.4, [0, 2.6, -5.6], 6)
-      L.setPoint(1, 0xfff2e0, 1.6, [-1.5, 2.2, -8.0], 5)
+      L.setKey(0xffe2b0, 34, [1.0, 2.55, -8.85], [0, 1.0, -7.5], 0.9, 6)
+      L.setPoint(0, 0xf4f6ff, 4.0, [0, 2.6, -5.6], 6)
+      L.setPoint(1, 0xfff2e0, 2.6, [-1.5, 2.2, -8.0], 5)
+      L.setPoint(2, 0xfff4e6, 3.0, [1.6, 2.4, -6.0], 5)
     } else {
       for (const [i, at] of [
         [0, [0, 2.7, -1.5]],
@@ -124,7 +125,7 @@ function officeLight(w: World, time: 'morning' | 'dusk', focus: 'open' | 'boss')
         [2, [-3.5, 2.7, 2]],
         [3, [3.5, 2.7, 2]],
       ] as const)
-        L.setPoint(i, 0xf2f6ff, 3.2, at, 9)
+        L.setPoint(i, 0xf2f6ff, 5.0, at, 9)
       L.setKey(0xffe2b0, 12, [0.8, 2.5, -8.8], [0, 1.0, -6.5], 0.9, 7)
     }
   } else {
@@ -210,8 +211,8 @@ export function runActA(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       colleaguesTyping(w, f)
       const a = w.use(arif)
       a.place(0, 6.24, PI).hold(C.SIT_FLAT)
-      a.reach('l', 1, 0.2, 0.755, 5.82, 0.45)
-      a.reach('r', 1, -0.2, 0.755, 5.82, 0.45)
+      a.reach('l', 1, -0.2, 0.755, 5.82, 0.45)
+      a.reach('r', 1, 0.2, 0.755, 5.82, 0.45)
       w.apply(t)
       w.mouth(a, speech(t, 0.25))
       bossAtDesk(w, f, C.FEET_UP)
@@ -230,8 +231,8 @@ export function runActA(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         ],
         u,
       )
-      a.reach('l', 1 - ss(0.1, 0.28, u), 0.2, 0.755, 5.82, 0.45)
-      a.reach('r', 1 - ss(0.1, 0.28, u), -0.2, 0.755, 5.82, 0.45)
+      a.reach('l', 1 - ss(0.1, 0.28, u), -0.2, 0.755, 5.82, 0.45)
+      a.reach('r', 1 - ss(0.1, 0.28, u), 0.2, 0.755, 5.82, 0.45)
       o.arif.chair.position.z = 6.22 + 0.45 * ss(0.2, 0.5, u)
       o.arif.chair.rotation.y = PI + 0.25 * ss(0.2, 0.5, u)
       w.apply(t)
@@ -598,6 +599,10 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   w.carHolder.visible = true
   w.carHolder.position.set(CAR.x, 0, CAR.z + dz)
   w.carHolder.rotation.y = 0
+  // Inside the car the kit's solid shell would cut the cabin: swap it for the thin inner body.
+  const inside = seg !== 'car' || u >= 0.5
+  car.shell.visible = !inside
+  car.inner.visible = inside
   car.lights.color.setRGB(1.6, 1.5, 1.3)
   car.tail.color.setRGB(0.9, 0.08, 0.06)
   // Street lamps coming on as the dusk deepens.
@@ -627,9 +632,9 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
       else a.place(lerp(81.15, 81.8, sub(u, 0.45, 0.5)), lerp(2.45, 2.22, sub(u, 0.45, 0.5)), PI).blend([[0.45, P.STAND], [0.5, C.DRIVE]], u)
     } else a.place(81.8, 2.22, PI).hold(C.DRIVE)
     if (u >= 0.45) {
-      a.reach('l', ss(0.5, 0.56, u), 81.66, 1.03, 1.86, 0.5)
-      a.reach('r', ss(0.5, 0.56, u) * (1 - ss(0.6, 0.66, u)), 81.94, 1.03, 1.86, 0.5)
-      a.reach('r', ss(0.62, 0.7, u), 82.2, 1.0 + 0.01 * Math.sin(f.time * 9), 1.6, 0.3)
+      a.reach('l', ss(0.5, 0.56, u), 81.63, 0.97, 1.72, 0.5)
+      a.reach('r', ss(0.5, 0.56, u) * (1 - ss(0.6, 0.66, u)), 81.97, 0.97, 1.72, 0.5)
+      a.reach('r', ss(0.62, 0.7, u), 82.22, 1.05 + 0.01 * Math.sin(f.time * 9), 1.42, 0.3)
     }
     w.apply(f.time)
     car.screen.redraw((c, W, H) => S.route(c, W, H, 0, 0), 'kb0')
@@ -640,9 +645,10 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
       shot.tgt.set(81, 1.0, 2.2)
       shot.fov = 42
     } else {
-      shot.pos.set(82.72, 1.24, 1.92).lerp(v.set(82.68, 1.22, 2.0), sub(u, 0.5, 1))
-      shot.tgt.set(81.8, 1.1, 1.55)
-      shot.fov = 44
+      // From the passenger seat: his face, his finger on the screen.
+      shot.pos.set(82.72, 1.26, 2.0).lerp(v.set(82.7, 1.25, 2.05), sub(u, 0.5, 1))
+      shot.tgt.set(82.0, 1.2, 1.82)
+      shot.fov = 50
     }
     return
   }
@@ -653,20 +659,20 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
     const typed = sub(u, 0.1, 0.4)
     const lit = sub(u, 0.4, 0.6)
     car.screen.redraw((c, W, H) => S.route(c, W, H, typed, lit), `r:${Math.floor(typed * 11)}:${Math.round(lit * 20)}`)
-    a.reach('l', 1, 81.66, 1.03, cz - 0.14, 0.5)
-    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), 82.18 + 0.03 * Math.sin(f.time * 7), 0.99, cz - 0.42, 0.3)
+    a.reach('l', 1, 81.63, 0.97, cz - 0.28, 0.5)
+    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), 82.2 + 0.03 * Math.sin(f.time * 7), 1.04, cz - 0.6, 0.3)
     w.apply(f.time)
     keyed(KEYS.route!, held(u, f.reduced), shot)
   } else {
     car.screen.redraw((c, W, H) => S.route(c, W, H, 1, 1), 'r:done')
-    a.reach('l', 1, 81.64, 1.04, cz - 0.15, 0.5)
-    a.reach('r', 1, 81.96, 1.04, cz - 0.15, 0.5)
+    a.reach('l', 1, 81.63, 0.97, cz - 0.28, 0.5)
+    a.reach('r', 1, 81.97, 0.97, cz - 0.28, 0.5)
     w.apply(f.time)
     w.mouth(a, speech(f.time, 0.3))
     // His profile from the passenger seat; the view swings to the billboard as it passes.
     const look = win(u, 0.36, 0.46, 0.58, 0.66)
-    shot.pos.set(82.66, 1.2, cz + 0.32)
-    shot.tgt.set(81.8, 1.14, cz + 0.12).lerp(v.set(83.6, 2.4, cz - 6), look * 0.9)
+    shot.pos.set(82.64, 1.2, cz + 0.16)
+    shot.tgt.set(81.8, 1.16, cz + 0.12).lerp(v.set(83.6, 2.4, cz - 6), look * 0.9)
     shot.fov = 40
   }
 }

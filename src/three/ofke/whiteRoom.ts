@@ -48,6 +48,23 @@ function blotTexture(seed: number, streak = false) {
   return t
 }
 
+/** A dark radial falloff for the dim corner, centred at canvas point (cx, cy) in 0–1. */
+function cornerTexture(cx: number, cy: number) {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const g = c.getContext('2d')!
+  const grad = g.createRadialGradient(cx * 256, cy * 256, 0, cx * 256, cy * 256, 300)
+  grad.addColorStop(0, 'rgba(18,16,16,0.78)')
+  grad.addColorStop(0.35, 'rgba(18,16,16,0.5)')
+  grad.addColorStop(0.75, 'rgba(18,16,16,0.12)')
+  grad.addColorStop(1, 'rgba(18,16,16,0)')
+  g.fillStyle = grad
+  g.fillRect(0, 0, 256, 256)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
 function shadowTexture() {
   const c = document.createElement('canvas')
   c.width = c.height = 128
@@ -89,6 +106,9 @@ export class WhiteRoom {
   smearMat!: THREE.MeshBasicMaterial
   smear2!: THREE.Mesh
   shadow!: THREE.Mesh
+  /** The dimmer north-east corner (the panel above it off): darkening decals on the floor and both walls. */
+  cornerShade = new THREE.Group()
+  cornerMats: THREE.MeshBasicMaterial[] = []
   plate!: ReturnType<typeof canvasPlane>
   statusLight!: THREE.Mesh
   statusMat = new THREE.MeshBasicMaterial({ color: 0xe8a040 })
@@ -124,7 +144,8 @@ export class WhiteRoom {
     this.uDoor.uHide.value = 1
     this.uView = revealUniforms(this.uShell)
     this.uView.uMode.value = 1
-    this.uView.uSeed.value.set(160, 1.7, -2.5, 0.0035)
+    // The city beyond arrives all at once with the window (cells at 40 m would only be noise).
+    this.uView.uSeed.value.set(160, 1.7, -2.5, 0.0)
     this.uMon = revealUniforms(this.uShell)
     this.uMon.uDelay.value = 0.76
     // Door frame first (it discards until it arrives), then the rest.
@@ -147,6 +168,8 @@ export class WhiteRoom {
     // The faint shadow cast by nothing.
     this.shadow = mesh(new THREE.PlaneGeometry(1.9, 0.9), new THREE.MeshBasicMaterial({ map: shadowTexture(), transparent: true, depthWrite: false }), 161.3, 0.004, -1.9, this.hallu)
     this.shadow.rotation.x = -PI / 2
+    // It belongs to neither room: it shows in the white room before anything arrives.
+    this.group.add(this.shadow)
 
     // White shards for the monitor bursting.
     this.shards = new THREE.InstancedMesh(new THREE.BoxGeometry(0.028, 0.028, 0.028), new THREE.MeshBasicMaterial({ color: 0xffffff }), 140)
@@ -186,6 +209,19 @@ export class WhiteRoom {
       const p = mesh(new THREE.PlaneGeometry(2.48, 2.48), ne ? this.ceilNEMat : this.ceilMat, x, 3.0, z, this.real)
       p.rotation.x = PI / 2
       if (ne) this.ceilNE = p
+    }
+    // The dim corner.
+    this.real.add(this.cornerShade)
+    for (const [cx, cy, x, y, z, rx, ry] of [
+      [1, 0, 161.2, 0.0035, -1.2, -PI / 2, 0],
+      [1, 1, 161.2, 1.3, -2.494, 0, 0],
+      [0, 1, 162.494, 1.3, -1.2, 0, -PI / 2],
+    ] as const) {
+      const mat = new THREE.MeshBasicMaterial({ map: cornerTexture(cx, cy), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })
+      this.cornerMats.push(mat)
+      const m = mesh(new THREE.PlaneGeometry(2.6, 2.6), mat, x, y, z, this.cornerShade)
+      m.rotation.set(rx, ry, 0)
+      m.name = 'cornerShade'
     }
     // Ceiling grid lines between the panels.
     const grid = std(0xd5dadb, 0.6)

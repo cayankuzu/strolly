@@ -74,31 +74,45 @@ function backpack(body: THREE.Material, strap: THREE.Material) {
   return g
 }
 
-function coat(m: THREE.Material, len: number, hood: boolean) {
+/**
+ * A child's coat on a hook: a padded, flat body with sloping shoulders (an
+ * extruded outline, not a sausage), sleeves hanging at its sides, a zip and
+ * two pockets; some with the hood rolled up behind the collar. Local frame:
+ * the hook at the origin, the coat hanging down −y, its front toward +z.
+ */
+function coat(m: THREE.Material, trim: THREE.Material, len: number, hood: boolean) {
   const g = new THREE.Group()
-  const body = new THREE.CapsuleGeometry(0.17, len, 6, 16)
-  body.scale(1, 1, 0.34)
-  const pos = body.attributes.position as THREE.BufferAttribute
-  // Narrow at the shoulders where it hangs on the hook, wider at the hem.
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i)
-    const t = (y + len / 2 + 0.17) / (len + 0.34)
-    pos.setX(i, pos.getX(i) * (1.08 - 0.45 * t * t))
-  }
+  g.name = 'coat'
+  const s = new THREE.Shape()
+  s.moveTo(-0.045, -0.03)
+  s.lineTo(0.045, -0.03)
+  s.quadraticCurveTo(0.1, -0.05, 0.13, -0.09)
+  s.lineTo(0.14, -0.2)
+  s.lineTo(0.15, -len + 0.03)
+  s.quadraticCurveTo(0, -len - 0.02, -0.15, -len + 0.03)
+  s.lineTo(-0.14, -0.2)
+  s.lineTo(-0.13, -0.09)
+  s.quadraticCurveTo(-0.1, -0.05, -0.045, -0.03)
+  const body = new THREE.ExtrudeGeometry(s, { depth: 0.035, bevelEnabled: true, bevelThickness: 0.026, bevelSize: 0.018, bevelSegments: 3, curveSegments: 8 })
+  body.translate(0, 0, -0.0175)
   body.computeVertexNormals()
-  const b = mesh(body, m, 0, -(len / 2 + 0.17), 0, g)
+  const b = mesh(body, m, 0, 0, 0, g)
   b.castShadow = true
   b.receiveShadow = true
-  if (hood) {
-    const h = mesh(new THREE.SphereGeometry(0.11, 16, 10), m, 0, -0.06, -0.05, g)
-    h.scale.set(1, 0.8, 0.6)
-    h.castShadow = true
-  }
-  // Sleeves hanging at the sides.
-  for (const s of [-1, 1]) {
-    const sl = mesh(new THREE.CapsuleGeometry(0.045, len * 0.62, 4, 8), m, s * 0.15, -0.14 - len * 0.33, 0.01, g)
-    sl.rotation.z = s * 0.06
+  // The zip and two pockets (a darker trim), on the front.
+  rbox(0.006, len - 0.08, 0.004, trim, 0, -len / 2 - 0.01, 0.045, g, 0.002)
+  for (const sx of [-1, 1]) rbox(0.075, 0.055, 0.008, m, sx * 0.08, -len + 0.16, 0.044, g, 0.003)
+  // Sleeves hanging at the sides, a little in front of the body.
+  for (const sx of [-1, 1]) {
+    const sl = mesh(new THREE.CapsuleGeometry(0.036, len * 0.5, 4, 10), m, sx * 0.15, -0.12 - len * 0.27, 0.02, g)
+    sl.scale.set(1, 1, 0.8)
+    sl.rotation.z = sx * 0.05
     sl.castShadow = true
+  }
+  if (hood) {
+    const h = mesh(new THREE.SphereGeometry(0.085, 16, 10), m, 0, -0.035, -0.02, g)
+    h.scale.set(1.15, 0.7, 0.55)
+    h.castShadow = true
   }
   return g
 }
@@ -113,17 +127,18 @@ export async function buildFurniture(scene: THREE.Scene, m: Pal, ctx: BuildConte
   const n = COLS.length * ROWS.length
   const panelH = DESK.top - 0.028 - DESK.panelBottom
   const parts = [
-    { geo: rgeo(DESK.w + 0.04, 0.028, DESK.d + 0.04, 0.006), mat: m.deskTop, at: (x: number, z: number) => [x, DESK.top - 0.014, z] },
-    { geo: rgeo(DESK.w, panelH, 0.018, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x, DESK.panelBottom + panelH / 2, z - DESK.d / 2 + 0.009] },
-    { geo: rgeo(0.022, panelH, DESK.d, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x - DESK.w / 2 + 0.011, DESK.panelBottom + panelH / 2, z] },
-    { geo: rgeo(0.022, panelH, DESK.d, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x + DESK.w / 2 - 0.011, DESK.panelBottom + panelH / 2, z] },
-    { geo: rgeo(DESK.w - 0.044, 0.014, 0.32, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x, 0.56, z - DESK.d / 2 + 0.18] },
-    { geo: rgeo(DESK.w + 0.044, 0.012, DESK.d + 0.044, 0.004), mat: m.deskEdge, at: (x: number, z: number) => [x, DESK.top - 0.022, z] },
+    { name: 'desk-top', geo: rgeo(DESK.w + 0.04, 0.028, DESK.d + 0.04, 0.006), mat: m.deskTop, at: (x: number, z: number) => [x, DESK.top - 0.014, z] },
+    { name: 'desk-front', geo: rgeo(DESK.w, panelH, 0.018, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x, DESK.panelBottom + panelH / 2, z - DESK.d / 2 + 0.009] },
+    { name: 'desk-side', geo: rgeo(0.022, panelH, DESK.d, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x - DESK.w / 2 + 0.011, DESK.panelBottom + panelH / 2, z] },
+    { name: 'desk-side', geo: rgeo(0.022, panelH, DESK.d, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x + DESK.w / 2 - 0.011, DESK.panelBottom + panelH / 2, z] },
+    { name: 'desk-shelf', geo: rgeo(DESK.w - 0.044, 0.014, 0.32, 0.003), mat: m.deskBody, at: (x: number, z: number) => [x, 0.56, z - DESK.d / 2 + 0.18] },
+    { name: 'desk-edge', geo: rgeo(DESK.w + 0.044, 0.012, DESK.d + 0.044, 0.004), mat: m.deskEdge, at: (x: number, z: number) => [x, DESK.top - 0.022, z] },
   ]
   const desks: THREE.InstancedMesh[] = []
   const m4 = new THREE.Matrix4()
   for (const part of parts) {
     const im = new THREE.InstancedMesh(part.geo, part.mat, n)
+    im.name = part.name
     let i = 0
     for (const x of COLS)
       for (const z of ROWS) {
@@ -235,6 +250,7 @@ export async function buildFurniture(scene: THREE.Scene, m: Pal, ctx: BuildConte
           k++
         }
     books.count = k
+    books.name = 'books'
     books.castShadow = true
     books.receiveShadow = true
     scene.add(books)
@@ -386,8 +402,8 @@ export async function buildFurniture(scene: THREE.Scene, m: Pal, ctx: BuildConte
     const x = 1.15 + i * 0.42
     mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.06, 6), m.hook, x, 1.6, ROOM.z1 - 0.04, scene).rotation.x = Math.PI / 2
     if (i === 3) continue
-    const c = coat(coatMats[i], 0.48 + rand() * 0.14, i % 2 === 0)
-    c.position.set(x, 1.6, ROOM.z1 - 0.1)
+    const c = coat(coatMats[i], m.bagStrap, 0.56 + rand() * 0.12, i % 2 === 0)
+    c.position.set(x, 1.6, ROOM.z1 - 0.075)
     c.rotation.set(0.04, Math.PI + (rand() - 0.5) * 0.2, (rand() - 0.5) * 0.05)
     scene.add(c)
   }
@@ -405,6 +421,8 @@ export async function buildFurniture(scene: THREE.Scene, m: Pal, ctx: BuildConte
     scene.add(easel)
   }
 
+  // Name what is still unnamed (readable camera-collision reports).
+  for (const o of scene.children) if (!o.name && !(o as THREE.Light).isLight) o.name = 'furniture'
   return { seats, chairs, pen, bin, textures, backpack: ibBag, desks }
 }
 

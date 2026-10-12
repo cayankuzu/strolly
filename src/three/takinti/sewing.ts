@@ -443,15 +443,16 @@ export function runMachine(m: Machine, phase: number, plateTilt: number, slide: 
 export function stool() {
   const g = new THREE.Group()
   const wood = pbr('wood', 0x4a3424, { roughness: 0.65 })
-  const seat = cyl(0.17, 0.165, 0.04, wood, 0, 0.48, 0, g, 28)
+  // A tall stool: she sits high enough for her bare feet to rest on the treadle plate.
+  const seat = cyl(0.17, 0.165, 0.04, wood, 0, 0.55, 0, g, 28)
   seat.castShadow = true
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2
-    const leg = cyl(0.016, 0.02, 0.5, wood, Math.cos(a) * 0.11, 0.24, Math.sin(a) * 0.11, g, 8)
+    const leg = cyl(0.016, 0.02, 0.57, wood, Math.cos(a) * 0.11, 0.275, Math.sin(a) * 0.11, g, 8)
     leg.rotation.set(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12)
     leg.castShadow = true
   }
-  const ring = mesh(new THREE.TorusGeometry(0.115, 0.008, 6, 24), wood, 0, 0.18, 0, g)
+  const ring = mesh(new THREE.TorusGeometry(0.115, 0.008, 6, 24), wood, 0, 0.2, 0, g)
   ring.rotation.x = Math.PI / 2
   return g
 }

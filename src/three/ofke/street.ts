@@ -46,16 +46,32 @@ export type CarRig = {
   card: THREE.Mesh
   lights: THREE.MeshBasicMaterial
   tail: THREE.MeshBasicMaterial
+  /** The kit's solid body shell; hidden for shots inside the car (its top would cut the cabin). */
+  shell: THREE.Object3D
+  /** Hood, deck and sills seen from inside (shown when the shell is hidden). */
+  inner: THREE.Group
 }
 
 /** Arif's car: dark grey, nose toward +z in its own frame (the set turns it), with an interior. */
 export function arifCar(): CarRig {
   const root = new THREE.Group()
   const body = pbr('painted', 0x3b4652, { roughness: 0.32, metalness: 0.55 })
-  const glass = new THREE.MeshPhysicalMaterial({ color: 0x1a2229, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.38, depthWrite: false })
+  const glass = new THREE.MeshPhysicalMaterial({ color: 0x1a2229, roughness: 0.05, metalness: 0.2, transparent: true, opacity: 0.3, depthWrite: false })
   const tire = pbr('rubber', 0x121314)
   const lights = new THREE.MeshBasicMaterial({ color: 0xfff1d6 })
-  root.add(car(body, glass, tire, lights))
+  const kit = car(body, glass, tire, lights)
+  root.add(kit)
+  const shell = kit.children.find((o) => (o as THREE.Mesh).isMesh) as THREE.Mesh
+  shell.name = 'carShell'
+  // What the shell gives from outside, rebuilt thin for the shots inside: hood, rear deck, sills, a cowl.
+  const inner = new THREE.Group()
+  inner.visible = false
+  root.add(inner)
+  const hood = rbox(1.62, 0.04, 0.95, body, 0, 0.93, 1.55, inner, 0.02)
+  hood.rotation.x = 0.16
+  rbox(1.62, 0.05, 0.7, body, 0, 0.97, -1.72, inner, 0.02)
+  for (const sx of [-1, 1]) rbox(0.06, 0.66, 3.6, body, sx * 0.86, 0.66, 0, inner, 0.02)
+  rbox(1.62, 0.66, 0.06, body, 0, 0.66, 2.0, inner, 0.02)
   // Its own tail lights, so they can glow without touching the kit's shared material.
   const tail = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 0.02, 0.02) })
   for (const sx of [-1, 1]) rbox(0.3, 0.12, 0.02, tail, sx * 0.62, 0.86, -2.07, root, 0.02)
@@ -87,8 +103,9 @@ export function arifCar(): CarRig {
   rbox(0.3, 0.42, 0.5, dash, 0, 0.55, 0.62, d, 0.03)
   rbox(0.22, 0.05, 0.4, dash, 0, 0.6, 0.15, d, 0.02)
   const screenHolder = new THREE.Group()
-  screenHolder.position.set(-0.05, 1.0, 0.45)
-  screenHolder.rotation.set(-0.18, -0.32, 0)
+  screenHolder.position.set(-0.04, 1.07, 0.62)
+  screenHolder.rotation.set(-0.12, -0.3, 0)
+  rbox(0.05, 0.08, 0.05, dash, -0.04, 1.0, 0.66, root, 0.01)
   root.add(screenHolder)
   rbox(0.29, 0.19, 0.025, std(0x0b0c0d, 0.3), 0, 0, -0.014, screenHolder, 0.008)
   const screen = canvasPlane(0.26, 0.16, 512, (c, W, H) => S.route(c, W, H, 0, 0), { emissive: true })
@@ -134,7 +151,7 @@ export function arifCar(): CarRig {
   root.add(door)
   rbox(0.05, 0.62, 1.05, body, 0.0, 0.66, -0.52, door, 0.02)
   rbox(0.03, 0.42, 0.95, glass, -0.01, 1.18, -0.55, door, 0.01)
-  return { root, door, screen, wheel, card: cardMesh.mesh, lights, tail }
+  return { root, door, screen, wheel, card: cardMesh.mesh, lights, tail, shell, inner }
 }
 
 export class Street {

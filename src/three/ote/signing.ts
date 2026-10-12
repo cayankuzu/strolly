@@ -22,10 +22,11 @@ export const A = {
   penRest1: new THREE.Vector3(0.24, 0.783, 0.47),
   penRest2: new THREE.Vector3(0.25, 0.783, 0.35),
   door2: { x: 0, z: -4.0, hinge: -0.65 },
+  /** B1, B2, B3 behind the glass: B2 and B3 frame the table from the opening camera. */
   watchers: [
-    { x: -3.6, z: -0.8 },
-    { x: -3.7, z: 0.0 },
-    { x: -3.6, z: 0.8 },
+    { x: -3.6, z: -0.65 },
+    { x: -3.75, z: 0.3 },
+    { x: -3.62, z: 1.55 },
   ],
 } as const
 
@@ -52,7 +53,7 @@ export class SigningRoom {
   private folderLabel!: Plane
   readonly tray = new THREE.Group()
   readonly lampGlow: THREE.Mesh
-  readonly reflection: THREE.Mesh
+  readonly reflection: THREE.Sprite
   readonly coldLight: THREE.Mesh
   readonly underDoor: THREE.Mesh
   readonly tablet: THREE.Group
@@ -112,22 +113,23 @@ export class SigningRoom {
     for (const z of [-3.5, -1.5, 0.5, 2.5]) rbox(0.07, 3.0, 0.07, m.blackMetal, -3.0, 1.5, z, g, 0.01)
     rbox(0.08, 0.06, 6.0, m.blackMetal, -3.0, 0.03, -0.5, g, 0.01)
     rbox(0.08, 0.06, 6.0, m.blackMetal, -3.0, 2.97, -0.5, g, 0.01)
-    // The lamp's reflection in the glass (seen from the room side only).
-    this.reflection = mesh(
-      new THREE.PlaneGeometry(0.9, 0.9),
-      new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        vertexShader: `varying vec2 vP; void main(){ vP = position.xy / 0.45; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `varying vec2 vP; void main(){ float r = length(vP * vec2(1.0, 1.6)); float a = exp(-r * r * 9.0) * 0.55 + smoothstep(0.2, 0.17, length(vP - vec2(0.0, -0.05))) * 0.4; gl_FragColor = vec4(vec3(1.0, 0.78, 0.5) * a, 1.0); }`,
-      }),
-      -3.01,
-      1.78,
-      0,
-      g,
-    )
-    this.reflection.rotation.y = PI / 2
+    // The lamp's reflection in the glass: a glow at the lamp's mirror image (x −6), seen through the
+    // dark glass from the room side only (the scene hides it when the camera is behind the glass).
+    const rc = document.createElement('canvas')
+    rc.width = rc.height = 128
+    const rx = rc.getContext('2d')!
+    const rg = rx.createRadialGradient(64, 64, 2, 64, 64, 62)
+    rg.addColorStop(0, 'rgba(255,236,200,1)')
+    rg.addColorStop(0.12, 'rgba(255,214,150,0.75)')
+    rg.addColorStop(0.4, 'rgba(255,190,120,0.16)')
+    rg.addColorStop(1, 'rgba(255,190,120,0)')
+    rx.fillStyle = rg
+    rx.fillRect(0, 0, 128, 128)
+    this.reflection = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(rc), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 }))
+    this.reflection.scale.set(0.7, 0.7, 1)
+    this.reflection.position.set(-6.0, 1.78, 0)
+    this.reflection.name = 'lampReflection'
+    g.add(this.reflection)
     // ——— The observation room (x −6.5…−3): dark, carpet, a low ceiling ———
     const obs = room({ w: 3.5, d: 7, h: 2.8, x: -4.75, z: -0.5, wall: m.obsWall, floor: m.obsFloor, ceiling: m.ceilingDark, trim: null, skip: ['e'] })
     g.add(obs)
@@ -135,6 +137,10 @@ export class SigningRoom {
     rbox(0.5, 0.06, 5.4, m.blackMetal, -3.3, 0.95, -0.5, g, 0.01)
     rbox(0.04, 0.9, 5.4, m.obsWall, -3.1, 0.47, -0.5, g, 0.01)
     rbox(0.05, 2.1, 0.95, m.blackMetal, -6.47, 1.05, 2.0, g, 0.01)
+    // A frosted partition at the back, faintly lit from behind: "we" read as silhouettes from the room.
+    const frost = mesh(new THREE.PlaneGeometry(3.4, 2.0), new THREE.MeshBasicMaterial({ color: 0x1b2430 }), -6.44, 1.25, -0.4, g)
+    frost.rotation.y = PI / 2
+    frost.name = 'frost'
     // B2's tablet (placed by the scene in her hand).
     this.tablet = new THREE.Group()
     rbox(0.18, 0.012, 0.25, m.blackMetal, 0, 0, 0, this.tablet, 0.01)
@@ -163,7 +169,8 @@ export class SigningRoom {
     // ——— Door 2 (north, the other door): brushed steel, flush, no handle on this side ———
     this.door2.position.set(A.door2.hinge, 0, -4.0)
     g.add(this.door2)
-    const leaf = rbox(1.3, 2.4, 0.12, m.brushed, 0.65, 1.2, -0.06, this.door2, 0.006)
+    const leaf = rbox(1.38, 2.44, 0.12, m.brushed, 0.65, 1.22, -0.06, this.door2, 0.006)
+    leaf.name = 'door2'
     leaf.castShadow = true
     const emblem = canvasPlane(0.14, 0.14, 256, (ctx, w, h) => {
       ctx.clearRect(0, 0, w, h)

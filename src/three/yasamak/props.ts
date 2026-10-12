@@ -10,6 +10,7 @@ import { cyl, mesh } from '../util'
 import { rbox, std, tube } from '../kit/props'
 import { pbr } from '../kit/surfaces'
 import { SCARF_RED } from './cast'
+import { knittedBand, needles } from './scarf'
 
 const PI = Math.PI
 
@@ -81,17 +82,34 @@ export function lighter(m: PropMats) {
   return { group: g, lid, flame }
 }
 
-/** Dede's grey flat cap, lying on the desk. */
+/**
+ * Dede's grey flat cap (kasket), lying on the desk: a soft crown of tweed,
+ * lower at the front where it folds over the short stiff brim, a band round
+ * its edge and a covered button on top. Origin on the desk under its middle.
+ */
 export function flatCap() {
-  const mat = pbr('fabric', 0x6c6a66)
+  const mat = pbr('fabric', 0x4f4e4a)
+  const dark = pbr('fabric', 0x3d3c39)
   const g = new THREE.Group()
-  const crown = mesh(new THREE.SphereGeometry(0.1, 24, 12, 0, PI * 2, 0, PI / 2), mat, 0, 0.0, 0, g)
-  crown.scale.set(1, 0.32, 1.12)
-  const brim = mesh(new THREE.CylinderGeometry(0.07, 0.075, 0.008, 20, 1, false, -PI / 2.4, PI / 1.2), mat, 0, 0.004, 0.075, g)
-  brim.scale.set(1.2, 1, 0.7)
-  rbox(0.06, 0.004, 0.02, std(0xd9cfb8, 0.8), 0, 0.034, -0.02, g, 0.001).visible = false
-  g.traverse((c) => (c.castShadow = true))
-  return { group: g, material: mat }
+  g.name = 'cap'
+  const crown = mesh(new THREE.SphereGeometry(0.1, 32, 14, 0, PI * 2, 0, PI / 2), mat, 0, 0.012, -0.012, g)
+  crown.scale.set(1.0, 0.42, 1.1)
+  crown.rotation.x = 0.1
+  const band = mesh(new THREE.CylinderGeometry(0.1, 0.101, 0.014, 32, 1, true), dark, 0, 0.007, -0.012, g)
+  band.scale.set(1, 1, 1.1)
+  // The brim: a thin half-ellipse peeking out under the front of the crown.
+  const shape = new THREE.Shape()
+  shape.absarc(0, 0, 0.078, 0, PI, false)
+  shape.lineTo(0.078, 0)
+  const brim = mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.005, bevelEnabled: true, bevelThickness: 0.0015, bevelSize: 0.002, bevelSegments: 2, curveSegments: 24 }), dark, 0, 0.004, 0.06, g)
+  brim.rotation.x = PI / 2
+  brim.scale.set(1.12, 0.62, 1)
+  mesh(new THREE.SphereGeometry(0.009, 12, 8), dark, 0, 0.052, -0.008, g).scale.set(1, 0.5, 1)
+  g.traverse((c) => {
+    c.castShadow = true
+    c.receiveShadow = true
+  })
+  return { group: g, material: mat, dark }
 }
 
 /** The baby carriage, pushed from its handle (handle toward −z of the group, front toward +z). */
@@ -152,28 +170,118 @@ export function carriage(m: PropMats) {
   return g
 }
 
+/** Width of the mother's scarf (the strip on the needles and the scarf round his neck). */
+export const SCARF_W = 0.13
+
 /**
- * The unfinished scarf on its needles: a knitted strip hanging from the needles
- * (origin at the needles' middle, the strip falling along −y). `length` sets how far it has grown.
+ * How the unfinished scarf lies, in the knitting's own frame: the needles at
+ * the origin along x, +z is forward (away from whoever holds it), +y up.
+ * Each is a path the cloth follows from the needles; the band is cut to its
+ * current length along it.
+ */
+const DRAPES: Record<KnitShape, Array<[number, number, number]>> = {
+  // From her hands over her thighs and knees, then down in front of her shins to the floor.
+  lap: [
+    [0, 0, 0],
+    [0, -0.025, 0.07],
+    [0, -0.065, 0.15],
+    [0, -0.13, 0.23],
+    [0, -0.27, 0.285],
+    [0, -0.47, 0.3],
+    [0, -0.66, 0.31],
+    [0, -0.7, 0.42],
+    [0, -0.705, 0.9],
+  ],
+  // Hanging straight down from the needles.
+  hang: [
+    [0, 0, 0],
+    [0, -0.25, 0.015],
+    [0, -0.7, 0.03],
+    [0, -1.3, 0.035],
+  ],
+  // Held against his chest from the collar: down his front, then forward over his lap.
+  chest: [
+    [0, 0, 0],
+    [0, -0.14, 0.02],
+    [0, -0.3, 0.035],
+    [0, -0.42, 0.09],
+    [0, -0.47, 0.2],
+    [0, -0.48, 0.45],
+  ],
+  // Put down flat on the desk.
+  desk: [
+    [0, 0, 0],
+    [0, 0, 0.25],
+    [0, 0, 0.55],
+  ],
+}
+export type KnitShape = 'lap' | 'hang' | 'chest' | 'desk'
+
+/** The first `length` meters of a polyline, as a smooth curve. */
+function cutPath(pts: Array<[number, number, number]>, length: number) {
+  const out: THREE.Vector3[] = [new THREE.Vector3(...pts[0])]
+  let left = Math.max(0.03, length)
+  for (let i = 1; i < pts.length && left > 0; i++) {
+    const a = new THREE.Vector3(...pts[i - 1])
+    const b = new THREE.Vector3(...pts[i])
+    const d = a.distanceTo(b)
+    if (d >= left || i === pts.length - 1) {
+      out.push(a.lerp(b, Math.min(1, left / d)))
+      left = 0
+    } else {
+      out.push(b)
+      left -= d
+    }
+  }
+  if (out.length === 2) out.splice(1, 0, out[0].clone().lerp(out[1], 0.5))
+  return new THREE.CatmullRomCurve3(out, false, 'centripetal')
+}
+
+/**
+ * The unfinished scarf on its needles: real knitted cloth (garter ridges, soft
+ * edges) that drapes over her lap, hangs from her hands, lies against his
+ * chest or lies folded on the desk, cut to the length it has grown to.
+ * Origin at the needles' middle.
  */
 export function knitting(m: PropMats) {
   const g = new THREE.Group()
-  const strip = rbox(0.17, 1, 0.012, m.knit, 0, -0.5, 0, g, 0.005)
-  for (const dx of [-0.006, 0.006]) {
-    const n = cyl(0.0022, 0.0022, 0.3, m.needle, 0, 0, dx, g, 6)
-    n.rotation.z = PI / 2 + dx * 30
-    cyl(0.005, 0.005, 0.006, m.needle, (dx > 0 ? 1 : -1) * 0.15, (dx > 0 ? 1 : -1) * 0.025, dx, g, 8).rotation.z = PI / 2
-  }
-  const ball = mesh(new THREE.SphereGeometry(0.045, 16, 12), m.knit, 0, 0, 0)
-  g.traverse((c) => (c.castShadow = true))
-  return {
+  g.name = 'knitting'
+  const band = new THREE.Mesh(new THREE.BufferGeometry(), m.knit)
+  band.castShadow = true
+  band.receiveShadow = true
+  band.name = 'knitting-band'
+  g.add(band)
+  const nd = needles(m.needle)
+  nd.position.set(0, 0.004, 0)
+  g.add(nd)
+  const meters = (m.knit.userData.meters as number | undefined) ?? 0.135
+  const cache = new Map<string, THREE.BufferGeometry>()
+  const api = {
     group: g,
-    ball,
-    set(length: number) {
-      strip.scale.y = Math.max(0.02, length)
-      strip.position.y = -length / 2
+    set(shape: KnitShape, length: number) {
+      const key = `${shape}:${Math.round(length / 0.02)}`
+      let geo = cache.get(key)
+      if (!geo) {
+        const len = Math.round(length / 0.02) * 0.02
+        geo = knittedBand(cutPath(DRAPES[shape], len), {
+          width: (s) => SCARF_W * (s > 0.97 ? 0.94 : 1),
+          thick: 0.011,
+          side: new THREE.Vector3(1, 0, 0),
+          meters,
+          lenSeg: Math.max(12, Math.round(len * 90)),
+          ringSeg: 10,
+        })
+        cache.set(key, geo)
+      }
+      band.geometry = geo
+    },
+    dispose() {
+      for (const geo of cache.values()) geo.dispose()
+      cache.clear()
     },
   }
+  api.set('lap', 0.6)
+  return api
 }
 
 /** Reading glasses (folded with scale.x). */

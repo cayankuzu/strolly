@@ -19,6 +19,7 @@ import { carry } from '../rig'
 import * as PP from '../poses'
 import { sunDir, type SkyPreset } from '../env'
 import { ghostMaterial } from '../ghost'
+import { setGrip } from '../cast'
 import type { Actor } from '../../kit/direct'
 
 export const VX = 1000
@@ -35,15 +36,20 @@ export function zEdge(x: number) {
   return curve + jag
 }
 
-/** Plateau height: a promontory whose top is the swing ledge, falling away behind and to the sides. */
+/**
+ * Plateau height: the swing's ledge is a flat spur on a long cliff. The rim
+ * sinks slowly to either side (it stays a wall seen from the valley); behind
+ * the spur the land falls to a saddle the man climbs from, then rises into
+ * wooded hills.
+ */
 export function hPlateau(x: number, z: number) {
   const dx = x - 1003
-  const dz = (z - 4) * 0.9
-  const d = Math.sqrt(dx * dx + dz * dz)
-  const fall = d < 9 ? 0 : d < 15 ? -0.55 * ((d - 9) * (d - 9)) / 12 : -0.55 * (d - 12)
-  const hills = 70 * ridged(x * 0.0035, z * 0.0035, 4, 7) * ss(60, 260, d)
+  const side = -0.12 * Math.max(0, Math.abs(dx) - 6) + 0.00006 * Math.max(0, Math.abs(dx) - 120) ** 2
+  const back = -0.5 * Math.max(0, z - 8) * (1 - ss(70, 160, z)) - 0.5 * 76 * ss(70, 160, z)
+  const d = Math.hypot(dx, (z - 4) * 0.9)
+  const hills = 90 * ridged(x * 0.0035, z * 0.0035, 4, 7) * ss(90, 320, z) + 25 * ridged(x * 0.006, 3.3, 3, 8) * ss(40, 160, Math.abs(dx)) * (1 - ss(-5, 30, -z))
   const lump = 2.2 * fbm(x * 0.04, z * 0.04, 4, 9) * ss(8, 30, d) + 0.35 * fbm(x * 0.3, z * 0.3, 2, 11) * ss(3, 9, d)
-  return fall + hills + lump
+  return side + back + hills + lump
 }
 
 const RIVER = (x: number) => -118 + 26 * Math.sin(x * 0.012) + 9 * Math.sin(x * 0.031 + 1)
@@ -86,8 +92,8 @@ export const SHOTS: Partial<Record<string, ShotKeys>> = {
     [1, [1006.0, 1.6, -0.6, 1000, 2.0, -0.4, 50]],
   ],
   end: [
-    [0, [1060, 40, -260, 1000, 2, 0, 30]],
-    [1, [1052, 34, -236, 1000, 2, 0, 30]],
+    [0, [1058, 12, -262, 1000.5, 3.2, 0, 30]],
+    [1, [1050, 10, -238, 1000.5, 3.2, 0, 30]],
   ],
 }
 
@@ -181,9 +187,12 @@ export class ValleySet implements PSet {
       1,
       (i, j, p, out) => {
         const streak = fbm(p.x * 0.35, p.y * 0.012, 3, 51)
-        const v = 0.7 + 0.25 * fbm(p.x * 0.05, p.y * 0.05, 3, 53) - 0.18 * ss(0.1, 0.5, streak)
-        out.setRGB(0.55 * v, 0.53 * v, 0.5 * v)
-        if (p.y < -335) out.lerp(new THREE.Color(0x4f5040), 0.5)
+        const band = 0.5 + 0.5 * Math.sin(p.y * 0.21 + 3 * fbm(p.x * 0.01, p.y * 0.01, 2, 55))
+        const v = 0.62 + 0.22 * fbm(p.x * 0.05, p.y * 0.05, 3, 53) - 0.2 * ss(0.1, 0.5, streak) - 0.12 * band
+        out.setRGB(0.4 * v, 0.37 * v, 0.35 * v)
+        // Lichen and scrub on the ledges.
+        if (fbm(p.x * 0.08, p.y * 0.08, 2, 57) > 0.35) out.lerp(new THREE.Color(0x3c4430), 0.45)
+        if (p.y < -335) out.lerp(new THREE.Color(0x3a3e30), 0.5)
       },
     )
     const cliff = mesh(faceGeo, pbr('rock', 0xffffff, { vertexColors: true, roughness: 1, side: THREE.DoubleSide }), 0, 0, 0, g)
@@ -231,18 +240,18 @@ export class ValleySet implements PSet {
       const w = 6 + 2 * Math.sin(i * 0.7)
       out.set(pnt.x, -401.2, pnt.z + (j === 0 ? -w : w))
     })
-    mesh(riverGeo, new THREE.MeshBasicMaterial({ color: 0xb4a6c8 }), 0, 0, 0, g)
+    mesh(riverGeo, new THREE.MeshBasicMaterial({ color: 0x7c7894 }), 0, 0, 0, g)
 
     // Forest on the valley floor (instanced crowns), and pines on the plateau's far slopes.
-    const crowns = instances(crownGeometry(), distantMaterial(this.shared, { vertexColors: false }), 9000, () => {
+    const crowns = instances(crownGeometry(), distantMaterial(this.shared, { vertexColors: false }), 26000, () => {
       const x = 640 + rand() * 720
-      const z = -30 - Math.pow(rand(), 1.3) * 820
-      if (Math.abs(z - RIVER(x)) < 16) return null
-      if (fbm(x * 0.01, z * 0.01, 4, 61) > 0.3 && rand() < 0.8) return null
+      const z = -30 - Math.pow(rand(), 1.2) * 820
+      if (Math.abs(z - RIVER(x)) < 14) return null
+      if (fbm(x * 0.01, z * 0.01, 4, 61) > 0.3 && rand() < 0.85) return null
       if (z > zEdge(x) - 64) return null
-      const s = 7 + rand() * 7
-      return [x, hFloor(x, z) - 0.5, z, rand() * PI * 2, s, 0, 0, s * (0.8 + rand() * 0.6)]
-    }, { color: (i, out) => out.setHSL(0.24 + rand() * 0.06, 0.32, 0.12 + rand() * 0.07) })
+      const s = 3.5 + rand() * 4
+      return [x, hFloor(x, z) - 0.6, z, rand() * PI * 2, s, 0, 0, s * (0.7 + rand() * 0.5)]
+    }, { color: (i, out) => out.setHSL(0.22 + rand() * 0.08, 0.35, 0.07 + rand() * 0.07) })
     g.add(crowns)
     const pines = instances(pineGeometry(), distantMaterial(this.shared, { vertexColors: false }), 900, () => {
       const x = 900 + rand() * 260
@@ -360,16 +369,20 @@ export class ValleySet implements PSet {
     const ropeGeo = new THREE.CylinderGeometry(0.013, 0.013, ROPE + 0.06, 8)
     ropeGeo.translate(0, -(ROPE + 0.06) / 2 + 0.03, 0)
     const seatGeo = new THREE.BoxGeometry(0.62, 0.04, 0.2)
-    const knotGeo = new THREE.TorusGeometry(0.17, 0.028, 8, 18)
+    const knotGeo = new THREE.TorusGeometry(0.135, 0.017, 8, 20)
     const ropeMat = pal.rope
     const seatMat = pal.seat
     const addSwing = (pivot: THREE.Group, seat: THREE.Group, rope: THREE.Material, plank: THREE.Material, shadow: boolean) => {
       for (const sx of [-0.3, 0.3]) {
         const r = mesh(ropeGeo, rope, sx, 0, 0, pivot)
         r.castShadow = shadow
-        const k = mesh(knotGeo, rope, sx, 0.08, 0, pivot)
-        k.rotation.y = PI / 2
-        k.castShadow = shadow
+        // Three turns of rope round the branch.
+        for (const dx of [-0.035, 0, 0.035]) {
+          const k = mesh(knotGeo, rope, sx + dx, 0.085, 0, pivot)
+          k.rotation.y = PI / 2
+          k.rotation.x = dx * 3
+          k.castShadow = shadow
+        }
         mesh(new THREE.SphereGeometry(0.03, 10, 8), rope, sx, -0.05, 0, seat).castShadow = shadow
       }
       const s = mesh(seatGeo, plank, 0, 0, 0, seat)
@@ -532,6 +545,7 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
     a.reach('l', 1, -0.3, 0.78, 0, 0.3)
     a.reach('r', 1, 0.3, 0.78, 0, 0.3)
     a.apply(time, breathe)
+    setGrip(a.figure, true)
     carry(a.figure, frame)
   }
 
@@ -545,7 +559,7 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
     env.sky.mix(DUSK, DUSK_LATE, late, sd)
     env.setSun(new THREE.Vector3(1001, 1, 1), sd, 0xffb46a, lerp(2.6, 1.4, late), 14)
     env.sun.color.lerp(this.lateSun, late)
-    env.setHemi(0x7a6a9a, 0x2a2633, 0.9)
+    env.setHemi(0x7a6a9a, 0x2a2633, 0.6)
     env.setFill(new THREE.Vector3(1000, 30, -200), new THREE.Vector3(1000, 0, 0), 0x6f7fb0, 0.35)
     env.setFog(0x8a7590, 0.00085)
     env.ibl('belfast_sunset_puresky', 0.45, PI)

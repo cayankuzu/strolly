@@ -10,7 +10,7 @@ import { makePath } from '../../figure/paths'
 import { keyed, type Actor, type ShotKeys } from '../../kit/direct'
 import { pbr } from '../../kit/surfaces'
 import { mesh } from '../../util'
-import { PI, DEG, fbm, rng, ss, win, instances, type Ctx, type Dir, type PSet } from '../common'
+import { PI, DEG, fbm, rng, ss, win, instances, levelTo, type Ctx, type Dir, type PSet } from '../common'
 import { bunched, gridSurface, tuftGeometry, mergeAll } from '../geo'
 import { carry, pivotFrame } from '../rig'
 import { Burst } from '../fx'
@@ -23,7 +23,7 @@ const FLOOR = -100
 const SEAT = { x: 300, z: -1.6 }
 const PILE = { x: 300.52, z: -1.22 }
 
-const NOON: SkyPreset = { zenith: 0x2f63b0, horizon: 0xb8cce0, below: 0x6a6a62, haze: 0xc8d6e4, hazeAmt: 0.35, sunColor: 0xfff2d8, disc: 3, glow: 0.5, cloud: 0.22, cloudLit: 0xffffff, cloudShade: 0xaab8cc, power: 1.1 }
+const NOON: SkyPreset = { zenith: 0x2f63b0, horizon: 0xb8cce0, below: 0x6a6a62, haze: 0xc8d6e4, hazeAmt: 0.35, sunColor: 0xfff2d8, disc: 0, glow: 0.35, cloud: 0.22, cloudLit: 0xffffff, cloudShade: 0xaab8cc, power: 1.1 }
 
 /** The rim line: z of the edge at x. */
 export function rimZ(x: number) {
@@ -53,10 +53,10 @@ export function faceZ(x: number, y: number) {
 
 const SHOTS: Record<string, ShotKeys> = {
   rehearsal: [
-    [0, [300.15, -2.6, -4.6, 300.45, 0.25, -1.75, 45]],
-    [0.3, [300.1, -2.5, -4.5, 300.45, 0.3, -1.8, 45]],
-    [0.6, [300.05, -2.7, -4.6, 300.4, 0.1, -1.9, 46]],
-    [1, [300.0, -2.4, -4.4, 300.45, 0.3, -1.7, 44]],
+    [0, [299.62, -2.1, -4.7, 300.35, -0.05, -1.9, 54]],
+    [0.3, [299.62, -2.15, -4.75, 300.35, -0.1, -1.9, 55]],
+    [0.6, [299.6, -2.2, -4.8, 300.3, -0.15, -1.95, 55]],
+    [1, [299.7, -2.0, -4.6, 300.35, 0.0, -1.85, 52]],
   ],
 }
 
@@ -66,11 +66,12 @@ export class HillSet implements PSet {
   private lap!: THREE.InstancedMesh
   private pile!: THREE.InstancedMesh
   private knock = [new Burst(40, 0xd8cfbf, 0.06, false, 3), new Burst(40, 0xd8cfbf, 0.06, false, 5)]
-  private puff = new Burst(90, 0xcfc4b2, 0.5, false, 9)
+  private puff = new Burst(220, 0xcfc4b2, 0.16, false, 9)
   private frameM = new THREE.Matrix4()
   private v = new THREE.Vector3()
   private n = new THREE.Vector3()
   private q = new THREE.Quaternion()
+  private tmpUp = new THREE.Vector3()
   private ghostT = 0
   private climb = makePath([
     [303.4, 6.4],
@@ -265,7 +266,7 @@ export class HillSet implements PSet {
     // Stones: the pile by his right hip, the ones in his lap, the one he drops.
     const stoneGeo = mergeAll([new THREE.DodecahedronGeometry(0.03, 0)])
     stoneGeo.scale(1.2, 0.85, 1)
-    const stoneMat = pbr('rock', 0xcfc6b5, { roughness: 1, scale: 0.2 })
+    const stoneMat = pbr('rock', 0x8a7e6e, { roughness: 1, scale: 0.2 })
     this.pile = instances(
       stoneGeo,
       stoneMat,
@@ -399,9 +400,9 @@ export class HillSet implements PSet {
     boy.apply(f.time, true)
     // Wide side view from out over the ravine; it follows him to the rim.
     const k = ss(0, 1, cu)
-    shot.pos.set(lerp(309.6, 308.4, k), lerp(2.6, 1.8, k), lerp(-9.2, -8.4, k))
-    shot.tgt.set(lerp(boy.x, 300.4, 0.4) + 0.3, lerp(-0.6, -1.6, k), lerp(boy.z, -1.6, 0.4) + 1.6)
-    shot.fov = 50
+    shot.pos.set(lerp(309.4, 308.2, k), lerp(3.6, 2.8, k), lerp(-10.2, -9.2, k))
+    shot.tgt.set(lerp(boy.x, 300.4, 0.4) + 0.3, lerp(-2.4, -3.4, k), lerp(boy.z, -1.6, 0.4) + 1.6)
+    shot.fov = 52
     shot.handheld = 0.4
   }
 
@@ -414,9 +415,9 @@ export class HillSet implements PSet {
     const hold = 1 - ss(0.3, 0.42, u)
     const check = win(0.72, 0.8, 0.9, 0.95, u)
     const lt = this.v.set(lerp(299.85, 299.87, hold), lerp(0.18, 0.44, hold), lerp(-1.86, -2.2, hold))
-    lt.set(lerp(lt.x, 299.86, check), lerp(lt.y, 0.6, check), lerp(lt.z, -1.98, check))
+    lt.set(lerp(lt.x, 299.9, check), lerp(lt.y, 0.46, check), lerp(lt.z, -2.08, check))
     boy.reach('l', 1, lt.x, lt.y, lt.z, 0.25)
-    const press = Math.max(win(0.0, 0.06, 0.26, 0.34, u), check)
+    const press = win(0.0, 0.06, 0.26, 0.34, u)
     // His right fingers on the left wrist (a little back from the hand, toward the elbow).
     boy.reach('r', press * (1 - ss(0.92, 0.95, u)), lt.x + 0.03, lt.y + 0.035, lt.z + 0.085, 0.3)
     // He picks up the next stone and weighs it.
@@ -439,7 +440,7 @@ export class HillSet implements PSet {
     } else if (u < 0.76) {
       this.stoneAt(u, st.position)
       st.rotation.set(u * 40, u * 23, u * 31)
-      const s = 1 + 0.6 * ss(0.3, 0.7, u)
+      const s = 1.2 + 0.8 * ss(0.26, 0.5, u)
       st.scale.setScalar(s)
     } else st.visible = false
     // Two knocks against the face, the dust puff on the floor.
@@ -454,38 +455,41 @@ export class HillSet implements PSet {
 
     // Camera.
     if (cu < 0.22) {
-      // Over his right shoulder: the hand, the stone, the watch.
-      shot.pos.set(300.42, 0.66, -1.12)
-      shot.tgt.set(299.88, 0.4, -2.12)
-      shot.fov = 32
+      // From his left, out over the void: the hand, the stone, the watch; the ravine far below.
+      shot.pos.set(299.18, 0.66, -2.78)
+      shot.tgt.set(299.9, 0.38, -2.1)
+      shot.fov = 34
       shot.handheld = 0.3
     } else if (cu < 0.8) {
-      // Following the stone down the face, the stone in the upper third.
+      // Following the stone down the face, the stone in the upper third; the floor comes up.
       const sp = this.stoneAt(Math.min(u, 0.758), this.v)
-      const y = Math.max(sp.y, FLOOR + 4)
-      const k = ss(0.22, 0.32, cu)
-      shot.pos.set(lerp(300.42, 302.6, k), lerp(0.66, y + 4.2, k), lerp(-1.12, -8.2, k))
-      shot.tgt.set(lerp(299.88, sp.x, k), lerp(0.4, y - 7, k), lerp(-2.12, sp.z + 0.6, k))
-      shot.fov = lerp(32, 45, k)
-      shot.handheld = 0.2
+      const k = ss(0.22, 0.3, cu)
+      const y = Math.max(sp.y, FLOOR + 1.2)
+      shot.pos.set(lerp(299.18, sp.x + 1.2, k), lerp(0.66, y + 0.6, k), lerp(-2.78, sp.z - 2.0, k))
+      shot.tgt.set(lerp(299.9, sp.x - 0.1, k), lerp(0.38, y - 0.9, k), lerp(-2.1, sp.z + 0.3, k))
+      shot.fov = lerp(34, 46, k)
+      shot.handheld = 0.15
     } else if (cu < 0.92) {
-      // The watch: 00:04.6.
+      // The watch: 00:04.6, read upright.
       const wf = boy.figure.root.getObjectByName('watch-face')
       if (wf) {
         wf.getWorldPosition(this.v)
         wf.getWorldQuaternion(this.q)
         this.n.set(0, 0, 1).applyQuaternion(this.q)
-        shot.pos.copy(this.v).addScaledVector(this.n, 0.16)
-        shot.pos.y += 0.03
+        shot.pos.copy(this.v).addScaledVector(this.n, 0.15)
+        shot.pos.z -= 0.08
+        this.tmpUp.set(0, 1, 0).applyQuaternion(this.q)
+        shot.pos.addScaledVector(this.tmpUp, 0.05)
         shot.tgt.copy(this.v)
+        d.level = levelTo(shot, this.n.set(0, 1, 0).applyQuaternion(this.q))
       }
       shot.fov = 30
-      shot.handheld = 0.2
+      shot.handheld = 0.1
     } else {
       // His face over the rim.
       boy.figure.joints.head.getWorldPosition(this.v)
-      shot.pos.set(this.v.x + 0.35, this.v.y - 0.12, this.v.z - 0.75)
-      shot.tgt.set(this.v.x - 0.08, this.v.y + 0.02, this.v.z)
+      shot.pos.set(this.v.x + 0.45, this.v.y - 0.16, this.v.z - 0.95)
+      shot.tgt.set(this.v.x - 0.12, this.v.y + 0.0, this.v.z)
       shot.fov = 34
       shot.handheld = 0.3
     }
@@ -528,8 +532,8 @@ export class HillSet implements PSet {
             tt,
           )
           this.ghostT = tt
-          const y = -30 * Math.pow(tt / 0.25, 2)
-          return 0.34 * (1 - ss(-18, -30, y))
+          const y = -30 * Math.pow(tt / 0.25, 3)
+          return 0.36 * (1 - ss(-18, -30, y))
         },
         f.time,
         {
@@ -538,9 +542,9 @@ export class HillSet implements PSet {
           alpha: true,
           after: (a) => {
             const tt = this.ghostT
-            const tip = Math.min(1.9, tt * 14)
-            const y = -30 * Math.pow(tt / 0.25, 2)
-            const out = -Math.min(0.9, tt * 5)
+            const tip = Math.min(1.9, tt * 12)
+            const y = -30 * Math.pow(tt / 0.25, 3)
+            const out = -Math.min(1.1, tt * 6)
             carry(a.figure, pivotFrame(SEAT.x, 0.05, -1.95, -tip, 0, 0.12 * tip, 0, y, out, this.frameM))
           },
         },

@@ -14,8 +14,10 @@ export type RibbonOptions = {
   width: number | ((s: number) => number)
   /** Thickness of the band (through), meters. */
   thick: number | ((s: number) => number)
-  /** Desired direction of the band's width (projected off the tangent). A function gets s. */
-  side: THREE.Vector3 | ((s: number, out: THREE.Vector3) => THREE.Vector3)
+  /** Desired direction of the band's width (projected off the tangent). A function gets s and the point on the curve. */
+  side: THREE.Vector3 | ((s: number, out: THREE.Vector3, at: THREE.Vector3) => THREE.Vector3)
+  /** Roundness of the section: 2 an ellipse … 5 a soft-cornered slab (default). */
+  round?: number
   /** Ridge pitch along the band, meters (0 = smooth). */
   ridge?: number
   /** Ridge height, meters. */
@@ -35,11 +37,11 @@ const S = new THREE.Vector3()
 const N = new THREE.Vector3()
 const H = new THREE.Vector3()
 
-/** A rounded-rectangle section (superellipse) at angle φ: [across, through] in units of half-size. */
-function section(phi: number): [number, number] {
+/** A rounded-rectangle section (superellipse of power n) at angle φ: [across, through] in units of half-size. */
+function section(phi: number, n: number): [number, number] {
   const c = Math.cos(phi)
   const s = Math.sin(phi)
-  const e = 2 / 5
+  const e = 2 / n
   return [Math.sign(c) * Math.pow(Math.abs(c), e), Math.sign(s) * Math.pow(Math.abs(s), e)]
 }
 
@@ -58,6 +60,7 @@ export function knittedBand(curve: THREE.Curve<THREE.Vector3>, o: RibbonOptions)
   const width = typeof o.width === 'number' ? () => o.width as number : o.width
   const thick = typeof o.thick === 'number' ? () => o.thick as number : o.thick
   const side = o.side instanceof THREE.Vector3 ? (_s: number, out: THREE.Vector3) => out.copy(o.side as THREE.Vector3) : o.side
+  const round = o.round ?? 5
   const length = curve.getLength()
   const rows = closed ? lenSeg : lenSeg + 1
   const pos: number[] = []
@@ -68,7 +71,7 @@ export function knittedBand(curve: THREE.Curve<THREE.Vector3>, o: RibbonOptions)
     const s = i / lenSeg
     curve.getPointAt(Math.min(1, s), P)
     curve.getTangentAt(Math.min(1, s), T).normalize()
-    side(s, H)
+    side(s, H, P)
     S.copy(H).addScaledVector(T, -H.dot(T))
     if (S.lengthSq() < 1e-8) S.set(1, 0, 0)
     S.normalize()
@@ -83,7 +86,7 @@ export function knittedBand(curve: THREE.Curve<THREE.Vector3>, o: RibbonOptions)
     const wobble = 1 + 0.035 * Math.sin(along * 37.0) + 0.02 * Math.sin(along * 91.0 + 1.3)
     for (let j = 0; j < ring; j++) {
       const phi = (j / ring) * PI * 2
-      const [a, b] = section(phi)
+      const [a, b] = section(phi, round)
       const face = Math.pow(Math.abs(Math.sin(phi)), 3)
       const across = a * (w / 2) * wobble
       const through = b * (t / 2) + Math.sign(b) * swell * face

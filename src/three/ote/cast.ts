@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three'
 import { Figure, makePose, type FigureLook, type Pose } from '../figure/Figure'
+import { handGeometry } from '../figure/figureBody'
 import * as P from '../figure/poses'
 import { Actor } from '../kit/direct'
 import { canvasPlane, std } from '../kit/props'
@@ -71,7 +72,7 @@ export const STRETCH = makePose({ spine: [-0.1, 0, 0], chest: [-0.08, 0, 0], hea
 /** Standing with a tablet held at the chest in one hand. */
 export const TABLET = makePose({ neck: [0.1, 0, 0], head: [0.22, 0, 0], lUpper: [-0.32, 0, 0.18], rUpper: [-0.1, 0, -0.1], lFore: [-1.35, 0.4, 0], rFore: [-0.5, 0, 0] })
 /** On the lounge sofa, upright, a cup in the lap. */
-export const SOFA_UP = makePose({ spine: [-0.08, 0, 0], chest: [-0.02, 0, 0], neck: [0.05, 0, 0], head: [0.1, 0, 0], lUpper: [-0.35, 0, 0.15], rUpper: [-0.4, 0, -0.15], lFore: [-1.1, 0.3, 0], rFore: [-1.2, -0.3, 0] }, P.SOFA)
+export const SOFA_UP = makePose({ hipY: 0.575, lThigh: [-1.5, 0, 0.1], rThigh: [-1.48, 0, -0.06], lShin: [1.42, 0, 0], rShin: [1.5, 0, 0], spine: [-0.08, 0, 0], chest: [-0.02, 0, 0], neck: [0.05, 0, 0], head: [0.1, 0, 0], lUpper: [-0.35, 0, 0.15], rUpper: [-0.4, 0, -0.15], lFore: [-1.1, 0.3, 0], rFore: [-1.2, -0.3, 0] }, P.SOFA)
 
 export const POSES = { SIT_TABLE, SIT_BOWED, SIT_STILL_UP, ATTENTION, CLASPED, SIT_ARMS, SIT_G, SIT_KNIT, STOOL, GLASS_LEAN, ARM_UP, STRETCH, TABLET, SOFA_UP }
 
@@ -122,6 +123,27 @@ export type Cast = {
   beard: THREE.Mesh
   /** W1's round spectacles (the CC0 model when it loaded). */
   spectacles: THREE.Object3D | null
+}
+
+/** Right hands that can close around a pen (M's and N's): the relaxed and the curled geometry. */
+const grips = new Map<Figure, { mesh: THREE.Mesh; relaxed: THREE.BufferGeometry; grip: THREE.BufferGeometry }>()
+/** Curls a figure's right hand around something (the pen), or relaxes it. */
+export function setGrip(f: Figure, on: boolean) {
+  const g = grips.get(f)
+  if (g) g.mesh.geometry = on ? g.grip : g.relaxed
+}
+function makeGrip(f: Figure, scale: number) {
+  const m = f.joints.rHand.children.find((o) => (o as THREE.Mesh).isMesh) as THREE.Mesh | undefined
+  if (!m) return
+  const grip = handGeometry(-1, scale, 0.95)
+  grips.set(f, { mesh: m, relaxed: m.geometry, grip })
+}
+export function disposeGrips() {
+  for (const g of grips.values()) {
+    g.mesh.geometry = g.relaxed
+    g.grip.dispose()
+  }
+  grips.clear()
 }
 
 /** The eyelids of a figure (meshes that remember their open angle). */
@@ -197,6 +219,8 @@ export function buildCast(m: Pal, scene: THREE.Scene, spectaclesModel: THREE.Gro
     actors[id] = new Actor(fig)
   }
   const J = (id: CastId) => actors[id].figure.joints
+  makeGrip(actors.M.figure, 1)
+  makeGrip(actors.N.figure, 0.88)
   const hair: Cast['hair'] = {}
   for (const id of ['M', 'W1', 'Y', 'C1', 'C2'] as CastId[]) hair[id] = actors[id].figure.headMeshes[1].material as THREE.MeshStandardMaterial
 

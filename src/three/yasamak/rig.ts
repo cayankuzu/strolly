@@ -53,17 +53,21 @@ export const FLOP = makePose(
   P.SIT,
 )
 
-/** Seated, head thrown back, arms flung out: "Tam da yenecektim!" */
+/**
+ * Seated, thrown back against the chair with both hands on his head:
+ * "Tam da yenecektim!" The arms are raised and bent; the director lands the
+ * hands on the head exactly (touch), this is where they come from.
+ */
 export const ARMS_FLUNG = makePose(
   {
-    spine: [-0.22, 0, 0],
-    chest: [-0.1, 0, 0],
-    neck: [-0.15, 0, 0],
-    head: [-0.38, 0, 0],
-    lUpper: [-0.5, 0, 1.25],
-    rUpper: [-0.5, 0, -1.25],
-    lFore: [-0.55, 0, 0],
-    rFore: [-0.55, 0, 0],
+    spine: [-0.2, 0, 0],
+    chest: [-0.08, 0, 0],
+    neck: [-0.06, 0, 0],
+    head: [-0.22, 0, 0],
+    lUpper: [-1.5, 0, 0.75],
+    rUpper: [-1.5, 0, -0.75],
+    lFore: [-1.9, 0, 0],
+    rFore: [-1.9, 0, 0],
   },
   P.SIT,
 )

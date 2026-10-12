@@ -38,7 +38,7 @@ const SEGMENTS = [
   ['forty', 3.3],
   // 03 — RUTİN (early night; three robots, one coffee)
   ['reopen', 2.2],
-  ['robots', 1.9],
+  ['robots', 2.2],
   ['sits', 1.6],
   ['reach', 2.5],
   ['sip', 2.4],

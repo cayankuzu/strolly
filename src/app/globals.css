@@ -720,6 +720,26 @@ button {
   padding: calc(var(--gutter-top) + 48px) var(--gutter-right) calc(max(24px, env(safe-area-inset-bottom)) + 48px) calc(var(--gutter-left) + 3vw);
 }
 
+/* The stories' cards drift behind the title; a dark wash keeps the menu readable. */
+.title-reel {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.title-reel .ss-art[data-on='true'] {
+  opacity: 0.3;
+}
+
+.title-reel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(5, 5, 5, 0.94) 0%, rgba(5, 5, 5, 0.7) 40%, rgba(5, 5, 5, 0.25) 100%);
+}
+
 .title-mark {
   font-size: clamp(44px, 7.2vw, 112px);
   font-weight: 300;
@@ -1105,7 +1125,8 @@ button {
 .farewell {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* Centred when it fits; when it is taller than the screen it starts at the top (nothing cut off). */
+  justify-content: safe center;
   padding: calc(var(--gutter-top) + 48px) var(--gutter-right) 48px calc(var(--gutter-left) + 3vw);
 }
 
@@ -1238,11 +1259,17 @@ button {
 
 /* The language row sits above the tabs, in every tab. */
 .settings-lang {
-  margin-top: 1.2em;
+  margin-top: 0.8em;
+  /* Lines up with the rows below, which leave room for their scrollbar. */
+  padding-right: 6px;
 }
 
 .settings-lang .set-row {
   border-bottom: 0;
+}
+
+.settings-lang + .settings-tabs {
+  margin-top: 0.8em;
 }
 
 .settings-tabs {
@@ -2798,6 +2825,17 @@ html[data-motion='reduced'] .menu-btn {
 }
 
 @media (max-width: 700px) {
+  /* Scrolling menus keep their last lines above the © line, and the fixed sound
+     toggle stays legible over the list scrolling under it. */
+  .credits,
+  .farewell {
+    padding-bottom: calc(max(24px, env(safe-area-inset-bottom)) + 72px);
+  }
+  .menu-sound {
+    border-radius: 999px;
+    background: rgba(var(--shade), 0.78);
+    backdrop-filter: blur(6px);
+  }
   :root {
     --gutter-bottom: calc(max(16px, env(safe-area-inset-bottom)) + 64px);
     --content-max: 100%;
@@ -2844,6 +2882,17 @@ html[data-motion='reduced'] .menu-btn {
   .hud-pct {
     display: none;
   }
+  /* Long titles wrap before the sound and menu buttons instead of running under them. */
+  .hud-tl {
+    right: calc(var(--gutter-right) + 80px);
+  }
+  .hud-story {
+    line-height: 1.6;
+  }
+  /* Machine labels and subtitles clear a title that took two lines. */
+  .nl-top .nl-item {
+    top: calc(var(--gutter-top) + 11vh);
+  }
   .hud-line {
     width: calc(100vw - 2 * var(--gutter));
   }
@@ -2866,6 +2915,10 @@ html[data-motion='reduced'] .menu-btn {
   }
   .set-control {
     justify-content: flex-start;
+  }
+  /* The language row stays on one line: its two choices are short. */
+  .settings-lang .set-row {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .credits-list {
     grid-template-columns: minmax(0, 1fr);

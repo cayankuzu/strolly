@@ -19,7 +19,7 @@ const X = -300
 const VOID: SkyPreset = { zenith: 0x05070e, horizon: 0x0a0f1f, below: 0x0c1838, haze: 0x0b1226, hazeAmt: 0.4, sunColor: 0x000000, disc: 0, glow: 0, cloud: 0, cloudLit: 0, cloudShade: 0, power: 1 }
 
 /** The can's label: silver-blue, two white wings, the word. */
-function canLabel() {
+export function canLabel() {
   return canvasTexture(512, 256, (g, W, H) => {
     const grad = g.createLinearGradient(0, 0, 0, H)
     grad.addColorStop(0, '#b8cbe6')

@@ -168,7 +168,8 @@ export class Ribbon {
 export function receiptPrinter() {
   const g = new THREE.Group()
   const hw = hardware()
-  const body = pbr('plastic', 0xc9ccce, { roughness: 0.55 })
+  // Smooth injection-moulded ABS (the scanned 'plastic' grain reads as stone at this size).
+  const body = new THREE.MeshStandardMaterial({ color: 0xc2c5c7, roughness: 0.42, metalness: 0 })
   rbox(0.12, 0.085, 0.14, body, 0, 0.0425, 0, g, 0.012)
   // The lid, a little rounded, with the cutter lip at the front.
   rbox(0.116, 0.02, 0.1, body, 0, 0.092, -0.016, g, 0.009)
@@ -486,16 +487,34 @@ export function teaGlass() {
 }
 
 /** The paper bakery bag with two simits (one sticks out of the top). */
+/** The bakery's paper bag, open at the top, two simits standing in it with their tops showing. */
 export function simitBag() {
   const g = new THREE.Group()
-  const paperM = pbr('paper', 0xd8c39a, { roughness: 0.95 })
-  const bag = rbox(0.16, 0.2, 0.08, paperM, 0, 0.1, 0, g, 0.01)
+  // Plain kraft (the scanned paper weave reads as wicker at this size).
+  const paperM = new THREE.MeshStandardMaterial({ color: 0xc9ad7f, roughness: 0.95, side: THREE.DoubleSide })
+  const W = 0.16
+  const H = 0.19
+  const D = 0.09
+  const t = 0.002
+  const bag = new THREE.Group()
   bag.rotation.y = 0.2
-  bag.castShadow = true
-  const sim = simit()
-  sim.rotation.set(PI / 2 - 0.3, 0.2, 0)
-  sim.position.set(0.0, 0.21, 0)
-  g.add(sim)
+  g.add(bag)
+  rbox(W, t, D, paperM, 0, t / 2, 0, bag, 0.0008)
+  rbox(W, H, t, paperM, 0, H / 2, D / 2, bag, 0.0008)
+  // The back panel a little lower and leaning out: paper, not a box.
+  rbox(W, H * 0.93, t, paperM, 0, (H * 0.93) / 2, -D / 2, bag, 0.0008).rotation.x = -0.05
+  rbox(t, H, D, paperM, W / 2, H / 2, 0, bag, 0.0008)
+  rbox(t, H, D, paperM, -W / 2, H / 2, 0, bag, 0.0008)
+  for (const [x, z, tilt, roll] of [
+    [-0.006, -0.016, -0.22, 0.1],
+    [0.008, 0.016, 0.2, -0.12],
+  ] as const) {
+    const sim = simit()
+    sim.rotation.set(PI / 2 + tilt, 0, roll)
+    sim.position.set(x, 0.17, z)
+    bag.add(sim)
+  }
+  g.traverse((o) => (o.castShadow = true))
   return g
 }
 

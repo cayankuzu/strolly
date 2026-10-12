@@ -29,7 +29,9 @@ export const C = {
 } as const
 
 const glass = (color: number, opacity: number, roughness = 0.04) =>
-  new THREE.MeshPhysicalMaterial({ color, roughness, metalness: 0, transparent: true, opacity, depthWrite: false, envMapIntensity: 1.2 })
+  new THREE.MeshPhysicalMaterial({ color, roughness, metalness: 0, transparent: true, opacity, depthWrite: false, envMapIntensity: 0.35 })
+/** Smooth metal (brushed steel, brass, black anodised): no plate pattern, the room's reflections do the work. */
+const metal = (color: number, roughness: number) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 1, envMapIntensity: 1 })
 
 export function palette() {
   return {
@@ -41,10 +43,10 @@ export function palette() {
     carpet: pbr('carpet', 0x1e1a17),
     ceilingDark: pbr('plaster', 0x1d1c1b),
     leather: pbr('leather', 0x1b1714, { roughness: 0.55 }),
-    brass: pbr('metal', 0xb08d57, { roughness: 0.38 }),
-    blackMetal: pbr('metal', 0x1a1a1b, { roughness: 0.5 }),
-    steel: pbr('metal', C.steel, { roughness: 0.42 }),
-    brushed: pbr('metal', 0xa7abb0, { roughness: 0.3 }),
+    brass: metal(0xb08d57, 0.38),
+    blackMetal: metal(0x1a1a1b, 0.5),
+    steel: metal(C.steel, 0.42),
+    brushed: metal(0xa7abb0, 0.3),
     darkGlass: new THREE.MeshPhysicalMaterial({ color: 0x0c1014, roughness: 0.03, metalness: 0.1, transparent: true, opacity: 0.38, depthWrite: false, envMapIntensity: 1.6 }),
     obsWall: pbr('painted', 0x15181c, { roughness: 1 }),
     obsFloor: pbr('carpet', 0x121315),
@@ -53,9 +55,9 @@ export function palette() {
     folderCard: pbr('paper', 0x8d9196, { roughness: 1 }),
     wallet: pbr('leather', 0x5a3a22, { roughness: 0.6 }),
     pen: pbr('plastic', 0x1a2344, { roughness: 0.35 }),
-    penClip: pbr('metal', 0xd6d8db, { roughness: 0.2 }),
+    penClip: metal(0xd6d8db, 0.2),
     inkLine: new THREE.MeshBasicMaterial({ color: C.ink }),
-    lampShade: pbr('metal', 0x121212, { roughness: 0.45 }),
+    lampShade: metal(0x121212, 0.45),
     lampInner: new THREE.MeshBasicMaterial({ color: 0xffe2b0 }),
     bulb: new THREE.MeshBasicMaterial({ color: 0xfff1d6 }),
     daylightLine: new THREE.MeshBasicMaterial({ color: 0xfff0d8 }),
@@ -66,7 +68,7 @@ export function palette() {
     paleFloor: pbr('tile', 0xb8bcc0, { roughness: 1.2 }),
     whiteCeiling: pbr('plaster', 0xeceeef),
     lightStrip: new THREE.MeshBasicMaterial({ color: 0xf4f8ff }),
-    cabinSteel: pbr('metal', 0xb3b7bb, { roughness: 0.32 }),
+    cabinSteel: metal(0xb3b7bb, 0.32),
     cabinFloor: pbr('rubber', 0x2d2f31),
     indicatorGlass: new THREE.MeshStandardMaterial({ color: 0x050506, roughness: 0.1, metalness: 0.3 }),
     // ——— C: the shuttle cabin ———
@@ -75,7 +77,7 @@ export function palette() {
     cabinGrey: pbr('rubber', 0x5e6064),
     cushion: pbr('fabric', C.seat),
     strap: pbr('fabric', 0x6d7075),
-    buckle: pbr('metal', 0xcfd2d6, { roughness: 0.25 }),
+    buckle: metal(0xcfd2d6, 0.25),
     windowRim: pbr('plastic', 0x2c2e31, { roughness: 0.5 }),
     windowGlass: glass(0xc8d8e8, 0.1, 0.02),
     aisleLight: new THREE.MeshBasicMaterial({ color: 0xdfe9ff }),
@@ -83,9 +85,9 @@ export function palette() {
     lockRed: new THREE.MeshBasicMaterial({ color: 0xff3a2a }),
     // ——— D/F: exteriors ———
     hull: pbr('painted', 0xeeece6, { roughness: 0.6 }),
-    hullGrey: pbr('metal', 0x9ea2a8, { roughness: 0.5 }),
+    hullGrey: metal(0x9ea2a8, 0.5),
     hullBlack: pbr('painted', 0x141518, { roughness: 0.7 }),
-    gold: pbr('metal', 0xc9a24a, { roughness: 0.35 }),
+    gold: metal(0xc9a24a, 0.35),
     solar: new THREE.MeshStandardMaterial({ color: 0x0d1630, roughness: 0.25, metalness: 0.6 }),
     navRed: new THREE.MeshBasicMaterial({ color: 0xff4a3a }),
     navGreen: new THREE.MeshBasicMaterial({ color: 0x5cff8a }),
@@ -111,7 +113,7 @@ export function palette() {
     caseBlack: pbr('leather', 0x161616, { roughness: 0.7 }),
     crate: pbr('wood', 0x9a8463, { roughness: 0.9 }),
     yarn: pbr('knit', C.scarf),
-    needle: pbr('metal', 0xd8d8d8, { roughness: 0.3 }),
+    needle: metal(0xd8d8d8, 0.3),
     canvasBag: pbr('fabric', 0xb9ad92),
     cupWhite: pbr('ceramic', 0xefebe3),
     coffee: std(0x2a160a, 0.1),
@@ -120,11 +122,11 @@ export function palette() {
     missionWall: pbr('painted', 0x1f2733, { roughness: 1 }),
     missionFloor: pbr('carpet', 0x161b22),
     missionCeiling: pbr('plaster', 0x151a21),
-    plaqueBrass: pbr('metal', 0xa88a55, { roughness: 0.42 }),
-    emblemSteel: pbr('metal', 0xb9bdc2, { roughness: 0.28 }),
+    plaqueBrass: metal(0xa88a55, 0.42),
+    emblemSteel: metal(0xb9bdc2, 0.28),
     voidBlack: new THREE.MeshBasicMaterial({ color: 0x000000 }),
     ledGreen: new THREE.MeshBasicMaterial({ color: 0x4dff88 }),
-    cart: pbr('metal', 0x7a7f86, { roughness: 0.5 }),
+    cart: metal(0x7a7f86, 0.5),
     stamp: pbr('plastic', 0x202020, { roughness: 0.5 }),
     // ——— People ———
     skinM: std(0xc89d82, 0.55),
@@ -158,14 +160,14 @@ export function palette() {
     denimJacket: std(0x1b1c20, 0.9),
     tee: std(0xe9e7e2, 0.9),
     jeans: std(0x34445e, 0.9),
-    beige: std(0xb9a587, 0.92),
-    beigeDark: std(0xa8946f, 0.92),
+    beige: std(0x5f5a4c, 0.92),
+    beigeDark: std(0x4a4639, 0.92),
     greenSweater: std(0x2f4a36, 0.95),
     redScarf: std(0x8f2a26, 0.9),
     navySuit: std(0x1d2740, 0.85),
     greenCoat: std(0x264033, 0.92),
     bracelet: std(0xf4f4f2, 0.4),
-    watch: pbr('metal', 0xc9ccd0, { roughness: 0.3 }),
+    watch: metal(0xc9ccd0, 0.3),
     glassesFrame: std(0x2a2522, 0.4),
     lens: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.02, transparent: true, opacity: 0.1, depthWrite: false }),
   }

@@ -138,6 +138,8 @@ export type SkyState = {
   /** Earth: angular diameter in degrees (0 hides it), its direction, and the dot's size in pixels when it is smaller than that. */
   earth: number
   earthDir: THREE.Vector3
+  /** A point the Earth is seen toward (far behind a window): when set, the scene aims `earthDir` from the camera at it. */
+  earthAt: THREE.Vector3 | null
   dotPx: number
   dotAlpha: number
   /** Black hole: angular radius of the shadow (degrees, 0 hides it), its direction. */
@@ -158,6 +160,7 @@ export const makeSkyState = (): SkyState => ({
   ring: 0,
   earth: 0,
   earthDir: new THREE.Vector3(0, 0, 1),
+  earthAt: null,
   dotPx: 3,
   dotAlpha: 0,
   hole: 0,
@@ -414,12 +417,15 @@ export class Sky {
           float Rp = length(q);
           bool near = p.y < 0.06;
           vec3 prim = disk(Rp, atan(q.y, q.x), -q.x / max(Rp, 1e-3));
-          if (!near) prim *= smoothstep(1.0, 1.03, r);
-          // Secondary image: the far side of the disc lensed over and under the shadow.
+          // The far half: its inner part is bent up over the shadow (below), only its outer edge stays flat.
+          if (!near) prim *= smoothstep(1.0, 1.03, r) * (0.25 + 0.75 * smoothstep(1.7, 2.6, r));
+          // Secondary image: the far side of the disc lensed over and under the shadow, a thick
+          // band hugging the top, a thinner one underneath.
           float phiS = atan(p.y, p.x);
-          float Rs = 1.55 + max(r - 1.04, 0.0) * 9.0;
-          float arc = smoothstep(1.03, 1.07, r) * (0.2 + 0.8 * pow(abs(sin(phiS)), 1.4)) * (p.y > 0.0 ? 1.0 : 0.55);
-          vec3 sec = disk(Rs, phiS * 2.0 + 1.3, -cos(phiS)) * arc * 0.9;
+          float Rs = 1.42 + max(r - 1.03, 0.0) * 4.2;
+          float band = p.y > 0.0 ? 1.0 : 0.5;
+          float arc = smoothstep(1.02, 1.06, r) * smoothstep(1.85, 1.35, r) * (0.3 + 0.7 * pow(abs(sin(phiS)), 1.2)) * band;
+          vec3 sec = disk(Rs, phiS * 1.6 + 1.3, -cos(phiS)) * arc * 1.5;
           // The photon ring: thin and bright.
           float ring = exp(-pow((r - 1.025) / 0.012, 2.0)) * 1.6 * (0.75 + 0.5 * (0.5 - 0.5 * cos(phiS)));
           vec3 col = sec + vec3(1.0, 0.9, 0.76) * ring;

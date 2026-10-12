@@ -33,7 +33,9 @@ export const WINDOWS = [-2.2, 0, 2.2] as const
 export const WIN = { w: 1.5, y0: 1.0, y1: 2.9 }
 
 /** The trio at their desks. */
-export const SALIM_SEAT = { x: 2.1, z: 1.55 }
+// (Salim sits a little back from his desk — 1.63, not the row's 1.55 — so that the sheet he folds in his lap
+// is not hidden under the desk's back edge.)
+export const SALIM_SEAT = { x: 2.1, z: 1.63 }
 export const IBRAHIM_SEAT = { x: 2.06, z: 2.75 }
 /** Eren's wheelchair seat, pulled in close under his desk (the footplate and his knees under it). */
 export const EREN_SEAT = { x: 2.7, z: 2.68 }

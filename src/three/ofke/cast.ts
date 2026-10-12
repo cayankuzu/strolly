@@ -77,7 +77,7 @@ export const SIT_ELBOWS = makePose({ spine: [0.42, 0, 0], chest: [0.24, 0, 0], n
 /** Bench: sitting back, a towel at the face. */
 export const SIT_DRY = makePose({ spine: [0.08, 0, 0], neck: [0.1, 0, 0], head: [0.15, 0, 0], lUpper: [-0.9, 0, 0.3], rUpper: [-0.9, 0, -0.3], lFore: [-1.9, 0, 0], rFore: [-1.9, 0, 0] }, P.SIT)
 /** Driving: seated, hands up on the wheel. */
-export const DRIVE = makePose({ hipY: 0.5, spine: [-0.15, 0, 0], chest: [-0.02, 0, 0], neck: [0.08, 0, 0], head: [0.1, 0, 0], lThigh: [-1.3, 0, 0.1], rThigh: [-1.25, 0, -0.08], lShin: [1.0, 0, 0], rShin: [0.9, 0, 0], lUpper: [-0.9, 0, 0.2], rUpper: [-0.9, 0, -0.2], lFore: [-0.8, 0, 0], rFore: [-0.8, 0, 0] })
+export const DRIVE = makePose({ hipY: 0.555, hipZ: 0.02, spine: [-0.3, 0, 0], chest: [-0.02, 0, 0], neck: [0.22, 0, 0], head: [0.14, 0, 0], lThigh: [-1.3, 0, 0.1], rThigh: [-1.25, 0, -0.08], lShin: [1.0, 0, 0], rShin: [0.9, 0, 0], lUpper: [-0.9, 0, 0.2], rUpper: [-0.9, 0, -0.2], lFore: [-0.8, 0, 0], rFore: [-0.8, 0, 0] })
 /** Seated in the prep chair, reclined a little, hands on the armrests. */
 export const RECLINE = makePose({ hipY: 0.52, spine: [-0.3, 0, 0], chest: [-0.04, 0, 0], neck: [0.2, 0, 0], head: [0.15, 0, 0], lThigh: [-1.35, 0, 0.08], rThigh: [-1.35, 0, -0.08], lShin: [1.1, 0, 0], rShin: [1.1, 0, 0], lUpper: [-0.3, 0, 0.2], rUpper: [-0.3, 0, -0.2], lFore: [-0.9, 0, 0], rFore: [-0.9, 0, 0] })
 /** Running down stairs: leaning in, arms out. */
@@ -120,6 +120,7 @@ export function castMaterials() {
     eye: std(0x2a1c12, 0.15),
     eyeGrey: std(0x4a5560, 0.15),
     sole: std(0x111111, 0.8),
+    soleTan: std(0x8a6a4c, 0.85),
     // Arif
     skinArif: skin(0xc69b7f),
     headArif: head(0xc69b7f),
@@ -205,7 +206,7 @@ export function arifLook(m: Mats, outfit: 'shirt' | 'jacket' | 'overalls'): Figu
 }
 
 export function bossLook(m: Mats, name: string): FigureLook {
-  return { ...base(m, name), build: 'm', face: BOSS_FACE, hairStyle: 'short', skin: m.skinBoss, skinHead: m.headBoss, hair: m.hairBoss, top: m.shirtBoss, bottom: m.trousersBoss, cuff: m.shirtBoss, shoes: m.shoesBrown, height: 1.04, belt: true }
+  return { ...base(m, name), sole: m.soleTan, build: 'm', face: BOSS_FACE, hairStyle: 'short', skin: m.skinBoss, skinHead: m.headBoss, hair: m.hairBoss, top: m.shirtBoss, bottom: m.trousersBoss, cuff: m.shirtBoss, shoes: m.shoesBrown, height: 1.04, belt: true }
 }
 
 export function colleagueLook(m: Mats, i: number): FigureLook {
@@ -466,7 +467,7 @@ export function hood(f: Figure, mat: THREE.Material) {
   const g = new THREE.Group()
   f.joints.head.add(g)
   const top = mesh(headShell(face, 0.022, 0, PI * 2, 0, PI * 0.82, [36, 20]), mat, 0, 0.108, 0.008, g)
-  const skirt = mesh(new THREE.CylinderGeometry(0.078, 0.074, 0.12, 28, 3, true), mat, 0, 0.0, 0.0, g)
+  const skirt = mesh(new THREE.CylinderGeometry(0.078, 0.074, 0.075, 28, 3, true), mat, 0, 0.022, 0.0, g)
   skirt.scale.z = 1.1
   top.castShadow = skirt.castShadow = true
   return g
@@ -488,7 +489,7 @@ export function neckBand(f: Figure, n: number, mat: THREE.Material) {
   tex.colorSpace = THREE.SRGBColorSpace
   const m = (mat as THREE.MeshStandardMaterial).clone()
   m.map = tex
-  const band = mesh(new THREE.CylinderGeometry(0.058, 0.06, 0.032, 32, 1, true), m, 0, 0.03, 0.005, f.joints.neck)
+  const band = mesh(new THREE.CylinderGeometry(0.058, 0.06, 0.034, 32, 1, true), m, 0, 0.012, 0.005, f.joints.neck)
   band.rotation.y = PI / 2
   band.castShadow = true
   return band

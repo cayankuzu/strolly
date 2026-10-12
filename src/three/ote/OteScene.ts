@@ -16,11 +16,11 @@ import { createSetScene, type BuildContext, type SetDirector, type SetFrame, typ
 import { keyed, type ShotKeys } from '../kit/direct'
 import type { HdriId } from '../kit/assets'
 import { palette, type Pal } from './materials'
-import { buildCast, CAST, flushEyes, HAIR } from './cast'
+import { buildCast, CAST, disposeGrips, flushEyes, HAIR, setGrip, type CastId } from './cast'
 import { Passengers } from './crowd'
 import { SigningRoom } from './signing'
 import { Corridor } from './corridor'
-import { LaunchExterior, ShuttleCabin } from './shuttle'
+import { LaunchExterior, ShuttleCabin, fitHarness } from './shuttle'
 import { Habitat } from './habitat'
 import { Ship } from './ship'
 import { MissionRoom } from './mission'
@@ -79,6 +79,9 @@ function setOf(seg: SegmentId, u: number): SetId {
       return 'E'
   }
 }
+
+/** Everyone who sits in the shuttle in full figure (and gets a fitted harness). */
+const BELTED: CastId[] = ['M', 'W1', 'Y', 'C1', 'C2', 'H', 'S', 'P1', 'P2', 'P3', 'P4', 'P5', 'P6']
 
 type Answer = 'ok' | 'earth' | 'fear' | 'none'
 const answerOf = (flags: ReadonlySet<string>): Answer => (flags.has('report:ok') ? 'ok' : flags.has('report:earth') ? 'earth' : flags.has('report:fear') ? 'fear' : 'none')
@@ -139,6 +142,27 @@ class OteDirector implements SetDirector {
       }),
       ...hdris.map((id) => ctx.hdri(id)),
     ])
+    // W1's spectacles: clear lenses (the model's transmission glass reads as dark in these rooms).
+    models.spectacles?.traverse((o) => {
+      const me = o as THREE.Mesh
+      if (!me.isMesh) return
+      const mat = me.material as THREE.MeshStandardMaterial
+      if (mat.name.includes('glass')) me.material = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transparent: true, opacity: 0.12, depthWrite: false })
+    })
+    // The suitcase model holds two cases: keep one, re-grounded.
+    if (models.suitcase) {
+      const inner = models.suitcase.children[0]
+      const drop: THREE.Object3D[] = []
+      inner.traverse((o) => {
+        if (o.name.includes('suitcase_02')) drop.push(o)
+      })
+      for (const o of drop) o.parent?.remove(o)
+      const b = new THREE.Box3().setFromObject(models.suitcase)
+      const c = b.getCenter(new THREE.Vector3())
+      inner.position.x -= c.x
+      inner.position.z -= c.z
+      inner.position.y -= b.min.y
+    }
     const envs: Rig['envs'] = {}
     hdris.forEach((id, i) => {
       const e = envList[i]
@@ -156,6 +180,8 @@ class OteDirector implements SetDirector {
     const G = new MissionRoom(m, scene, { desk: models.desk, clipboard: models.clipboard })
     const cast = buildCast(m, scene, models.spectacles)
     for (const id of CAST) cast.actors[id].figure.root.name = id
+    // Harnesses fitted to everyone who sits in the shuttle in full figure.
+    for (const id of BELTED) this.harness[id] = fitHarness(m, cast.actors[id].figure.joints, cast.actors[id].figure.root.userData.female ?? ['W1', 'C2', 'H', 'P2', 'P4', 'P6'].includes(id))
     const crowd = new Passengers(22)
     crowd.group.name = 'passengers'
     scene.add(crowd.group)
@@ -221,6 +247,18 @@ class OteDirector implements SetDirector {
   }
 
   private suitcase: THREE.Group | null = null
+  private harness: Partial<Record<CastId, THREE.Object3D[]>> = {}
+
+  /** Belts: fastened on the seated, in the shuttle only. */
+  private belts(set: SetId, seg: SegmentId) {
+    const r = this.r
+    const sitting = seg === 'seat' || seg === 'ignition' || seg === 'gforce' || seg === 'space'
+    for (const id of BELTED) {
+      const a = r.cast.actors[id]
+      const on = set === 'C' && a.visible && (id === 'M' ? r.C.harnessM.visible : id === 'W1' ? r.C.harnessW.visible : sitting)
+      for (const p of this.harness[id] ?? []) p.visible = on
+    }
+  }
 
   /** Hides every set, every person and every carried thing; lights off; the sky reset. */
   private reset() {
@@ -232,6 +270,8 @@ class OteDirector implements SetDirector {
       a.visible = false
     }
     r.cast.beard.visible = false
+    setGrip(r.cast.actors.M.figure, false)
+    setGrip(r.cast.actors.N.figure, false)
     const hair = r.cast.hair
     for (const k of ['M', 'W1', 'C1', 'C2'] as const) hair[k]?.color.copy(this.young[k])
     r.crowd.group.visible = false
@@ -253,6 +293,7 @@ class OteDirector implements SetDirector {
     s.holeGlow = 1
     s.sun = 0
     s.memory = 0
+    s.earthAt = null
     r.launch.on = false
     r.launch.alt = 0
     r.launch.race = 0
@@ -293,6 +334,7 @@ class OteDirector implements SetDirector {
     }
     for (const id of CAST) r.cast.actors[id].apply(st.time, true)
     flushEyes()
+    this.belts(set, st.seg)
     r.crowd.commit()
   }
 
@@ -341,6 +383,7 @@ class OteDirector implements SetDirector {
     const s = r.skyState
     s.cam.copy(pos)
     s.time = time
+    if (s.earthAt) s.earthDir.subVectors(s.earthAt, pos).normalize()
     r.sky.group.visible = set === 'E' || set === 'F'
     r.sky.update(s)
     const ls = r.launchSky
@@ -390,6 +433,8 @@ class OteDirector implements SetDirector {
     this.reset()
     this.stage(set, st)
     this.camera(st, set, shot)
+    // The lamp's mirror image lives behind the glass: seen from the room side only.
+    r.A.reflection.visible = set === 'A' && shot.pos.x > -2.95
     this.skyAt(shot.pos, f.time, set)
     // The ring's white (end of `song`) and the black of the keyhole (end of `key`).
     const w = r.veil.white
@@ -468,6 +513,13 @@ class OteDirector implements SetDirector {
       }
       return out
     }
+    w.__oteObj = (name: string) => {
+      const o = this.scene.getObjectByName(name) as THREE.Mesh | undefined
+      if (!o) return null
+      const chain: string[] = []
+      for (let x: THREE.Object3D | null = o; x; x = x.parent) chain.push(`${x.name || x.type}:${x.visible}`)
+      return { chain, range: o.geometry?.drawRange, count: o.geometry?.attributes.position?.count, index: o.geometry?.index?.count, mat: (o.material as THREE.Material)?.type }
+    }
     w.__oteBox = (name: string) => {
       const o = this.scene.getObjectByName(name)
       if (!o) return null
@@ -479,6 +531,7 @@ class OteDirector implements SetDirector {
   dispose() {
     for (const rt of this.feeds.values()) rt.dispose()
     this.feeds.clear()
+    disposeGrips()
   }
 }
 

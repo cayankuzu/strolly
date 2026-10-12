@@ -354,10 +354,20 @@ export class World {
     for (const a of this.all) {
       a.begin()
       a.visible = false
+      a.figure.root.visible = false
     }
     for (const mth of this.mouths.values()) mth.visible = false
     for (const p of [this.bossPhone.group, ...this.copyPhones.map((c) => c.group), this.tablet, this.towel, this.heldGlasses, this.bag, this.cupPill, this.cupWater]) p.visible = false
     for (const ch of this.chains) ch.mesh.visible = false
+    // Per-shot changes to the cast: ties, glasses, hoods, hidden heads.
+    for (const list of this.ties.values()) for (const m of list) m.visible = true
+    if (this.cast) {
+      this.cast.arifS.figure.glasses.visible = true
+      this.cast.arifJ.figure.glasses.visible = true
+      for (const a of [this.cast.c333, this.cast.c334]) a.figure.headMeshes.forEach((m) => (m.visible = true))
+      for (const o of this.cast.arifO.figure.joints.neck.children) if (o.userData.neckTowel) o.visible = false
+    }
+    for (const h of this.hoods.values()) h.visible = true
   }
 
   /** Shows an actor (begin() already ran in reset). */

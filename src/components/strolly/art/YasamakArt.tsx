@@ -1,6 +1,9 @@
 'use client'
+import { useT } from '@/lib/i18n'
+
 /** A sunlit internet cafe late in the afternoon: a boy in a blue hoodie laughing at a beige CRT, an amber countdown in its corner, dust in the light, a plane tree in fresh leaf through the window. */
 export function YasamakArt() {
+  const t = useT()
   const motes = Array.from({ length: 34 }, (_, i) => ({ x: 70 + ((i * 53) % 150), y: 40 + ((i * 37) % 150), r: 0.6 + ((i * 7) % 5) * 0.22, o: 0.25 + ((i * 11) % 6) * 0.08 }))
   const leaves = Array.from({ length: 26 }, (_, i) => ({ x: 18 + ((i * 29) % 120), y: 18 + ((i * 17) % 60), r: 7 + ((i * 13) % 9) }))
   return (
@@ -74,7 +77,7 @@ export function YasamakArt() {
       </g>
       <rect x="306" y="168" width="36" height="15" fill="#0b1416" opacity="0.8" />
       <text x="324" y="174" textAnchor="middle" fontSize="3.6" fill="#b58a55" fontFamily="monospace" letterSpacing="0.4">
-        KALAN SÜRE
+        {t('art.timeLeft')}
       </text>
       <text x="324" y="181.5" textAnchor="middle" fontSize="7" fill="#ffc77f" fontFamily="monospace" fontWeight="600">
         12:40

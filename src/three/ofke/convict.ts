@@ -44,7 +44,11 @@ function restraintFrame(steel: THREE.Material, dark: THREE.Material): Frame {
 function van(white: THREE.Material, dark: THREE.Material, glass: THREE.Material) {
   const g = new THREE.Group()
   const L = 5.5
-  rbox(2.1, 2.2, 4.0, white, 0, 1.4, -0.75, g, 0.08)
+  // The box body, open at the back (the rear doors close it): sides, roof, floor, front wall.
+  for (const sx of [-1, 1]) rbox(0.06, 2.2, 4.0, white, sx * 1.02, 1.4, -0.75, g, 0.03)
+  rbox(2.1, 0.08, 4.0, white, 0, 2.46, -0.75, g, 0.03)
+  rbox(2.1, 0.26, 4.0, white, 0, 0.43, -0.75, g, 0.03)
+  rbox(2.1, 2.2, 0.08, white, 0, 1.4, 1.21, g, 0.03)
   rbox(2.06, 1.6, 1.5, white, 0, 1.1, 2.0, g, 0.12)
   const ws = rbox(1.9, 0.65, 0.05, glass, 0, 1.55, 2.7, g, 0.02)
   ws.rotation.x = -0.3
@@ -156,7 +160,8 @@ export class ConvictLine {
     const X = LINE_X
     const concrete = pbr('concrete', 0x6d6a64, { roughness: 1 })
     const floor = pbr('concrete', 0x5a5852, { roughness: 0.9 })
-    const steel = pbr('metal', 0x9aa0a4, { roughness: 0.35 })
+    // Brushed steel, smooth (the scanned metal reads as tread plate at this scale).
+    const steel = std(0xa4aaae, 0.32, { metalness: 0.85 })
     const galv = pbr('metal', 0x8a9096, { roughness: 0.55 })
     const black = pbr('painted', 0x0c0d0e, { roughness: 0.9 })
     const dark = std(0x0a0b0c, 0.9)
@@ -389,7 +394,7 @@ export class ConvictLine {
     this.pillCup = paperCup(std(0xf6f4ee, 0.85), undefined, std(0xffffff, 0.3))
     this.pillCup.position.set(0, 0, 0)
     this.pillArm.add(this.pillCup)
-    this.lens = lensArm(whiteGloss, std(0x16303a, 0.1))
+    this.lens = lensArm(std(0xf2f4f4, 0.28), std(0x16303a, 0.1))
     st.add(this.lens.group)
     this.injector = new THREE.Group()
     st.add(this.injector)
@@ -471,7 +476,7 @@ export class ConvictLine {
   updateScreens(t: number, amp: number, on: number) {
     const k = Math.floor(t * 8)
     this.screens.redraw((c, W, H) => this.drawScreens(c, W, H, k / 8, amp), `${k}:${Math.round(amp * 5)}`)
-    this.screenMat.color.setScalar(on)
+    this.screenMat.color.setScalar(on * 1.7)
   }
 }
 

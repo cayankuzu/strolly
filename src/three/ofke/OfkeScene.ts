@@ -20,6 +20,10 @@ import { World, LightRig } from './world'
 import { foldedGlasses } from './cast'
 import { motion, type Seg } from './common'
 import { runActA } from './actA'
+import { runActB } from './actB'
+import { runActC } from './actC'
+import { runActD } from './actD'
+import { runActE } from './actE'
 
 type Act = (w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) => void
 
@@ -102,7 +106,7 @@ class OfkeDirector implements LensDirector {
     w.car = w.street.car
     w.carHolder = w.street.carHolder
     scene.add(w.carHolder)
-    this.acts = { resign: runActA, road: runActA }
+    this.acts = { resign: runActA, road: runActA, service: runActB, room: runActC, fit: runActC, clean: runActD, convict: runActE, door: runActD }
   }
 
   frame(f: SetFrame, shot: Shot) {
@@ -118,7 +122,7 @@ class OfkeDirector implements LensDirector {
     motion.walking = 0
     motion.doors = 0
     motion.robots = 0
-    const act = this.acts[ch]
+    const act = ch === 'price' ? (seg === 'done' ? runActC : runActB) : this.acts[ch]
     if (act) act(w, f, shot, seg, u)
     else {
       shot.pos.set(0, 1.6, 4)

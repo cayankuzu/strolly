@@ -27,7 +27,7 @@ import { ARIF_POS, type Ctx } from './context'
 import * as P from './paper'
 import * as S from './screens'
 import { buildSets, COFFEE, DESK, FOREST, OBS, ON_DESK, palette, SEAT, WD_C, WD_YAW, type Sets } from './sets'
-import { PHONE_INSERT, SHOTS } from './shots'
+import { FACE, FACE2, PHONE_INSERT, SHOTS } from './shots'
 import { attach, butterfly, coin, envelope, faceToward, fist, noteFan, page, phoneProp, Ribbon, shardsAndStain, simit, tablet, tallyCounter, teaGlass, twoBoxes, waterGlass, wornCoat } from './things'
 
 const PI = Math.PI
@@ -139,6 +139,8 @@ class DurumDirector implements SetDirector {
   private hallLights: THREE.PointLight[] = []
   private auxSpot!: THREE.SpotLight
   private auxPoint!: THREE.PointLight
+  /** The corridor light showing under the closed office door. */
+  private doorGlow!: THREE.Mesh
   private envOffice: THREE.Texture | null = null
   private envNight: THREE.Texture | null = null
   private fallbackEnv!: THREE.Texture
@@ -180,6 +182,14 @@ class DurumDirector implements SetDirector {
     mesh(new THREE.SphereGeometry(0.042, 16, 12), this.cm.hairS, 0, 0.16, -0.085, this.tiedHair).scale.set(1, 0.85, 0.9)
     this.tiedHair.visible = false
     selin.joints.head.add(this.tiedHair)
+    // Hair stays hair under the display's cold point light: a broad, low sheen instead of a white cap.
+    for (const f of [arif, selin]) {
+      const hm = f.headMeshes[1].material as THREE.MeshStandardMaterial & { specularIntensity?: number; sheen?: number }
+      hm.roughness = 0.88
+      hm.envMapIntensity = 0.35
+      if (hm.specularIntensity !== undefined) hm.specularIntensity = 0.35
+      if (hm.sheen !== undefined) hm.sheen = 0
+    }
     this.arif = new Actor(arif)
     this.selin = new Actor(selin)
     this.coatParts = wornCoat(arif, m.coat)
@@ -290,6 +300,9 @@ class DurumDirector implements SetDirector {
     this.auxSpot = new THREE.SpotLight(0xe8f0ff, 0, 9, 0.55, 0.7, 1.4)
     this.auxPoint = new THREE.PointLight(0xffe2bd, 0, 5, 1.6)
     scene.add(this.auxSpot, this.auxSpot.target, this.auxPoint)
+    this.doorGlow = mesh(new THREE.PlaneGeometry(0.86, 0.012), new THREE.MeshBasicMaterial({ color: 0xffd9ae }), 2.6, 0.006, 4.035, scene)
+    this.doorGlow.rotation.y = PI
+    this.doorGlow.name = 'doorGlow'
 
     // ——— The console's live feed: render targets, a camera, a CCTV look ———
     for (let i = 0; i < 2; i++) this.feedRT.push(new THREE.WebGLRenderTarget(320, 196, { type: THREE.HalfFloatType }))
@@ -344,8 +357,9 @@ class DurumDirector implements SetDirector {
           const chain: string[] = []
           for (let p: THREE.Object3D | null = me; p && chain.length < 5; p = p.parent) chain.push(p.name || p.type)
           const mat = me.material as THREE.MeshStandardMaterial
-          const sz = box.getSize(new THREE.Vector3())
-          out.push(`${chain.join('<')} size ${sz.x.toFixed(2)},${sz.y.toFixed(2)},${sz.z.toFixed(2)} col ${mat?.color?.getHexString?.() ?? '?'}`)
+          box.expandByScalar(-r)
+          const f2 = (v: THREE.Vector3) => `${v.x.toFixed(2)},${v.y.toFixed(2)},${v.z.toFixed(2)}`
+          out.push(`${chain.join('<')} min ${f2(box.min)} max ${f2(box.max)} col ${mat?.color?.getHexString?.() ?? '?'}`)
         })
         return out
       }
@@ -466,6 +480,8 @@ class DurumDirector implements SetDirector {
       chequeAt,
       touch: v3(2.83, 1.6, -2.81),
       phoneAt: ON_DESK.phone.clone(),
+      // A small drift while he reads (the thumb nudging the text) — never a jump.
+      phoneHeld: v3(0.0, 0.99 + 0.006 * Math.sin(f.time * 0.9), -0.15),
     }
   }
 
@@ -523,17 +539,19 @@ class DurumDirector implements SetDirector {
       const t = s(0.13, 0.17, u)
       mugM.position.set(lerp(-4.62, counterMug.x, t), 0.92 + 0.097 * (1 - t), lerp(0.15, counterMug.z, t))
       mugM.rotation.set(PI * (1 - t), 0, 0)
-    } else if (seg === 'intro' && u < 0.17) {
-      A.rGrip.getWorldPosition(this.v)
-      mugM.position.set(this.v.x, this.v.y - 0.05, this.v.z)
-      mugM.rotation.set(0, this.arif.yaw + PI / 2, 0)
+    } else if (seg === 'intro' && u < 0.19) {
+      // Carried in from the counter, set down on its mark (0.17–0.19).
+      this.mugInHand(0)
+      const k = s(0.17, 0.19, u)
+      if (k > 0) {
+        mugM.position.lerp(ON_DESK.mug, k)
+        mugM.rotation.set(0, mugM.rotation.y * (1 - k), 0)
+      }
     } else if ((seg === 'ritual' || seg === 'queue') && A.root.visible) {
-      A.rGrip.getWorldPosition(this.v)
-      mugM.position.set(this.v.x, this.v.y - 0.05, this.v.z)
-      mugM.rotation.set(0, PI / 2 + PI, 0)
+      this.mugInHand(seg === 'ritual' && u > 0.2 && u < 0.36 ? 0.55 * Math.sin(PI * s(0.2, 0.36, u)) : 0)
     } else {
       mugM.position.copy(ON_DESK.mug)
-      mugM.rotation.set(0, 0.6, 0)
+      mugM.rotation.set(0, 0, 0)
     }
     const jug = sets.jug
     jug.position.copy(c.jugAt)
@@ -589,7 +607,7 @@ class DurumDirector implements SetDirector {
     const counting = seg === 'traffic' || (seg === 'thumb' && u < 0.1)
     if (counting) {
       A.rGrip.getWorldPosition(this.v)
-      cnt.group.position.set(this.v.x, this.v.y + 0.015, this.v.z - 0.01)
+      cnt.group.position.set(this.v.x, this.v.y - 0.008, this.v.z - 0.01)
       cnt.group.rotation.set(seg === 'traffic' && u > 0.62 ? -1.1 : -0.3, 0.2, 0)
     } else {
       cnt.group.position.set(ON_DESK.tray.x + 0.03, ON_DESK.tray.y + 0.03, ON_DESK.tray.z)
@@ -739,6 +757,10 @@ class DurumDirector implements SetDirector {
     const pgM = this.page.mesh
     pgM.visible = (seg === 'opened' && u > 0.43) || (seg === 'selin' && u < 0.98)
     if (pgM.visible) {
+      // Read in both hands (opened 0.43–0.82); laid on the desk while he laughs; held up for Selin
+      // ("Benim.", selin 0.38–0.66), on the desk before and after.
+      const onDesk = v3(-0.37, 0.761, -0.38)
+      const held = seg === 'opened' ? 1 - s(0.81, 0.84, u) : Math.sin(PI * s(0.38, 0.66, u))
       if (seg === 'opened') {
         const unfold = s(0.43, 0.47, u)
         pgM.position.copy(c.pageAt)
@@ -749,6 +771,12 @@ class DurumDirector implements SetDirector {
         pgM.position.set(this.v.x, this.v.y + 0.12, this.v.z)
         pgM.scale.set(1, 1, 1)
         faceToward(pgM, v3(0.5, 1.4, 0.8))
+      }
+      if (held < 1) {
+        const q0 = pgM.quaternion.clone()
+        const flat = new THREE.Quaternion().setFromEuler(new THREE.Euler(-PI / 2, 0, 0.15))
+        pgM.position.lerp(onDesk, 1 - held)
+        pgM.quaternion.copy(q0).slerp(flat, 1 - held)
       }
     }
     sets.crumple.visible = past('boxes')
@@ -863,14 +891,16 @@ class DurumDirector implements SetDirector {
     bx.slipTwo.mesh.visible = !one && boxDecided && !(seg === 'lid' && u > 0.45) && !past('after')
     bx.slipOne.mesh.visible = one && boxDecided && !(seg === 'lid' && u > 0.45) && !past('after')
     // Lifted out of B: the cheque in his right hand (lid 0.1 →), its slip into his left (0.45).
-    const chequeHeld = one && ((seg === 'lid' && u > 0.1) || (seg === 'after' && u < 0.5))
+    const chequeHeld = one && ((seg === 'lid' && u > 0.26) || (seg === 'after' && u < 0.5))
     const chequeDesk = one && (past('after', 0.5) && before('lapse', 0.12))
     if (chequeHeld || chequeDesk) {
       bx.b.remove(bx.cheque)
       this.scene.add(bx.cheque)
       if (chequeHeld) {
-        bx.cheque.position.copy(c.chequeAt)
-        bx.cheque.rotation.set(1.15, 0.0, 0)
+        // Lifted off B's floor into his hand (lid 0.26–0.36), then held up.
+        const k = seg === 'lid' ? s(0.26, 0.36, u) : 1
+        bx.cheque.position.set(c.boxB.x, c.boxB.y + 0.006, c.boxB.z).lerp(c.chequeAt, k)
+        bx.cheque.rotation.set(1.15 * k, 0.0, 0)
       } else {
         bx.cheque.position.set(0.02, 0.756, -0.27)
         bx.cheque.rotation.set(0, 0.25, 0)
@@ -975,13 +1005,32 @@ class DurumDirector implements SetDirector {
     }
   }
 
+  /**
+   * The mug in Arif's right hand: against the palm, 4.5 cm inward of the grip (never around the
+   * grip point itself), the handle toward his fingers; `tilt` lifts the rim toward his face.
+   */
+  private mugInHand(tilt: number) {
+    const A = this.arif.figure
+    const yaw = this.arif.yaw
+    A.rGrip.getWorldPosition(this.v)
+    const lx = Math.cos(yaw)
+    const lz = -Math.sin(yaw)
+    this.mug.position.set(this.v.x + lx * 0.045, this.v.y - 0.05, this.v.z + lz * 0.045)
+    const ry = Math.atan2(Math.sin(yaw + PI), Math.cos(yaw + PI))
+    this.mug.rotation.set(tilt, ry, 0, 'YXZ')
+  }
+
   private holdPhone() {
     const A = this.arif.figure
     const r = A.rGrip.getWorldPosition(new THREE.Vector3())
     const l = A.lGrip.getWorldPosition(new THREE.Vector3())
     const ph = this.phone.group
+    // In both hands: on the scripted point once the hands have closed on it (message 0.34 →).
+    const c = this.ctx
+    const w = c && c.seg === 'message' ? s(0.3, 0.34, c.u) : 1
     ph.position.copy(r).add(l).multiplyScalar(0.5)
     ph.position.y += 0.01
+    if (c) ph.position.lerp(c.phoneHeld, w)
     // Screen toward his eyes.
     A.joints.head.getWorldPosition(this.v)
     const look = new THREE.Matrix4().lookAt(ph.position, this.v, v3(0, 1, 0))
@@ -1424,6 +1473,14 @@ class DurumDirector implements SetDirector {
       as.angle = 0.3
       as.distance = 3
       as.intensity = 14
+    } else if (seg === 'gone' && doorOpen < 0.5) {
+      // The door shut behind him: the corridor's light spills a little under it onto the carpet.
+      as.color.set(0xffdcb4)
+      as.position.set(2.6, 0.12, 4.45)
+      as.target.position.set(2.6, 0, 3.0)
+      as.angle = 0.9
+      as.distance = 2.4
+      as.intensity = 7 * s(0.06, 0.14, u) * (1 - s(0.62, 0.8, u))
     } else if (doorOpen > 0.01) {
       // The corridor's wedge through the door; softer while we stand in the corridor behind him.
       const behind = seg === 'query' || seg === 'queryGate' || seg === 'answer'
@@ -1435,6 +1492,7 @@ class DurumDirector implements SetDirector {
       as.intensity = (behind ? 1.5 : 26) * doorOpen
     }
     as.target.updateMatrixWorld()
+    this.doorGlow.visible = doorOpen < 0.02 && !forest && seg !== 'end'
     // Aux point: the kitchen light; the phone on his face; the torch; the street.
     const ap = this.auxPoint
     ap.intensity = 0
@@ -1449,6 +1507,20 @@ class DurumDirector implements SetDirector {
       ap.position.copy(this.v).add(v3(0, 0.08, 0.05))
       ap.distance = 1.2
       ap.intensity = 0.5
+    } else if ((seg === 'coat' && u >= 0.25) || seg === 'query' || seg === 'queryGate' || seg === 'answer') {
+      // Late in the night he must still read: crossing to the rack, a faint warm spill from the
+      // corridor's transom; in the doorway, the display's cold light on his face.
+      const atDoor = seg !== 'coat' || u > 0.58
+      ap.color.set(atDoor ? 0xc8dcff : 0xffe6c8)
+      ap.position.set(atDoor ? 2.5 : 3.0, atDoor ? 1.75 : 2.6, atDoor ? 2.5 : 2.5)
+      ap.distance = atDoor ? 2.6 : 4.5
+      ap.intensity = atDoor ? 1.4 : 2.4
+    } else if (seg === 'turn' && u > 0.6 && u < 0.82) {
+      // What the display sees from its own face: the empty corner, faintly in its own cold light.
+      ap.color.set(0xc8dcff)
+      ap.position.set(3.7, 1.9, 1.5)
+      ap.distance = 3.4
+      ap.intensity = 1.1
     } else if (seg === 'selfQ') {
       this.torch.getWorldPosition(this.v)
       ap.color.set(0xfff4dc)
@@ -1539,7 +1611,7 @@ class DurumDirector implements SetDirector {
           }
         } else if (u < 0.45) key([[0.42, [-0.6, 1.35, 0.8, 0, 1.05, -0.15, 30]], [0.45, [-0.55, 1.35, 0.75, 0, 1.05, -0.15, 30]]])
         else if (u < 0.81) key([[0.45, [0.52, 1.3, -0.04, -0.03, 1.1, -0.17, 32]], [0.81, [0.49, 1.29, -0.07, -0.03, 1.1, -0.17, 31]]])
-        else key([[0.81, [0.55, 1.32, -0.62, 0.1, 1.16, 0.2, 36]], [1, [0.52, 1.31, -0.58, 0.1, 1.16, 0.2, 35]]])
+        else key([[0.81, FACE], [1, FACE2]])
         break
       }
       case 'hallWalk': {
@@ -1559,25 +1631,33 @@ class DurumDirector implements SetDirector {
       }
       case 'message': {
         if (u >= 0.33 && u < 0.715) {
-          // Over his shoulder onto the phone in his hands: the message legible.
+          // Over his right shoulder (clear of his head) onto the phone in his hands: the message legible.
           const ph = this.phone.group.position
-          shot.pos.set(ph.x + 0.16, ph.y + 0.3, ph.z + 0.36)
-          shot.tgt.set(ph.x + 0.01, ph.y, ph.z)
-          shot.fov = 26 - 2 * s(0.33, 0.715, hu)
+          shot.pos.set(ph.x + 0.36, ph.y + 0.48, ph.z + 0.52)
+          shot.tgt.set(ph.x + 0.01, ph.y + 0.01, ph.z)
+          shot.fov = 23 - 2 * s(0.33, 0.715, hu)
         } else key(SHOTS.message!)
         break
       }
       case 'thumb': {
         if (u < 0.45) key(SHOTS.thumb!)
-        else {
-          // Tight on the coin on his thumbnail, across it toward the receipt printer (soft, behind):
-          // the slip comes out there at 0.55 and he doesn't look. At the flick, tilt up with the coin.
-          const co = this.coin.position
+        else if (u < 0.84) {
+          // Across the desk from his right: the receipt printer in the foreground (the slip comes out at
+          // 0.55 and he doesn't look), the coin on his thumbnail, his face beyond.
+          key([
+            [0.45, [1.16, 1.2, -0.62, 0.12, 1.03, -0.02, 30]],
+            [0.84, [1.12, 1.19, -0.58, 0.12, 1.03, -0.02, 29]],
+          ])
+        } else {
+          // Closer on the coin on his thumbnail, his face above it (the hold of the gate). At the
+          // flick, tilt up with the coin.
           const up = s(0.94, 1, hu)
-          const base = seg === 'thumb' && u > 0.94 ? this.fist.localToWorld((this.fist.userData.nail as THREE.Vector3).clone()) : co
-          shot.pos.set(base.x - 0.26, base.y + 0.07, base.z + 0.07)
-          shot.tgt.set(base.x + 0.14, base.y - 0.03 + 0.3 * up, base.z - 0.1)
-          shot.fov = 22 + 6 * up
+          key([
+            [0.84, [0.82, 1.12, -0.52, 0.12, 1.07, -0.03, 32]],
+            [1, [0.78, 1.11, -0.49, 0.12, 1.07, -0.03, 31]],
+          ])
+          shot.tgt.y += 0.3 * up
+          shot.fov += 4 * up
         }
         break
       }

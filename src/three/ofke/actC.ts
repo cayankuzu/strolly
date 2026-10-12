@@ -25,7 +25,7 @@ const STAND_PHONE = C.STAND_PHONE
 /** The copy's "shh": the left index finger at the lips, eyes still down. */
 const SHH = makePose({ lUpper: [-0.55, 0, 0.55], lFore: [-2.3, 0.4, 0], lHand: [0.2, 0, 0] }, C.FEET_UP)
 /** Hauled up by the collar: half standing, leaning over the desk toward Arif. */
-const HAULED_UP = makePose({ hipY: 0.92, hipZ: 0.06, spine: [0.32, 0, 0], chest: [0.12, 0, 0], neck: [-0.2, 0, 0], head: [-0.25, 0.1, 0], lUpper: [-0.4, 0, 0.35], rUpper: [-0.45, 0, -0.35], lFore: [-0.8, 0, 0], rFore: [-0.6, 0, 0], lThigh: [-0.3, 0, 0.05], rThigh: [-0.4, 0, -0.08], lShin: [0.35, 0, 0], rShin: [0.45, 0, 0] })
+const HAULED_UP = makePose({ hipY: 0.92, hipZ: 0.06, spine: [0.52, 0, 0], chest: [0.16, 0, 0], neck: [-0.2, 0, 0], head: [-0.25, 0.1, 0], lUpper: [-0.4, 0, 0.35], rUpper: [-0.45, 0, -0.35], lFore: [-0.8, 0, 0], rFore: [-0.6, 0, 0], lThigh: [-0.3, 0, 0.05], rThigh: [-0.4, 0, -0.08], lShin: [0.35, 0, 0], rShin: [0.45, 0, 0] })
 /** Arif leaning across the desk, both fists forward at the collar. */
 const ACROSS = makePose({ hipZ: 0.06, spine: [0.62, 0, 0], chest: [0.2, 0, 0], neck: [-0.35, 0, 0], head: [-0.35, 0, 0], lUpper: [-1.35, 0, 0.12], rUpper: [-1.35, 0, -0.12], lFore: [-0.45, 0, 0], rFore: [-0.45, 0, 0], lThigh: [-0.15, 0, 0.06], rThigh: [0.2, 0, -0.06], rShin: [0.15, 0, 0] })
 /** Screaming into the face: chin forward, shoulders up. */
@@ -62,8 +62,8 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [160.2, 1.6, 1.6, 160.0, 1.05, -1.1, 38]],
   ],
   trigger: [
-    [0, [160.62, 1.3, 0.42, 160.0, 1.08, -1.4, 38]],
-    [1, [160.5, 1.28, 0.3, 160.0, 1.08, -1.4, 36]],
+    [0, [161.35, 1.8, 1.25, 160.0, 1.28, -1.35, 34]],
+    [1, [161.2, 1.78, 1.05, 160.0, 1.28, -1.35, 32]],
   ],
   collar: [
     [0, [158.45, 1.55, -0.45, 160.0, 1.25, -0.6, 36]],
@@ -148,7 +148,7 @@ function perceive(w: World, o: Perceive) {
   r.shadow.visible = false
   r.uShell.uReveal.value = o.shell
   r.uDoor.uReveal.value = o.shell
-  r.uView.uReveal.value = o.shell
+  r.uView.uReveal.value = ss(0.035, 0.07, o.shell) * 1.2
   r.uFurn.uReveal.value = o.furn
   r.uFurn.uHide.value = o.hideFurn ? 1 : 0
   r.uMon.uReveal.value = o.mon ?? o.furn
@@ -157,7 +157,7 @@ function perceive(w: World, o: Perceive) {
   r.uShell.uMottle.value = o.mottle ?? 0
   clearPatches(r.uShell)
   r.shards.count = 0
-  r.rayMat.opacity = 0.16 * ss(0.75, 1.0, o.shell)
+  r.rayMat.opacity = 0.05 * ss(0.75, 1.0, o.shell)
   const off = r.office
   off.clock.set(9 + 14 / 60)
   keep(off.chair.group)
@@ -166,6 +166,8 @@ function perceive(w: World, o: Perceive) {
   off.pens.forEach(keep)
   off.monitor.visible = true
   off.photo.visible = true
+  off.door.leaf.visible = true
+  r.realDoor.visible = true
   r.setDoor(0)
   r.setReady(false)
 }
@@ -210,9 +212,11 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
   switch (seg) {
     // ——— 04 ODA ———
     case 'white': {
-      // The corridor; the door slides open on pure white.
-      perceive(w, { shell: 0, furn: 0, hideFurn: true, corridor: true })
+      // The corridor; the door slides open on pure white (the room's own white: nothing has arrived yet).
+      perceive(w, { shell: 0, furn: 0, hideFurn: true, corridor: true, real: true })
       roomLight(w, 0, 1)
+      w.lights.setPoint(0, 0xf4f8ff, 3, [160, 2.7, 0], 6)
+      w.lights.setPoint(1, 0xf4f8ff, 3, [160, 2.7, -1.5], 6)
       const open = ss(0.68, 0.84, u)
       r.setDoor(open)
       r.shadow.visible = u > 0.7
@@ -245,6 +249,8 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       roomLight(w, 0, 1 - ss(0.3, 0.45, u))
       const shut = ss(0.25, 0.45, u)
       r.setDoor(1 - shut)
+      // The leaf slides out of the wall only as it shuts.
+      r.office.door.leaf.visible = shut > 0.02
       const a = w.use(arif)
       if (u < 0.25) a.walk(makePath([[160.0, 3.3], [160.0, 1.6]]), sub(u, 0, 0.25), P.STAND, PI, PI)
       else a.place(160.0, 1.6, PI).hold(P.STAND)
@@ -271,30 +277,30 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
     }
     case 'color': {
       const k = sub(u, 0.15, 1)
-      perceive(w, { shell: 0.08 * k, furn: 0, hideFurn: true })
-      roomLight(w, 0.25 * k)
+      perceive(w, { shell: 0.13 * k, furn: 0, hideFurn: true })
+      roomLight(w, 1)
       r.shadow.visible = true
       ;(r.shadow.material as THREE.MeshBasicMaterial).opacity = 1 - ss(0.4, 1, u)
       keyed(KEYS.color!, held(u, f.reduced), shot)
       break
     }
     case 'pixels': {
-      // Cell by cell from the window, the desk, the door frame.
-      perceive(w, { shell: lerp(0.08, 0.31, ss(0, 1, u)), furn: 0, hideFurn: true })
-      roomLight(w, lerp(0.25, 0.55, u))
-      // A slow pan from Arif's eyes: west → north → east.
-      const a = lerp(-2.0, 1.75, ss(0.0, 1.0, held(u, f.reduced)))
+      // Cell by cell from the window, then the west wall: a sharp border of cells.
+      perceive(w, { shell: lerp(0.13, 0.335, ss(0, 1, u)), furn: 0, hideFurn: true })
+      roomLight(w, 1)
+      // A slow pan from Arif's eyes: from the window (north) round to the west wall.
+      const a = lerp(0.12, -1.35, ss(0.15, 0.95, held(u, f.reduced)))
       shot.pos.set(160.0, 1.62, 1.45)
-      shot.tgt.set(160 + Math.sin(a) * 3, 1.5 - 0.1 * Math.sin(u * PI), 1.45 - Math.cos(a) * 3)
+      shot.tgt.set(160 + Math.sin(a) * 3, 1.55 - 0.08 * Math.sin(u * PI), 1.45 - Math.cos(a) * 3)
       shot.fov = 50
       break
     }
     case 'towel': {
       // The colour wicks across the rest like water into a dry towel; the desk and its things last.
-      const shell = lerp(0.31, 0.95, ss(0.0, 0.9, u))
+      const shell = lerp(0.335, 0.95, ss(0.0, 0.9, u))
       const furn = lerp(0.6, 1.0, ss(0.02, 0.62, u))
       perceive(w, { shell, furn, mon: lerp(0.55, 1.0, ss(0.25, 0.9, u)), hideFurn: true })
-      roomLight(w, lerp(0.55, 0.95, u))
+      roomLight(w, 1)
       if (u < 0.5) {
         shot.pos.set(160.35, 0.98, 0.35).lerp(v.set(160.25, 0.92, 0.05), sub(u, 0, 0.5))
         shot.tgt.set(160.0, 0.75, -0.45)
@@ -387,7 +393,7 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       // The lunge across the desk; the haul; the chair toppling (u 0.3).
       const lunge = isCollar ? ss(0.05, 0.25, u) : 1
       const haul = isCollar ? ss(0.25, 0.5, u) : 1
-      a.place(160.0, lerp(ARIF_SPOT.z, 0.28, lunge), PI).blend(
+      a.place(160.0, lerp(ARIF_SPOT.z, 0.17, lunge), PI).blend(
         [
           [0, P.STAND],
           [1, ACROSS],
@@ -395,7 +401,7 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         lunge,
       )
       if (!isCollar || u > 0.5) a.blend([[0.0, ACROSS], [0.1, SCREAM]], isCollar ? sub(u, 0.5, 0.6) : 1)
-      b1.place(CHAIR.x, lerp(CHAIR.z, -1.12, haul), 0).blend(
+      b1.place(CHAIR.x, lerp(CHAIR.z, -1.02, haul), 0).blend(
         [
           [0, C.FEET_UP],
           [1, HAULED_UP],
@@ -527,8 +533,9 @@ function blows(w: World, f: SetFrame, shot: Shot, u: number) {
   const beats = [0.08, 0.2, 0.32, 0.44]
   const swing = beats.reduce((s, b) => Math.max(s, win(u, b - 0.05, b - 0.01, b + 0.01, b + 0.04)), 0)
   if (u < 0.5) {
-    b1.place(159.7, -1.35, 0.6).hold(SLUMP)
-    a.place(158.95, -0.95, 2.3).blend([[0, C.COCK], [1, C.SWING]], swing)
+    // Behind Arif's back from the door corner: the man is never seen.
+    b1.place(158.62, -1.52, 0.75).hold(SLUMP)
+    a.place(159.0, -1.1, -2.39).blend([[0, C.COCK], [1, C.SWING]], swing)
   } else if (u < 0.7) {
     // Crashed into the west wall: the photo above falls.
     b1.place(157.78, -0.2, PI / 2).hold(PINNED)

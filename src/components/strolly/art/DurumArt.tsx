@@ -5,7 +5,8 @@ export function DurumArt() {
   const cloud = Array.from({ length: 150 }, (_, i) => {
     const a = i * 2.39996
     const r = 3 + Math.sqrt(i / 150) * 34 * (0.75 + 0.25 * Math.sin(i * 1.7))
-    return { x: 300 + Math.cos(a) * r * 1.25, y: 80 + Math.sin(a) * r * 0.62, o: 0.2 + 0.5 * (1 - i / 150) }
+    // Rounded: the server and the browser must print identical attributes (trig differs in the last digits).
+    return { x: +(300 + Math.cos(a) * r * 1.25).toFixed(2), y: +(80 + Math.sin(a) * r * 0.62).toFixed(2), o: +(0.2 + 0.5 * (1 - i / 150)).toFixed(3) }
   })
   // Rack LEDs beyond the glass.
   const leds = Array.from({ length: 60 }, (_, i) => ({ x: 22 + (i % 12) * 17 + ((i * 7) % 5), y: 34 + Math.floor(i / 12) * 12 + ((i * 3) % 4), o: 0.35 + ((i * 13) % 7) * 0.09 }))

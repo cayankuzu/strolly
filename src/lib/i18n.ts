@@ -134,6 +134,10 @@ const tr = {
   'credits.libs': 'KÜTÜPHANELER',
   'credits.libsBody': 'Next.js, React, three.js (MIT) · GSAP, ScrollTrigger (GSAP Standard License) · Lenis (MIT)',
 
+  // Words painted into the story art
+  'art.session': 'OTURUM {n}',
+  'art.timeLeft': 'KALAN SÜRE',
+
   // Leaving, failures
   'farewell.label': 'Çıkış',
   'farewell.line': 'Görüşmek üzere. Hikâyeler bekler.',
@@ -310,6 +314,9 @@ const en: Record<Key, string> = {
   'credits.typeBody': 'Geist, Geist Mono — Vercel (SIL Open Font License 1.1)',
   'credits.libs': 'LIBRARIES',
   'credits.libsBody': 'Next.js, React, three.js (MIT) · GSAP, ScrollTrigger (GSAP Standard License) · Lenis (MIT)',
+
+  'art.session': 'SESSION {n}',
+  'art.timeLeft': 'TIME LEFT',
 
   'farewell.label': 'Exit',
   'farewell.line': 'See you soon. The stories will wait.',

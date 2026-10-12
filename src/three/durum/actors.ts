@@ -155,7 +155,17 @@ const P_S_SIMIT = makePath([
   [0.7, 0.05],
 ])
 
+/** The left hand against the near side of the mug on the coffee counter (not inside it). */
+const MUG_SIDE = { x: -4.448, y: 0.975, z: 0.395 }
+/** The grip that puts the mug's rim on his lips while he sits back (ritual). */
+export const SIP = { x: 0.045, y: 1.2, z: 0.03 }
 const seat = (a: Actor) => a.place(SEAT.x, SEAT.z, PI)
+/** Both hands on the phone's long edges (the phone itself is placed at `c.phoneHeld`). */
+const holdPhone = (a: Actor, c: Ctx, w: number) => {
+  const h = c.phoneHeld
+  a.reach('l', w, h.x - 0.042, h.y - 0.025, h.z + 0.012, 0.25)
+  a.reach('r', w, h.x + 0.042, h.y - 0.025, h.z + 0.012, 0.25)
+}
 /** Seated, facing the desk. */
 const sit = (a: Actor, pose = P.SIT_TYPE) => seat(a).hold(pose)
 const toward = (fx: number, fz: number, tx: number, tz: number) => Math.atan2(tx - fx, tz - fz)
@@ -188,7 +198,7 @@ export function directArif(a: Actor, c: Ctx) {
         const PS = { x: 0.6, z: 0.1 }
         a.place(ARIF_POS.lamp.x + (PS.x - ARIF_POS.lamp.x) * t, ARIF_POS.lamp.z + (PS.z - ARIF_POS.lamp.z) * t, PI - 0.25 * t)
         a.hold(u < 0.88 ? STAND_WORK : P.STAND)
-        if (u < 0.9) a.reach('r', s(0.75, 0.77, u) * (1 - s(0.84, 0.9, u)), ON_DESK.phone.x - 0.01, u < 0.79 ? 0.92 : ON_DESK.phone.y + 0.05, ON_DESK.phone.z + 0.04, 0.4)
+        if (u < 0.86) a.reach('r', s(0.75, 0.77, u) * (1 - s(0.82, 0.85, u)), ON_DESK.phone.x - 0.01, u < 0.79 ? 0.92 : ON_DESK.phone.y + 0.05, ON_DESK.phone.z + 0.04, 0.4)
         if (u > 0.88) a.lookAt(-1.2, -4, s(0.88, 0.95, u))
       }
       break
@@ -201,10 +211,10 @@ export function directArif(a: Actor, c: Ctx) {
       a.place(ARIF_POS.coffee.x, ARIF_POS.coffee.z, -PI / 2).hold(STAND_WORK)
       // Turns up the mug, pours, sugar ×2 (with a hover), stirs.
       if (u < 0.3) {
-        a.reach('l', s(0.12, 0.17, u), -4.5, 1.0, 0.36, 0.3)
+        a.reach('l', s(0.12, 0.17, u), MUG_SIDE.x, MUG_SIDE.y, MUG_SIDE.z, 0.3)
         a.reach('r', s(0.17, 0.2, u), c.jugAt.x, c.jugAt.y + 0.09, c.jugAt.z, 0.4)
       } else if (u < 0.68) {
-        a.reach('l', 1, -4.5, 1.0, 0.36, 0.3)
+        a.reach('l', 1, MUG_SIDE.x, MUG_SIDE.y, MUG_SIDE.z, 0.3)
       } else {
         const bowl = { x: -4.62, y: 1.0, z: 0.85 }
         const over = { x: -4.52, y: 1.08, z: 0.42 }
@@ -230,7 +240,7 @@ export function directArif(a: Actor, c: Ctx) {
           ty = 1.02
         }
         a.reach('r', w, tx, ty, tz, 0.3)
-        a.reach('l', 1, -4.5, 1.0, 0.36, 0.3)
+        a.reach('l', 1, MUG_SIDE.x, MUG_SIDE.y, MUG_SIDE.z, 0.3)
       }
       // A glance over the shoulder at the greeting (0.1); half-turned for "Tek şeker."; a snort.
       a.lookAt(2.6, -3.0, 0.8 * (s(0.06, 0.12, u) - s(0.2, 0.26, u)) + 0.5 * (s(0.3, 0.34, u) - s(0.48, 0.52, u)))
@@ -246,14 +256,17 @@ export function directArif(a: Actor, c: Ctx) {
           ],
           u,
         )
-        a.reach('r', s(0.18, 0.2, u) * (1 - s(0.21, 0.24, u)), ON_DESK.mouse.x, 0.79, ON_DESK.mouse.z, 0.3)
+        // Sets the mug down on its mark (0.17–0.19), then a touch of the mouse (0.2–0.25).
+        a.reach('r', s(0.14, 0.17, u) * (1 - s(0.19, 0.21, u)), ON_DESK.mug.x + 0.045, ON_DESK.mug.y + 0.05, ON_DESK.mug.z, 0.3)
+        a.reach('r', s(0.2, 0.215, u) * (1 - s(0.23, 0.25, u)), ON_DESK.mouse.x, 0.79, ON_DESK.mouse.z, 0.3)
       } else sit(a, P.SIT_LOOK).lookAt(WD_C.x, WD_C.z, 0.5 * s(0.22, 0.35, u) * (1 - s(0.62, 0.7, u)))
       break
     case 'ritual':
       sit(a, P.SIT_BACK)
       // The mug in hand; a sip; the nod toward Selin.
       a.reach('r', 1, 0.16, 1.0, -0.12, 0.3)
-      if (u > 0.2 && u < 0.36) a.reach('r', Math.sin(PI * s(0.2, 0.36, u)), 0.06, 1.38, 0.0, 0.3)
+      // The sip: the mug's rim to his lips (the mug sits 4.5 cm inward of the grip, tilted; see mugInHand).
+      if (u > 0.2 && u < 0.36) a.reach('r', Math.sin(PI * s(0.2, 0.36, u)), SIP.x, SIP.y, SIP.z, 0.3)
       a.lookAt(SELIN_CHAIR.x, SELIN_CHAIR.z, 0.7 * (s(0.5, 0.56, u) - s(0.7, 0.78, u)))
       break
     case 'traffic':
@@ -482,7 +495,12 @@ export function directArif(a: Actor, c: Ctx) {
     case 'lid': {
       sit(a, P.SIT_STILL)
       if (c.box === 'one') {
-        a.reach('r', 1, c.chequeAt.x + 0.06, c.chequeAt.y, c.chequeAt.z, 0.4)
+        // On the open box's rim; into B (0.12–0.22); the cheque lifted out (0.26–0.36) and held.
+        const B = c.boxB
+        const dive = s(0.12, 0.22, u)
+        const lift = s(0.26, 0.36, u)
+        const mix = (r: number, i: number, h: number) => r + (i - r) * dive + (h - (r + (i - r) * dive)) * lift
+        a.reach('r', 1, mix(B.x + 0.1, B.x + 0.04, c.chequeAt.x + 0.06), mix(0.97, 0.8, c.chequeAt.y), mix(B.z + 0.12, B.z + 0.02, c.chequeAt.z), 0.4)
         if (u > 0.4) a.reach('l', 1, c.slipHeld.x - 0.01, c.slipHeld.y - 0.04, c.slipHeld.z + 0.03, 0.4)
       } else {
         a.reach('r', 1, c.boxB.x + 0.1, 0.96, c.boxB.z + 0.12, 0.4)
@@ -567,8 +585,10 @@ export function directArif(a: Actor, c: Ctx) {
           u,
         )
       if (u < 0.3) {
-        a.reach('l', s(0.04, 0.1, u), -0.04, 1.32, 0.02, 0.6)
-        a.reach('r', s(0.04, 0.1, u), 0.04, 1.32, 0.02, 0.6)
+        // Heels of the hands on his closed eyes (not praying in front of his face).
+        const w = s(0.04, 0.1, u) * (1 - s(0.26, 0.31, u))
+        a.reach('l', w, -0.05, 1.29, 0.135, 0.7)
+        a.reach('r', w, 0.05, 1.29, 0.135, 0.7)
       }
       a.lookAt(WD_C.x, WD_C.z, 0.35)
       break
@@ -698,14 +718,19 @@ export function directArif(a: Actor, c: Ctx) {
       if (u < 0.3) {
         sit(a, P.SIT_STILL)
         a.reach('r', s(0.02, 0.06, u), c.phoneAt.x, c.phoneAt.y + 0.04, c.phoneAt.z, 0.4)
-      } else if (u < 0.95) sit(a, SIT_PHONE)
-      else {
+      } else if (u < 0.95) {
+        sit(a, SIT_PHONE)
+        holdPhone(a, c, s(0.3, 0.34, u))
+      } else {
         sit(a, P.SIT_STILL)
         a.reach('r', 1 - s(0.97, 1, u), ON_DESK.phone.x, 0.8, ON_DESK.phone.z, 0.4)
       }
       break
     case 'coat': {
-      if (u < 0.24) sit(a, SIT_PHONE)
+      if (u < 0.24) {
+        sit(a, SIT_PHONE)
+        holdPhone(a, c, 1)
+      }
       else if (u < 0.26)
         seat(a).blend(
           [

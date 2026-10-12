@@ -233,7 +233,8 @@ export class Director {
     // Dust in the air: the motes in front of the board; they burst when the plane passes (flight 0.33–0.4).
     const burst = clamp((p - at('flight', 0.33)) / (at('flight', 0.46) - at('flight', 0.33)))
     L.burst(burst > 0 && p < at('flight', 1) ? easeInOutSine(burst) : 0, tmpV.set(0.9, 1.55, -2.35))
-    L.dust(p < at('flow', 0.3) ? 1 : 0.6)
+    // (Through the time-lapse the motes thin out: in the wide end shot they would read as snow.)
+    L.dust(p < at('flow', 0.3) ? 1 : lerp(1, 0.25, ss(W(p, 'flow', 0.3, 0.6))))
     const sec = wallClock(p)
     this.s.shell.clock.set(sec / 3600)
     void f
@@ -789,6 +790,7 @@ export class Director {
       }
       person.face({ open: laugh * (0.5 + 0.4 * Math.abs(Math.sin(time * 9 + r[2] * 3))), smile: laugh })
       person.eyesTo(laugh > 0.5 ? 0.45 : 0, g.eyes, g.eyesPitch)
+      person.hang()
     }
   }
 
@@ -828,7 +830,7 @@ export class Director {
     let pitch = 0
     let eyesPitch = 0
     const shut = 0
-    const lap = tmpV.set(SALIM_SEAT.x - 0.02, 0.62, SALIM_SEAT.z - 0.17)
+    const lap = tmpV.set(SALIM_SEAT.x - 0.02, 0.62, SALIM_SEAT.z - 0.2)
     if (p < at('rise', 0.06)) {
       if (p < at('under', 0.45)) {
         this.seated(S, SALIM_SEAT, K.K_LOW)
@@ -854,8 +856,9 @@ export class Director {
         pitch = 0.08
         if (fold >= 0.5 && fold < 0.76) face = { open: 0.22, smile: 0.1 }
         if (fold >= 0.76) {
+          // The finished dart: his head comes up a little, the proud grin.
           face = { open: 0.15, smile: 1 }
-          pitch = 0.05
+          pitch = -0.2 * ss(clamp((fold - 0.76) / 0.1))
         }
       } else if (p < at('pass', 0.2)) {
         // Passing it back over his shoulder.
@@ -1055,11 +1058,12 @@ export class Director {
   private erenEyes = 0
 
   private handsOnRims(a: Person['actor'], ch: { x: number; z: number; yaw: number }, w: number) {
-    // The hand rims' top-front, each side.
+    // The hand rims, a little in front of the top (45°): the arms rest down and forward, relaxed,
+    // instead of spreading out sideways.
     for (const side of [-1, 1] as const) {
       const lx = side * (CHAIR.rimX + 0.01)
-      const lz = CHAIR.axleZ + 0.1
-      const ly = CHAIR.wheelR + CHAIR.rimR * 0.92
+      const lz = CHAIR.axleZ + CHAIR.rimR * 0.66
+      const ly = CHAIR.wheelR + CHAIR.rimR * 0.75
       const c = Math.cos(ch.yaw)
       const s = Math.sin(ch.yaw)
       const wx = ch.x + lx * c + lz * s
@@ -1224,8 +1228,9 @@ export class Director {
 
     if (p < at('fold')) {
       // A sheet in Salim's lap, under the desk (print side up, red ink on it).
-      root.position.set(SALIM_SEAT.x - 0.02, 0.6, SALIM_SEAT.z - 0.16)
-      root.rotation.set(0.15, 0.1 + Math.sin(f.time * 2.2) * 0.02, 0)
+      // (Across his lap — long side along the desk — so it stays clear of his belly and of the desk's edge.)
+      root.position.set(SALIM_SEAT.x - 0.02, 0.62, SALIM_SEAT.z - 0.2)
+      root.rotation.set(0.1, PI / 2 + 0.12 + Math.sin(f.time * 2.2) * 0.02, 0)
       fold = SHEET
     } else if (p < at('pass')) {
       const u = W(p, 'fold', 0, 1)
@@ -1238,10 +1243,12 @@ export class Director {
         crush: 0,
         peek: 0,
       }
-      const done = ss(clamp((u - 0.76) / 0.08))
-      root.position.set(SALIM_SEAT.x - 0.02, lerp(0.6, 0.66, done), lerp(SALIM_SEAT.z - 0.16, SALIM_SEAT.z - 0.2, done))
-      // Flat sheet: nose toward his desk; the dart: nose forward, raised a little (his proud grin above it).
-      root.rotation.set(lerp(0.15, -0.25, done), lerp(0.1, 0, done), 0)
+      const done = ss(clamp((u - 0.76) / 0.1))
+      // Held up at the desk's back edge (just below the desktop, behind it), where the folds can be seen.
+      root.position.set(SALIM_SEAT.x - 0.02, lerp(0.655, 0.715, done), lerp(SALIM_SEAT.z - 0.2, SALIM_SEAT.z - 0.24, done))
+      // Flat sheet: across his lap; the dart: turned in his hands, nose forward and up over the desk's
+      // back edge (his proud grin above it).
+      root.rotation.set(lerp(0.06, 0.28, done), lerp(PI / 2 + 0.12, PI, done), 0)
     } else if (p < at('aim')) {
       fold = DART
       const u = W(p, 'pass', 0, 1)
@@ -1448,6 +1455,17 @@ export class Director {
         if (who === 'salim') req.pitch += 0.12
         this.reqId = `glance-${who}`
         shot.request = { id: this.reqId, yaw: req.yaw, pitch: req.pitch, seconds: 0.8 }
+      }
+    }
+    // Development: a free camera for checking details and the set around a moment (window.__tekCam = {pos, tgt, fov}).
+    if (process.env.NODE_ENV !== 'production') {
+      const o = (globalThis as { __tekCam?: { pos: number[]; tgt: number[]; fov: number } }).__tekCam
+      if (o) {
+        shot.pos.fromArray(o.pos)
+        shot.tgt.fromArray(o.tgt)
+        shot.fov = o.fov
+        shot.locked = false
+        shot.request = null
       }
     }
     this.eye.copy(shot.pos)

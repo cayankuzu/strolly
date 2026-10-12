@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three'
 import { Figure, type FigureLook } from '../figure/Figure'
-import { MALE_FACE } from '../figure/figureBody'
+import { MALE_FACE, handGeometry } from '../figure/figureBody'
 import { Actor } from '../kit/direct'
 import { std } from '../kit/props'
 import { skinMaterial } from '../kit/surfaces'
@@ -204,6 +204,29 @@ const GHOST_OF: Record<GhostKey, string> = {
 
 type Solid = 'boy9' | 'boy9pj' | 'boy12' | 'boy12swim' | 'boy15' | 'man' | 'emre' | 'baris' | 'anne' | 'woman' | 'oldman'
 
+const GRIP: Record<'l' | 'r', THREE.BufferGeometry | null> = { l: null, r: null }
+
+/** Closes a figure's hand(s) round something (a rope, a grip, a beam) or opens them again. */
+export function setGrip(fig: Figure, closed: boolean, sides: ReadonlyArray<'l' | 'r'> = ['l', 'r']) {
+  for (const side of sides) {
+    const bone = fig.joints[side === 'l' ? 'lHand' : 'rHand']
+    const hand = bone.children.find((c) => (c as THREE.Mesh).isMesh) as THREE.Mesh | undefined
+    if (!hand) continue
+    if (!hand.userData.relaxed) hand.userData.relaxed = hand.geometry
+    if (closed && !GRIP[side]) GRIP[side] = handGeometry(side === 'l' ? 1 : -1, 1, 0.95)
+    const want = closed ? (GRIP[side] as THREE.BufferGeometry) : (hand.userData.relaxed as THREE.BufferGeometry)
+    if (hand.geometry !== want) hand.geometry = want
+  }
+}
+
+/** A dressed figure outside the cast (miniatures in the archive's cases). */
+export function makeFigure(who: Solid, name: string, height: number) {
+  const { look: l, extras } = look(palette(), who)
+  const fig = new Figure({ ...l, name, height })
+  dress(fig, { ...extras, watch: false }, null)
+  return fig
+}
+
 export class Cast {
   readonly group = new THREE.Group()
   readonly solids = {} as Record<Solid, Actor>
@@ -248,6 +271,7 @@ export class Cast {
     for (const f of this.figures) {
       f.root.visible = false
       for (const m of f.headMeshes) m.visible = true
+      setGrip(f, false)
     }
     this.trailUse = 0
   }

@@ -13,7 +13,7 @@ const PI = Math.PI
 export const B = {
   x: 40,
   doorZ: -12.2,
-  cabin: { M: [40, -13.25], O1: [39.35, -13.25], O2: [40.65, -13.25], Q1: [40, -12.6], Q2: [39.6, -14.05], Q3: [40.4, -14.05] } as Record<string, [number, number]>,
+  cabin: { M: [40, -13.25], O1: [39.3, -13.25], O2: [40.7, -13.25], Q1: [40, -12.55], Q2: [39.55, -14.1], Q3: [40.45, -14.1] } as Record<string, [number, number]>,
 }
 
 export class Corridor {

@@ -7,7 +7,7 @@
  */
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { canvasPlane, rbox, rgeo, room, tube, turned } from '../kit/props'
+import { canvasPlane, rbox, rgeo, room, turned } from '../kit/props'
 import { cyl, mesh } from '../util'
 import type { Pal } from './materials'
 import { drawManifest, drawPanel, keyhole, type PanelMode } from './draw'
@@ -192,8 +192,9 @@ export class ShuttleCabin {
     for (const sx of [-1, 1]) this.leaves.push(rbox(0.6, 2.2, 0.03, m.cabinSteel, X + sx * 0.3, 1.1, 1.53, g, 0.003))
     for (const sx of [-1, 1]) rbox(0.06, 2.26, 0.03, m.brushed, X + sx * 0.63, 1.13, 1.48, g, 0.004)
     rbox(1.32, 0.06, 0.03, m.brushed, X, 2.23, 1.48, g, 0.004)
-    this.lock = mesh(new THREE.SphereGeometry(0.025, 16, 10), m.lockGreen, X, 2.36, 1.48, g)
-    rbox(0.1, 0.07, 0.02, m.windowRim, X, 2.36, 1.49, g, 0.006)
+    this.lock = mesh(new THREE.SphereGeometry(0.04, 16, 10), m.lockGreen, X, 2.38, 1.47, g)
+    this.lock.scale.z = 0.5
+    rbox(0.16, 0.11, 0.02, m.windowRim, X, 2.38, 1.49, g, 0.006)
     const emb = canvasPlane(0.22, 0.22, 256, (ctx, w, h) => {
       ctx.clearRect(0, 0, w, h)
       keyhole(ctx, w / 2, h * 0.32, w * 0.16, '#7d8187', 6)
@@ -241,12 +242,9 @@ export class ShuttleCabin {
       im.receiveShadow = true
       g.add(im)
     })
-    // ——— Harnesses, fastened ———
-    this.harnessM = harness(m)
-    this.harnessM.position.set(SC.his.x, 0, SC.his.z)
-    this.harnessW = harness(m)
-    this.harnessW.position.set(SC.w1.x, 0, SC.w1.z)
-    g.add(this.harnessM, this.harnessW)
+    // ——— Harnesses, fastened (fitted to the two of them by `fitHarness`; these only carry the flag) ———
+    this.harnessM = new THREE.Group()
+    this.harnessW = new THREE.Group()
     this.strand = mesh(new THREE.BufferGeometry(), m.yarn, 0, 0, 0, g)
     this.strand.visible = false
   }
@@ -272,39 +270,96 @@ export class ShuttleCabin {
   }
 }
 
-/** A five-point harness fastened over a seated person (seat origin, facing −z). */
-function harness(m: Pal) {
-  const g = new THREE.Group()
-  for (const sx of [-1, 1]) {
-    tube(
-      [
-        [sx * 0.11, 1.22, 0.16],
-        [sx * 0.12, 1.25, 0.04],
-        [sx * 0.1, 1.12, -0.1],
-        [sx * 0.06, 0.88, -0.15],
-        [sx * 0.015, 0.7, -0.16],
-      ],
-      0.011,
-      m.strap,
-      g,
-      20,
-    ).scale.set(1, 1, 1)
-    tube(
-      [
-        [sx * 0.21, 0.56, 0.02],
-        [sx * 0.17, 0.62, -0.12],
-        [sx * 0.03, 0.67, -0.17],
-      ],
-      0.011,
-      m.strap,
-      g,
-      12,
-    )
+/** A flat strap through points, lying on a surface whose outward normals are given per point. */
+function strap(pts: Array<[number, number, number]>, normals: Array<[number, number, number]>, width: number, mat: THREE.Material) {
+  const P = pts.map((p) => new THREE.Vector3(...p))
+  const N = normals.map((n) => new THREE.Vector3(...n).normalize())
+  const curve = new THREE.CatmullRomCurve3(P, false, 'centripetal')
+  const n = 28
+  const pos: number[] = []
+  const idx: number[] = []
+  const t = new THREE.Vector3()
+  const side = new THREE.Vector3()
+  const nn = new THREE.Vector3()
+  for (let i = 0; i <= n; i++) {
+    const u = i / n
+    const p = curve.getPointAt(u)
+    curve.getTangentAt(u, t)
+    // The normal: interpolated between the given ones.
+    const f = u * (N.length - 1)
+    const k = Math.min(N.length - 2, Math.floor(f))
+    nn.copy(N[k]).lerp(N[k + 1], f - k).normalize()
+    side.crossVectors(t, nn).normalize().multiplyScalar(width / 2)
+    p.addScaledVector(nn, 0.004)
+    pos.push(p.x - side.x, p.y - side.y, p.z - side.z, p.x + side.x, p.y + side.y, p.z + side.z)
+    if (i > 0) idx.push(i * 2 - 2, i * 2 - 1, i * 2, i * 2 - 1, i * 2 + 1, i * 2)
   }
-  const b = cyl(0.032, 0.032, 0.014, m.buckle, 0, 0.68, -0.175, g, 20)
-  b.rotation.x = PI / 2
-  g.traverse((o) => (o.castShadow = true))
-  return g
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  const mesh = new THREE.Mesh(g, mat)
+  mesh.castShadow = true
+  return mesh
+}
+
+/**
+ * A five-point harness fitted to a seated person: two shoulder straps on the
+ * chest (they follow the chest), two lap belts and the round buckle (they
+ * follow the hips). Returns the parts (hidden until fastened).
+ */
+export function fitHarness(m: Pal, joints: { chest: THREE.Object3D; hips: THREE.Object3D }, female: boolean): THREE.Object3D[] {
+  const parts: THREE.Object3D[] = []
+  const mat = m.strap.clone()
+  ;(mat as THREE.MeshStandardMaterial).side = THREE.DoubleSide
+  const fz = female ? 0.022 : 0
+  for (const sx of [-1, 1]) {
+    const sh = strap(
+      [
+        [sx * 0.085, 0.16, -0.125],
+        [sx * 0.088, 0.262, -0.035],
+        [sx * 0.088, 0.225, 0.092],
+        [sx * 0.08, 0.09, 0.128 + fz],
+        [sx * 0.055, -0.04, 0.13 + fz * 0.5],
+        [sx * 0.022, -0.155, 0.122],
+      ],
+      [
+        [0, 0.3, -1],
+        [0, 1, 0],
+        [0, 0.6, 1],
+        [0, 0, 1],
+        [0, -0.1, 1],
+        [0, -0.2, 1],
+      ],
+      0.044,
+      mat,
+    )
+    joints.chest.add(sh)
+    parts.push(sh)
+    const lap = strap(
+      [
+        [sx * 0.175, -0.02, -0.03],
+        [sx * 0.158, 0.03, 0.07],
+        [sx * 0.08, 0.075, 0.122],
+        [sx * 0.025, 0.088, 0.128],
+      ],
+      [
+        [sx, 0, 0],
+        [sx, 0.2, 0.7],
+        [0, 0.2, 1],
+        [0, 0.1, 1],
+      ],
+      0.044,
+      mat,
+    )
+    joints.hips.add(lap)
+    parts.push(lap)
+  }
+  const buckle = cyl(0.03, 0.03, 0.012, m.buckle, 0, 0.088, 0.134, joints.hips, 24)
+  buckle.rotation.x = PI / 2
+  parts.push(buckle)
+  for (const p of parts) p.visible = false
+  return parts
 }
 
 /** Set D: the launch, from outside. */

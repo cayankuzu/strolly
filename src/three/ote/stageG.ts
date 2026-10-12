@@ -128,7 +128,7 @@ export function stageMission(r: Rig, st: St) {
     g.apply(time, true)
     holdTablet(r, g, 'r')
     // B4 comes to the side table with the stamp.
-    const b4 = show(r, 'B4').place(-98.78, -1.72, -PI / 2).hold(P.STAND)
+    const b4 = show(r, 'B4').place(-98.12, -1.74, -PI / 2).hold(P.STAND)
     const stampT = pulse(0.82, 0.96, u)
     const down = pulse(0.86, 0.92, u)
     const hx = lerp(G.stampRest.x, G.stack.x, smoothstep(0.83, 0.86, u))
@@ -157,7 +157,7 @@ export function stageMission(r: Rig, st: St) {
     M.folder.visible = false
   } else {
     // wall, key: he is at the screen, back to us, the folder gone to the stack.
-    g.place(-100.6, -2.1, PI).hold(TABLET_R)
+    g.place(-99.4, -2.05, PI).hold(TABLET_R)
     g.apply(time, true)
     holdTablet(r, g, 'r')
     M.folder.position.set(G.stack.x, G.stack.y + 0.08, G.stack.z)

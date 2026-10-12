@@ -402,7 +402,7 @@ export function logoLoop(c: C, W: number, H: number, t: number) {
 /** The prep-room screen, state by state. */
 export type MapState =
   | { kind: 'idle' }
-  | { kind: 'scan'; t: number; thumb: number }
+  | { kind: 'scan'; t: number; thumb: number; p?: number }
   | { kind: 'uploaded' }
   | { kind: 'map'; draw: number; push: number; split: number; picked: number; pick: 'laugh' | 'money' | 'shh' | '' }
   | { kind: 'copies'; fill: number; two: number }
@@ -492,20 +492,31 @@ export function prepScreen(c: C, W: number, H: number, s: MapState) {
     return
   }
   if (s.kind === 'scan') {
-    header('HAFIZA TARANIYOR')
+    logo(c, W * 0.5 - H * 0.34, H * 0.12, H * 0.045)
+    c.fillStyle = INK
+    sans(c, H * 0.085, 800)
+    c.textAlign = 'center'
+    c.fillText('HAFIZA TARANIYOR', W * 0.5 + H * 0.04, H * 0.15)
+    c.textAlign = 'left'
     // Thumbnails of his day flickering in and out.
     for (let i = 0; i < 6; i++) {
       const on = Math.sin(s.t * 23 + i * 2.3) > -0.2
-      const x = W * (0.06 + (i % 3) * 0.31)
-      const y = H * (0.17 + Math.floor(i / 3) * 0.33)
+      const x = W * (0.08 + (i % 3) * 0.3)
+      const y = H * (0.25 + Math.floor(i / 3) * 0.3)
       c.globalAlpha = on ? 0.5 + 0.5 * Math.abs(Math.sin(s.t * 7 + i)) : 0.12
-      thumbOffice(c, x, y, W * 0.27, H * 0.28, i + s.thumb)
+      thumbOffice(c, x, y, W * 0.25, H * 0.26, i + s.thumb)
       c.globalAlpha = 1
     }
+    const prog = clamp01(s.p ?? s.t)
     c.fillStyle = '#dbe9e6'
-    c.fillRect(W * 0.06, H * 0.88, W * 0.88, H * 0.03)
+    c.fillRect(W * 0.08, H * 0.88, W * 0.84, H * 0.035)
     c.fillStyle = MINT
-    c.fillRect(W * 0.06, H * 0.88, W * 0.88 * clamp01(s.t), H * 0.03)
+    c.fillRect(W * 0.08, H * 0.88, W * 0.84 * prog, H * 0.035)
+    c.fillStyle = MINT_DARK
+    sans(c, H * 0.05, 700)
+    c.textAlign = 'right'
+    c.fillText(`%${Math.round(prog * 100)}`, W * 0.92, H * 0.85)
+    c.textAlign = 'left'
     return
   }
   if (s.kind === 'uploaded') {
@@ -1111,7 +1122,7 @@ const CASE = [
 
 /** One of the twelve screens of the reading room. */
 export function readingScreen(c: C, W: number, H: number, i: number, t: number, amp: number) {
-  c.fillStyle = '#05070a'
+  c.fillStyle = '#0b141b'
   c.fillRect(0, 0, W, H)
   const kind = i % 4
   if (i === 5 || i === 6) {
@@ -1145,12 +1156,12 @@ export function readingScreen(c: C, W: number, H: number, i: number, t: number, 
     return
   }
   // Scrolling case-file text.
-  c.fillStyle = '#b9c4ca'
-  mono(c, H * 0.07, 500)
+  c.fillStyle = '#d4dde2'
+  mono(c, H * 0.1, 700)
   const off = (t * 0.35 + i * 0.37) % 1
-  for (let r = -1; r < 12; r++) {
+  for (let r = -1; r < 9; r++) {
     const line = CASE[(r + i * 3 + Math.floor(t * 0.35 + i * 0.37) + 64) % CASE.length]
-    c.fillText(line, W * 0.04, H * (0.1 + (r - off) * 0.09))
+    c.fillText(line, W * 0.04, H * (0.14 + (r - off) * 0.125))
   }
   c.fillStyle = 'rgba(5,7,10,0.85)'
   c.fillRect(0, 0, W, H * 0.06)

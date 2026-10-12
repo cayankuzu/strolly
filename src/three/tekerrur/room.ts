@@ -103,6 +103,8 @@ export class RoomSet {
   windowMat!: THREE.MeshBasicMaterial
   strip!: THREE.MeshBasicMaterial
   lampBulb!: THREE.Mesh
+  /** The bulb's place in the world (the lamp never moves). */
+  lampAt = new THREE.Vector3(-1.34, 1.24, -0.23)
   lampModel: THREE.Group | null = null
   waterMat!: THREE.ShaderMaterial
   marks: THREE.Mesh[] = []
@@ -321,10 +323,12 @@ export class RoomSet {
       else this.right = s
     }
 
-    // The desk lamp at the left end of the desk, reaching over toward his place.
+    // The desk lamp at the far left corner of the desk, reaching over toward his place
+    // (set back so the cameras on his left side and the recorder's line of sight stay clear of it).
     const lampG = new THREE.Group()
-    lampG.position.set(-1.38, DESK.y, 0.22)
-    lampG.rotation.y = Math.atan2(-1.25, 0.05) // model front (−z) toward +x
+    lampG.name = 'desk-lamp'
+    lampG.position.set(-1.45, DESK.y, -0.3)
+    lampG.rotation.y = Math.atan2(-1.32, -0.87) // model front (−z) toward his face
     g.add(lampG)
     if (models.lamp) {
       lampG.add(models.lamp)
@@ -338,6 +342,8 @@ export class RoomSet {
       head.position.set(0, 0.5, -0.25)
     }
     this.lampBulb = mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.75, 0.45).multiplyScalar(4) }), 0, 0.47, -0.135, lampG)
+    g.updateMatrixWorld(true)
+    this.lampBulb.getWorldPosition(this.lampAt)
 
     // ——— The chair, pushed in, a folded cloth on a shelf under the seat ———
     this.chair.add(officeChair(pbr('fabric', 0x2b2d30, { roughness: 1 }), darkSteel))
@@ -455,7 +461,14 @@ export class RoomSet {
     const trough = pbr('concrete', 0x3a3631, { roughness: 1 })
     for (const sz of [-1, 1]) {
       const z = sz * 0.68
-      box(3.7, 0.12, 0.24, trough, 7.05, 0.06, z, W)
+      // On the niche side the trough stops short of the niches: the robots roll out across it.
+      if (sz < 0) box(3.7, 0.12, 0.24, trough, 7.05, 0.06, z, W)
+      else
+        for (const [x0, x1] of [
+          [5.2, 6.02],
+          [8.38, 8.9],
+        ])
+          box(x1 - x0, 0.12, 0.24, trough, (x0 + x1) / 2, 0.06, z, W)
       if (!fernSrc) continue
       const parts: THREE.Object3D[] = []
       fernSrc.traverse((o) => {

@@ -118,24 +118,25 @@ function shelfPlane(w: number, h: number) {
 }
 
 /** Lights rows on as the cascade front passes them (x decreasing from the door). */
-function cascadeShader(mat: THREE.MeshStandardMaterial, uniforms: { uFront: { value: number }; uWarm: { value: THREE.Color }; uDim: { value: number } }) {
+function cascadeShader(mat: THREE.MeshStandardMaterial, uniforms: { uFront: { value: number }; uWarm: { value: THREE.Color }; uDim: { value: number }; uAll: { value: number } }) {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uFront = uniforms.uFront
     shader.uniforms.uWarm = uniforms.uWarm
     shader.uniforms.uDim = uniforms.uDim
+    shader.uniforms.uAll = uniforms.uAll
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying float vWx;')
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n#ifdef USE_INSTANCING\nvWx = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).x;\n#else\nvWx = (modelMatrix * vec4(transformed, 1.0)).x;\n#endif')
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying float vWx;\nuniform float uFront;\nuniform vec3 uWarm;\nuniform float uDim;')
-      .replace('#include <opaque_fragment>', 'outgoingLight *= mix(vec3(uDim), uWarm, smoothstep(uFront - 1.2, uFront + 1.2, vWx));\n#include <opaque_fragment>')
+      .replace('#include <common>', '#include <common>\nvarying float vWx;\nuniform float uFront;\nuniform vec3 uWarm;\nuniform float uDim;\nuniform float uAll;')
+      .replace('#include <opaque_fragment>', 'outgoingLight *= mix(vec3(uDim), uWarm, smoothstep(uFront - 1.2, uFront + 1.2, vWx)) * uAll;\n#include <opaque_fragment>')
   }
   mat.customProgramCacheKey = () => 'tek-archive-cascade'
 }
 
 export class ArchiveSet {
   readonly group = new THREE.Group()
-  readonly uniforms = { uFront: { value: 0 }, uWarm: { value: new THREE.Color(1.25, 1.17, 1.05) }, uDim: { value: 1 } }
+  readonly uniforms = { uFront: { value: 0 }, uWarm: { value: new THREE.Color(1.25, 1.17, 1.05) }, uDim: { value: 1 }, uAll: { value: 1 } }
   lever = new THREE.Group()
   bands!: THREE.InstancedMesh
   bandRows: number[] = []
@@ -443,16 +444,18 @@ export class ArchiveSet {
    * cascade: 0 before the switch … 1 when every row is lit up to the core.
    * lever: 0 up (off) … 1 down (on).
    */
-  update(time: number, cascade: number, lever: number, coreBoost: number) {
+  update(time: number, cascade: number, lever: number, coreBoost: number, fade = 1) {
     const front = cascade <= 0 ? 10 : -5.4 - cascade * 50
     this.uniforms.uFront.value = front
     this.uniforms.uDim.value = 1
+    this.uniforms.uAll.value = fade
+    this.coreMat.uniforms.uFade.value = fade
     this.lever.rotation.z = 0.55 - lever * 2.2
     this.coreMat.uniforms.uTime.value = time
     this.coreMat.uniforms.uBoost.value = coreBoost
     for (let i = 0; i < this.bands.count; i++) {
       const lit = cascade > 0 && this.bandRows[i] > front ? 1 : 0
-      this.bandCol.setRGB(1.6 + lit * 0.9, 1.65 + lit * 0.75, 1.75 + lit * 0.45)
+      this.bandCol.setRGB(1.6 + lit * 0.9, 1.65 + lit * 0.75, 1.75 + lit * 0.45).multiplyScalar(fade)
       this.bands.setColorAt(i, this.bandCol)
     }
     if (this.bands.instanceColor) this.bands.instanceColor.needsUpdate = true

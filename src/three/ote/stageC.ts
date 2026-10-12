@@ -83,6 +83,13 @@ function seated(st: St) {
   return s === 'seat' || s === 'ignition' || s === 'gforce' || s === 'space'
 }
 
+/** Hands on the armrests of a seat (facing −z: the right hand on the +x side). */
+function armrests(a: Actor, seat: number, which: 'l' | 'r' | 'both', w = 1) {
+  const s = seatPos(seat)
+  if (which !== 'l') a.reach('r', w, s.x + 0.272, 0.69, s.z - 0.12, 0.6)
+  if (which !== 'r') a.reach('l', w, s.x - 0.272, 0.69, s.z - 0.12, 0.6)
+}
+
 function sitPerson(a: Actor, seat: number, pose: Float32Array) {
   const s = seatPos(seat)
   a.place(s.x, s.z, PI).hold(pose)
@@ -94,6 +101,7 @@ function stagePerson(r: Rig, st: St, per: Person) {
   const base = per.id === 'S' || per.id === 'P3' ? P.STAND : P.STAND_EASY
   if (seated(st)) {
     sitPerson(a, per.seat, seg === 'gforce' ? POSES.SIT_G : POSES.SIT_ARMS)
+    armrests(a, per.seat, per.id === 'C1' ? 'l' : per.id === 'C2' ? 'r' : 'both')
     return a
   }
   if (seg === 'announce' && u >= per.sitAt) {
@@ -143,11 +151,15 @@ export function stageShuttle(r: Rig, st: St) {
       const k = smoothstep(0, 0.1, u)
       m.place(lerp(AISLE, SC.his.x, smoothstep(0, 0.6, k)), lerp(-7.62, SC.his.z, smoothstep(0.5, 1, k)), lerp(-PI / 2, PI, smoothstep(0.3, 0.8, k)))
       blendPose(P.STAND, POSES.SIT_ARMS, smoothstep(0.5, 1, k), m.pose)
-    } else sitPerson(m, 15, POSES.SIT_ARMS)
+    } else {
+      sitPerson(m, 15, POSES.SIT_ARMS)
+      armrests(m, 15, 'both', smoothstep(0.1, 0.2, u))
+    }
     if (u > 0.1) m.lookAt(97.85, -7.0, 0.6 * smoothstep(0.1, 0.25, u) * (1 - smoothstep(0.45, 0.6, u)))
     if (u > 0.6) m.lookAt(SC.w1.x, SC.w1.z - 0.3, 0.4 * pulse(0.6, 0.95, u))
   } else {
     sitPerson(m, 15, seg === 'gforce' ? POSES.SIT_G : POSES.SIT_ARMS)
+    armrests(m, 15, 'l')
     if (seg === 'space') {
       if (u < 0.42) m.lookAt(97.85, -7.0, 0.7)
       else m.lookAt(99.0, -7.3, 0.5 * smoothstep(0.48, 0.6, u))
@@ -186,7 +198,7 @@ export function stageShuttle(r: Rig, st: St) {
     w.reach('l', hold, SC.his.x + 0.27, 0.7, SC.his.z - 0.12, 0.6)
     m.reach('r', 1, SC.his.x + 0.27, 0.68, SC.his.z - 0.1, 0.6)
   }
-  if (seg === 'ignition' || seg === 'gforce') m.reach('r', seg === 'gforce' ? 1 : 0.8, SC.his.x + 0.27, 0.68, SC.his.z - 0.1, 0.6)
+  if (seg === 'ignition' || seg === 'gforce' || seg === 'space') m.reach('r', 1, SC.his.x + 0.272, 0.69, SC.his.z - 0.12, 0.6)
   // The knitting in her lap; the ball that floats away after cut-off.
   const knit = r.E.knit
   const ball = r.E.yarnBall
@@ -202,9 +214,9 @@ export function stageShuttle(r: Rig, st: St) {
     r.E.knitPiece.scale.set(1, 1, 1)
     bag.position.set(SC.w1.x + 0.18, 0, SC.w1.z - 0.38)
     bag.rotation.y = PI
-    const float = seg === 'space' ? smoothstep(0.5, 0.95, u) : 0
+    const float = seg === 'space' ? smoothstep(0.47, 0.64, u) : 0
     toWorld(w, -0.08, 0.6, 0.34, v)
-    ball.position.set(v.x - 0.15 * float, v.y + 0.55 * float, v.z - 0.25 * float + 0.04 * Math.sin(time * 0.7) * float)
+    ball.position.set(v.x + 0.14 * float, v.y + 0.62 * float + 0.02 * Math.sin(time * 0.9) * float, v.z - 0.3 * float + 0.03 * Math.sin(time * 0.7) * float)
     ball.rotation.set(time * 0.2 * float, time * 0.3 * float, 0)
     r.C.strand.visible = float > 0.01
     if (float > 0.01) r.C.setStrand(knit.position, ball.position)
@@ -298,6 +310,7 @@ export function stageShuttle(r: Rig, st: St) {
   C.setLeaves(open)
   const locked = seg !== 'topFloor' || u > 0.55
   C.lock.material = locked ? r.m.lockRed : r.m.lockGreen
+  const lockGlow = seg === 'topFloor' ? smoothstep(0.55, 0.6, u) : seg === 'cabin' ? 1 - smoothstep(0.2, 0.5, u) : 0
   // The escort, still inside the elevator.
   if (seg === 'topFloor' && u < 0.6) {
     const spots: Array<[CastId, number, number]> = [
@@ -337,7 +350,8 @@ export function stageShuttle(r: Rig, st: St) {
   const cabin = new THREE.Color(0xdfe8ff).lerp(new THREE.Color(0xff3b28), red)
   const ledLevel = lerp(1, 0.35, red) * (1 - white) + white * 0.85
   spot(L, { x: 100, y: 2.85, z: -6.5 }, { x: 100, y: 0, z: -6.5 }, cabin, 30 * ledLevel, 1.25, 0.9, 16, 1.2)
-  point(L, 0, 100, 2.6, -1.5, cabin, 4 * ledLevel, 6)
+  if (lockGlow > 0.01) point(L, 0, 100, 2.3, 1.0, 0xff3020, 6 * lockGlow, 3.5, 1.6)
+  else point(L, 0, 100, 2.6, -1.5, cabin, 4 * ledLevel, 6)
   point(L, 1, 100, 2.6, -12, cabin, 4 * ledLevel, 6)
   point(L, 2, 100, 2.6, -7.5, cabin, 3 * ledLevel, 5)
   r.C.ceilingStrip.color.copy(cabin).multiplyScalar(0.5 + ledLevel)
@@ -401,12 +415,13 @@ export function stageLaunch(r: Rig, st: St) {
   r.deck.mat.uniforms.uHole.value.set(200, 0)
   r.deck.mat.uniforms.uFire.value = 1 - smoothstep(0.4, 1, k)
   r.launch.on = true
-  r.launch.alt = 0.24
+  r.launch.alt = 0.12
   r.launch.race = 0
   const L = r.lights
-  sunAt(L, { x: 300, y: 25, z: 40 }, { x: 200, y: 10, z: 0 }, 0xffc890, 3.2, 40)
-  point(L, 0, 200, D.ship.position.y - 6, 0, 0xff8a3a, 900, 120, 1.6)
-  hemi(L, 0x8fb2e8, 0x6a5a50, 0.8)
+  // The low sun from the right, gold; the fire lights the clouds from below.
+  sunAt(L, { x: 330, y: 22, z: 10 }, { x: 200, y: 12, z: 0 }, 0xffc890, 4.2, 40)
+  point(L, 0, 200, D.ship.position.y - 8, 0, 0xff8a3a, 1400, 140, 1.6)
+  hemi(L, 0x6f8fc8, 0x6a5a50, 0.35)
   spot(L, { x: 200, y: 80, z: 60 }, { x: 200, y: 0, z: 0 }, 0xffffff, 0, 0.5)
-  env(r, 'belfast_sunset_puresky', 0.9)
+  env(r, 'belfast_sunset_puresky', 0.55)
 }

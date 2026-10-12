@@ -58,6 +58,7 @@ uniform float uSwell;
 uniform vec2 uSwellDir;
 uniform float uSwellLen;
 uniform float uSwellSpeed;
+uniform float uShore;
 varying vec3 vW;
 varying vec3 vN;
 varying float vCrest;
@@ -73,8 +74,10 @@ float wh(vec2 p) {
   h *= uChop;
   float s = dot(p, uSwellDir) / uSwellLen - uTime * uSwellSpeed;
   float sw = 0.5 + 0.5 * sin(s * 6.2831);
-  h += uSwell * (pow(sw, 3.0) - 0.3);
-  return h;
+  // Near a shore (uShore = its z, swells running toward +z) the swell dies into the shallows.
+  float shore = uShore > -999.0 ? 1.0 - smoothstep(uShore - 14.0, uShore - 1.0, p.y) : 1.0;
+  h += uSwell * (pow(sw, 3.0) - 0.3) * shore;
+  return h * mix(1.0, 0.25, 1.0 - shore);
 }
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
@@ -151,6 +154,8 @@ export type WaterOpts = {
   swellDir?: [number, number]
   swellLen?: number
   swellSpeed?: number
+  /** z of a shoreline the swells run up to (they fade in the last metres). */
+  shore?: number
 }
 
 export function waterMaterial(shared: Shared, o: WaterOpts) {
@@ -164,6 +169,7 @@ export function waterMaterial(shared: Shared, o: WaterOpts) {
         uSwellDir: { value: new THREE.Vector2(...(o.swellDir ?? [0, 1])).normalize() },
         uSwellLen: { value: o.swellLen ?? 30 },
         uSwellSpeed: { value: o.swellSpeed ?? 0.16 },
+        uShore: { value: o.shore ?? -1000 },
         uDeep: { value: new THREE.Color(o.deep) },
         uShallow: { value: new THREE.Color(o.shallow) },
         uSky: { value: new THREE.Color(o.sky) },
@@ -211,6 +217,8 @@ export function radialTexture() {
 /** A shaft of light: an open cone, additive, brightest on the axis and fading toward the end. */
 export function shaftMaterial(color: THREE.ColorRepresentation, strength = 0.35) {
   return new THREE.ShaderMaterial({
+    // (opacity is not read by the shader; it marks the cone as see-through for the camera-clip check)
+    opacity: 0.2,
     uniforms: { uColor: { value: new THREE.Color(color) }, uStrength: { value: strength } },
     vertexShader: /* glsl */ `
       varying vec3 vN; varying vec3 vV; varying float vY;
@@ -238,6 +246,7 @@ export function shaftMaterial(color: THREE.ColorRepresentation, strength = 0.35)
 /** The line: a nearly invisible glass filament that glows near the boy's feet. */
 export function lineMaterial() {
   return new THREE.ShaderMaterial({
+    opacity: 0.2,
     uniforms: { uFeet: { value: new THREE.Vector3() }, uGlow: { value: 1 }, uColor: { value: new THREE.Color(0xbfefff) }, uRadius: { value: 3 } },
     vertexShader: /* glsl */ `
       varying vec3 vW; varying vec3 vN; varying vec3 vV;
@@ -268,4 +277,60 @@ export function lineMaterial() {
 /** Soft particles (dust, bubbles, sand, motes). Size in world units. */
 export function particleMaterial(color: THREE.ColorRepresentation, size: number, opacity = 0.6, additive = true) {
   return new THREE.PointsMaterial({ color, size, map: radialTexture(), transparent: true, opacity, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending, sizeAttenuation: true })
+}
+
+/** The sea's surface seen from below: a moving silver sheet with a paler patch where the light is. */
+export function undersideMaterial(shared: Shared) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([
+      THREE.UniformsLib.fog,
+      {
+        uColor: { value: new THREE.Color(0x6f9c8c) },
+        uPatch: { value: new THREE.Vector3(401.5, 0, -19.5) },
+        uPatchColor: { value: new THREE.Color(0xd8f0e0) },
+        uPatchAmt: { value: 1 },
+        uBright: { value: 1 },
+      },
+    ]),
+    vertexShader: /* glsl */ `
+      varying vec3 vW;
+      #include <common>
+      #include <fog_pars_vertex>
+      void main() {
+        vec4 w = modelMatrix * vec4(position, 1.0);
+        vW = w.xyz;
+        vec4 mvPosition = viewMatrix * w;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      uniform vec3 uColor;
+      uniform vec3 uPatch;
+      uniform vec3 uPatchColor;
+      uniform float uPatchAmt;
+      uniform float uBright;
+      uniform float uParalelGrade;
+      varying vec3 vW;
+      #include <common>
+      #include <fog_pars_fragment>
+      ${NOISE}
+      void main() {
+        vec2 q = vW.xz;
+        float a = vn(q * 0.9 + vec2(uTime * 0.35, uTime * 0.2));
+        float b = vn(q * 2.3 - vec2(uTime * 0.5, -uTime * 0.3));
+        float caust = pow(abs(sin((a + b) * 6.0)), 6.0);
+        vec3 col = uColor * (0.55 + 0.6 * a) + vec3(0.8, 0.95, 0.9) * caust * 0.45;
+        float d = length(vW.xz - uPatch.xz);
+        col += uPatchColor * uPatchAmt * exp(-d * d / 18.0) * (0.8 + 0.4 * b);
+        gl_FragColor = vec4(col * uBright, 1.0);
+        ${GRADE}
+        #include <fog_fragment>
+      }`,
+    side: THREE.BackSide,
+    fog: true,
+  })
+  m.uniforms.uTime = shared.uTime
+  m.uniforms.uParalelGrade = shared.grade
+  return m
 }

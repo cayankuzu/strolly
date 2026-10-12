@@ -37,6 +37,8 @@ export type Ctx = {
   /** The fingertip on the wall display. */
   touch: THREE.Vector3
   phoneAt: THREE.Vector3
+  /** The phone held in both hands in front of him, screen toward his eyes (message, coat). */
+  phoneHeld: THREE.Vector3
 }
 
 /** Arif's marks in the set (x, z). */
