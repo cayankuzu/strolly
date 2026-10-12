@@ -87,10 +87,13 @@ function flashSet(d: Director, f: SetFrame, u: number, shot: Shot, o: { halo?: n
   d.lab.st31Screen.redraw((c, W, H) => drawStation31(c, W, H, 'dark', 0.4, f.time), `st31:dark:${tick(f.time, 2)}`)
 }
 
-/** Veyl seated at the desk facing the monitors. */
-function veylAtDesk(d: Director) {
+/** Veyl seated at the desk facing the monitors; `toNotebook` swivels him (and the chair) to the notebook on his left. */
+function veylAtDesk(d: Director, toNotebook = 0) {
   const a = d.use(d.veyl)
-  a.place(0, -2.3, FACE_N)
+  const yaw = FACE_N + 0.38 * toNotebook
+  a.place(-0.1 * toNotebook, -2.3, yaw)
+  d.lab.chair.position.set(-0.1 * toNotebook, 0, -2.3)
+  d.lab.chair.rotation.y = yaw
   return a
 }
 
@@ -179,10 +182,11 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       d.place('lab')
       light.lab(d, 1, 0.5)
       shot.handheld = 0
-      const a = veylAtDesk(d)
-      a.blend([[0, P.SIT_READ], [0.1, SIT_WRITE]], u)
+      const turn = 1 - S(0.6, 0.66, u)
+      const a = veylAtDesk(d, turn)
+      a.blend([[0, P.SIT_READ], [0.1, SIT_WRITE], [0.6, SIT_WRITE], [0.66, P.SIT_READ]], u)
       const pen = S(0.25, 0.35, u)
-      a.reach('r', Math.max(pen, S(0.04, 0.1, u) * 0.8), -0.62 + 0.1 * (1 - pen), 0.86 + 0.1 * pen, -2.93, 0.5)
+      a.reach('r', Math.max(pen, S(0.04, 0.1, u) * 0.8) * turn, -0.6, 0.9 + 0.06 * pen, -2.95, 0.5)
       a.lookAt(1.15, -3.45, S(0.62, 0.7, u))
       d.apply(d.veyl)
       veylReal(d)
@@ -191,10 +195,10 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       desk(d, f, { kind: 'card', lines: CARD, t }, 'card', 'brain')
       d.cam(
         [
-          [0, [-0.6, 1.5, -2.4, -0.75, 0.79, -2.95, 35]],
-          [0.62, [-0.62, 1.48, -2.42, -0.75, 0.79, -2.95, 35]],
-          [0.62, [0.85, 1.45, -2.9, 0, 1.35, -2.3, 35]],
-          [1, [0.8, 1.45, -2.85, 0, 1.35, -2.3, 35]],
+          [0, [-0.42, 1.52, -2.36, -0.66, 0.84, -2.95, 36]],
+          [0.62, [-0.44, 1.5, -2.38, -0.66, 0.84, -2.95, 36]],
+          [0.62, [0.6, 1.3, -3.0, 0.02, 1.24, -2.4, 32]],
+          [1, [0.58, 1.3, -2.98, 0.02, 1.24, -2.4, 32]],
         ],
         u,
         shot,
@@ -228,7 +232,7 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       d.eyes(d.veyl, S(0.33, 0.4, u))
       veylReal(d)
       desk(d, f, { kind: 'protocol', lines: PROTOCOL, shown: PROTOCOL.length, amber: false, cursor: (t * 2) % 1 < 0.5 }, `protocol:7:${(t * 2) % 1 < 0.5 ? 1 : 0}`, 'brain')
-      d.cam([[0, [0.25, 1.0, -2.75, 0.15, 0.8, -3.0, 30]], [0.33, [0.24, 1.0, -2.76, 0.15, 0.8, -3.0, 30]], [0.34, [-0.8, 1.35, -2.6, 0, 1.3, -2.3, 28]], [1, [-0.78, 1.35, -2.62, 0, 1.3, -2.3, 28]]], u, shot)
+      d.cam([[0, [0.66, 0.96, -2.86, 0.15, 0.84, -3.0, 30]], [0.33, [0.64, 0.96, -2.87, 0.15, 0.84, -3.0, 30]], [0.34, [-0.8, 1.35, -2.6, 0, 1.3, -2.3, 28]], [1, [-0.78, 1.35, -2.62, 0, 1.3, -2.3, 28]]], u, shot)
       return true
     }
     case 'press': {
@@ -245,19 +249,19 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       const lightUp = S(0.3, 0.85, u)
       d.lab.st31Screen.redraw((c, W, H) => drawStation31(c, W, H, 'dawn', lightUp, t), `st31:dawn:${Math.round(lightUp * 30)}:${tick(t, 3)}`)
       d.rig.pt(3, 0xffe2b8, 1.6 * lightUp, [0.5, 1.9, -6.6], 2.5, 1.6)
-      d.cam([[0, [0.25, 1.0, -2.75, 0.15, 0.8, -3.0, 30]], [0.3, [0.25, 1.0, -2.75, 0.15, 0.8, -3.0, 30]], [0.3, [0.6, 1.9, -6.1, 0.52, 1.9, -6.8, 25]], [1, [0.56, 1.9, -6.25, 0.52, 1.9, -6.8, 25]]], u, shot)
+      d.cam([[0, [0.66, 0.96, -2.86, 0.15, 0.84, -3.0, 30]], [0.3, [0.66, 0.96, -2.86, 0.15, 0.84, -3.0, 30]], [0.3, [0.6, 1.9, -6.1, 0.52, 1.9, -6.8, 25]], [1, [0.56, 1.9, -6.25, 0.52, 1.9, -6.8, 25]]], u, shot)
       d.fx.wash(1.35, 1.25, 1.05, S(0.78, 0.98, u))
       return true
     }
     // ——— The five flashes ———
     case 'lab1': {
       flashSet(d, f, u, shot, { tech: 'rod' })
-      d.cam([[0, [-1.8, 1.7, -5.6, 0, 1.5, -7.1, 35]], [0.67, [-0.9, 1.7, -6.0, 0, 1.5, -7.1, 35]], [0.68, [-0.9, 1.9, -6.3, 0, 1.75, -7.0, 28]], [1, [-0.85, 1.9, -6.35, 0, 1.75, -7.0, 28]]], u, shot)
+      d.cam([[0, [-2.0, 1.62, -6.45, 0, 1.4, -6.85, 36]], [0.67, [-1.75, 1.62, -7.0, 0, 1.4, -6.85, 36]], [0.68, [-0.75, 2.05, -7.75, 0.02, 1.74, -6.98, 30]], [1, [-0.72, 2.04, -7.72, 0.02, 1.74, -6.98, 30]]], u, shot)
       return true
     }
     case 'lab2': {
       flashSet(d, f, u, shot, { tech: 'cables', halo: 1 })
-      d.cam([[0, [-1.6, 1.4, -5.4, 0, 1.2, -7.2, 32]], [0.6, [-1.5, 1.42, -5.5, 0, 1.25, -7.2, 32]], [0.61, [-0.5, 1.7, -5.9, -0.9, 1.7, -6.6, 28]], [1, [-0.52, 1.7, -5.95, -0.9, 1.7, -6.6, 28]]], u, shot)
+      d.cam([[0, [-1.35, 1.3, -6.45, 0, 1.5, -6.95, 32]], [0.6, [-1.3, 1.32, -6.55, 0, 1.5, -6.95, 32]], [0.61, [-0.5, 1.7, -5.9, -0.9, 1.7, -6.6, 28]], [1, [-0.52, 1.7, -5.95, -0.9, 1.7, -6.6, 28]]], u, shot)
       return true
     }
     case 'lab3': {
@@ -269,9 +273,9 @@ export const actLab: Act = (d, f, seg, u, shot) => {
         d.bend(d.veyl, 'head', 1, Math.sin(t * 2.1) * 0.05)
         d.apply(d.veyl)
         veylReal(d)
-        d.rig.pt(0, 0xcfe0ff, 1.6, [0, 1.35, -3.0], 4.5, 1.6)
+        d.rig.pt(0, 0xcfe0ff, 3.2, [0, 1.4, -3.1], 4.5, 1.5)
       }
-      d.cam([[0, [1.6, 1.5, -5.8, 0, 1.4, -7.2, 32]], [0.5, [1.55, 1.5, -5.85, 0, 1.4, -7.2, 32]], [0.55, [2.4, 1.6, -4.6, 0, 1.4, -6.0, 40]], [1, [2.45, 1.6, -4.5, 0, 1.4, -5.8, 40]]], u, shot)
+      d.cam([[0, [1.55, 1.5, -6.75, 0, 1.42, -6.9, 34]], [0.53, [1.5, 1.5, -6.85, 0, 1.42, -6.9, 34]], [0.53, [2.75, 1.56, -3.35, 0.1, 1.3, -2.5, 30]], [1, [2.68, 1.56, -3.3, 0.1, 1.3, -2.5, 28]]], u, shot)
       return true
     }
     case 'lab4': {
@@ -335,20 +339,20 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       shot.handheld = 0
       const a = veylAtDesk(d)
       a.blend([[0, P.SIT_READ], [0.08, P.SIT_READ], [0.2, SIT_LEAN_BACK]], u)
-      d.bend(d.veyl, 'head', 0, -0.06 * S(0.3, 0.4, u))
+      d.bend(d.veyl, 'head', 0, 0.16 - 0.08 * S(0.3, 0.4, u))
       d.apply(d.veyl)
       d.eyes(d.veyl, 0.5 * S(0.1, 0.2, u))
       veylReal(d)
       d.lab.setStrip(1)
       desk(d, f, { kind: 'result', lines: RESULT, t }, 'result', 'brain')
-      d.cam([[0, [-1.0, 1.4, -3.0, 0, 1.35, -2.3, 32]], [1, [-0.95, 1.42, -2.95, 0, 1.35, -2.3, 32]]], u, shot)
+      d.cam([[0, [-0.95, 1.48, -3.05, 0, 1.38, -2.3, 32]], [1, [-0.9, 1.48, -3.0, 0, 1.38, -2.3, 32]]], u, shot)
       return true
     }
     case 'notes': {
       d.place('lab')
       light.lab(d, 1, 0.5)
       shot.handheld = 0
-      const a = veylAtDesk(d)
+      const a = veylAtDesk(d, 1)
       a.hold(SIT_WRITE)
       const n1 = C(Math.floor((u - 0.02) / 0.062) + 1, 0, ENTRY.length - 1)
       const last1 = C(((u - 0.02) % 0.062) / 0.062)
@@ -357,21 +361,21 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       const last = writingLast ? S(0.37, 0.9, u) : last1
       const row = writingLast ? 5.4 : n1 - 1 + last1
       const moving = (u >= 0.02 && u < 0.33) || (writingLast && u < 0.9)
-      a.reach('r', 1, -0.68 + 0.16 * (moving ? last : 0.5), 0.805, -3.07 + 0.03 * row, 0.5)
+      a.reach('r', 1, -0.66 + 0.15 * (moving ? last : 0.5), 0.82, -3.07 + 0.03 * row, 0.5)
       d.apply(d.veyl)
       veylReal(d)
       d.hold(d.lab.pen, d.veyl, 'r', PEN_IN_HAND)
       d.lab.notebook.redraw((c, W, H) => drawNotebook(c, W, H, { lines: ENTRY, shown, last }, TERMS), `entry:${shown}:${Math.round(last * 40)}`)
       d.lab.setStrip(1)
       desk(d, f, { kind: 'result', lines: RESULT, t }, 'result', 'brain')
-      d.cam([[0, [-0.6, 1.5, -2.4, -0.75, 0.79, -2.95, 30]], [1, [-0.62, 1.48, -2.4, -0.75, 0.79, -2.95, 30]]], u, shot)
+      d.cam([[0, [-0.42, 1.52, -2.36, -0.66, 0.82, -2.95, 33]], [1, [-0.44, 1.5, -2.37, -0.66, 0.82, -2.95, 33]]], u, shot)
       return true
     }
     case 'rings': {
       d.place('lab')
       light.lab(d, 1, 1)
       shot.handheld = 0
-      const a = veylAtDesk(d)
+      const a = veylAtDesk(d, 1 - S(0.02, 0.1, u))
       a.blend([[0, SIT_WRITE], [0.04, SIT_WRITE], [0.1, SIT_LEAN_BACK]], u)
       d.bend(d.veyl, 'head', 0, -0.4 * S(0.05, 0.12, u))
       d.apply(d.veyl)
@@ -401,7 +405,8 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       light.lab(d, 1, 0.5)
       shot.handheld = 0
       const a = veylAtDesk(d)
-      a.hold(P.SIT_READ)
+      a.blend([[0, P.SIT_READ], [0.3, P.SIT_READ], [0.36, SIT_HOVER]], u)
+      a.reach('r', S(0.3, 0.36, u), 0.17, 0.87, -3.0, 0.5)
       d.apply(d.veyl)
       d.eyes(d.veyl, S(0.3, 0.36, u))
       veylReal(d)
@@ -429,8 +434,10 @@ export const actLab: Act = (d, f, seg, u, shot) => {
       const draw = S(0.04, 0.42, u)
       const pulse = bump(0.4, 0.58, u)
       d.lab.signal.redraw((c, W, H) => drawSignal(c, W, H, draw, pulse, t), `signal:${Math.round(draw * 60)}:${Math.round(pulse * 20)}:${tick(t, 12)}`)
-      d.cam([[0, [0, 2, -4, 0, 2, -10, 40]], [1, [0, 2, -4.3, 0, 2, -10, 40]]], u, shot)
-      d.fx.vignette(0, 0, 0, 0.5)
+      // The line sits below the middle of the frame, so the closing title never lies on it.
+      d.cam([[0, [0, 2, -4, 0, 2.55, -10, 40]], [1, [0, 2, -4.3, 0, 2.55, -10, 40]]], u, shot)
+      // The screens and the room dim to nothing; only the line is left.
+      d.fx.black(S(0, 0.14, u))
       return true
     }
     default:

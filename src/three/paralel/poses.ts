@@ -385,15 +385,15 @@ export const SWING_SIT = makePose({
   rFore: [-1.4, 0, 0],
 })
 
-/** Pumping forward: legs out and down past the plank, toes pointed, leaning back. */
+/** At the front of the arc: knees bent so the shins hang toward the abyss, toes pointed down, leaning back. */
 export const SWING_FWD = makePose(
   {
-    lThigh: [-1.15, 0, 0.1],
-    rThigh: [-1.15, 0, -0.1],
-    lShin: [0.55, 0, 0],
-    rShin: [0.6, 0, 0],
-    lFoot: [0.85, 0, 0],
-    rFoot: [0.85, 0, 0],
+    lThigh: [-1.3, 0, 0.1],
+    rThigh: [-1.3, 0, -0.1],
+    lShin: [1.75, 0, 0],
+    rShin: [1.85, 0, 0],
+    lFoot: [0.95, 0, 0],
+    rFoot: [0.95, 0, 0],
     spine: [-0.22, 0, 0],
     chest: [-0.08, 0, 0],
     neck: [0.1, 0, 0],

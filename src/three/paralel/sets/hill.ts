@@ -13,6 +13,7 @@ import { mesh } from '../../util'
 import { PI, DEG, fbm, rng, ss, win, instances, levelTo, type Ctx, type Dir, type PSet } from '../common'
 import { bunched, gridSurface, tuftGeometry, mergeAll } from '../geo'
 import { carry, pivotFrame } from '../rig'
+import { radialTexture } from '../shaders'
 import { Burst } from '../fx'
 import * as PP from '../poses'
 import * as P from '../../figure/poses'
@@ -123,6 +124,7 @@ export class HillSet implements PSet {
       const zf = faceZ(x, FLOOR + 3)
       return out.set(x, FLOOR + 3 - 3 * Math.pow(k, 0.6), zf - 6 * Math.pow(k, 1.2) + 1.2 * fbm(x * 0.07, 4.4, 2, 39) * k)
     }
+    const ravineShade = new THREE.Color(0x2e3f66)
     const faceGeo = gridSurface(
       nu,
       ny,
@@ -133,6 +135,8 @@ export class HillSet implements PSet {
         const v = 0.78 + 0.2 * fbm(p.x * 0.07, p.y * 0.07, 3, 53) - 0.16 * ss(0.1, 0.5, streak)
         out.setRGB(0.66 * v, 0.62 * v, 0.55 * v)
         if (p.y < FLOOR + 8) out.multiplyScalar(0.85)
+        // The ravine's lower walls stand in their own shadow.
+        out.multiplyScalar(1 - 0.4 * ss(-30, -95, p.y)).lerp(ravineShade, 0.25 * ss(-30, -95, p.y))
       },
     )
     const face = mesh(faceGeo, pbr('rock', 0xffffff, { vertexColors: true, roughness: 1, side: THREE.DoubleSide }), 0, 0, 0, g)
@@ -167,6 +171,11 @@ export class HillSet implements PSet {
         out.setRGB(0.5, 0.47, 0.41).multiplyScalar(0.8 + 0.25 * fbm(p.x * 0.2, p.z * 0.2, 2, 71))
         if (p.y < FLOOR + 3 && r < 3.5) out.setRGB(0.38, 0.36, 0.33)
         if (p.y > -10) out.lerp(new THREE.Color(0xa49a72), 0.6)
+        // The floor of the ravine lies in deep shadow: scree in patches, darker under the walls.
+        else if (p.y < -60) {
+          const scree = 0.7 + 0.5 * fbm(p.x * 0.35, p.z * 0.35, 3, 73) + 0.25 * fbm(p.x * 1.3, p.z * 1.3, 2, 75)
+          out.multiplyScalar(0.36 * scree).lerp(ravineShade, 0.35)
+        }
       },
     )
     // The talus row meets the face's last row.
@@ -184,13 +193,34 @@ export class HillSet implements PSet {
     // Boulders on the ravine floor and the last rocks he climbs over.
     const bm = c.models.boulder
     if (bm) {
+      // (in the ravine's shadow: their own darker copies of the materials)
+      const shaded = bm.clone(true)
+      shaded.traverse((o) => {
+        const m = o as THREE.Mesh
+        if (m.isMesh) {
+          const mat = (m.material as THREE.MeshStandardMaterial).clone()
+          mat.color.multiplyScalar(0.38)
+          m.material = mat
+        }
+      })
+      // Seated on the floor as built (a ray down onto the ravine mesh), sunk a third into it.
+      floor.updateMatrixWorld(true)
+      const blobGeo = new THREE.PlaneGeometry(1, 1).rotateX(-PI / 2)
+      const blobMat = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: radialTexture(), transparent: true, opacity: 0.75, depthWrite: false })
+      const ray = new THREE.Raycaster()
+      const down = new THREE.Vector3(0, -1, 0)
       for (let k = 0; k < 18; k++) {
         const x = X - 40 + rand() * 80
         const z = -10 - rand() * 40
         const s = 1.5 + rand() * 4
-        const b = bm.clone(true)
+        const b = shaded.clone(true)
         b.scale.setScalar(s)
-        b.position.set(x, FLOOR - 0.3 * s + 1.2 * fbm(x * 0.06, 2, 3, 61), z)
+        ray.set(new THREE.Vector3(x, FLOOR + 30, z), down)
+        const hit = ray.intersectObject(floor, false)[0]
+        b.position.set(x, (hit ? hit.point.y : FLOOR) - 0.35 * s, z)
+        // A contact shadow on the scree under it.
+        const sh = mesh(blobGeo, blobMat, x, (hit ? hit.point.y : FLOOR) + 0.06, z, g)
+        sh.scale.setScalar(s * 1.5)
         b.rotation.y = rand() * PI * 2
         g.add(b)
       }
@@ -415,7 +445,8 @@ export class HillSet implements PSet {
     const hold = 1 - ss(0.3, 0.42, u)
     const check = win(0.72, 0.8, 0.9, 0.95, u)
     const lt = this.v.set(lerp(299.85, 299.87, hold), lerp(0.18, 0.44, hold), lerp(-1.86, -2.2, hold))
-    lt.set(lerp(lt.x, 299.9, check), lerp(lt.y, 0.46, check), lerp(lt.z, -2.08, check))
+    // He brings the wrist up in front of his chest, face up, to read it.
+    lt.set(lerp(lt.x, 299.92, check), lerp(lt.y, 0.36, check), lerp(lt.z, -2.16, check))
     boy.reach('l', 1, lt.x, lt.y, lt.z, 0.25)
     const press = win(0.0, 0.06, 0.26, 0.34, u)
     // His right fingers on the left wrist (a little back from the hand, toward the elbow).
@@ -440,7 +471,7 @@ export class HillSet implements PSet {
     } else if (u < 0.76) {
       this.stoneAt(u, st.position)
       st.rotation.set(u * 40, u * 23, u * 31)
-      const s = 1.2 + 0.8 * ss(0.26, 0.5, u)
+      const s = 1.2 + 2.0 * ss(0.26, 0.6, u)
       st.scale.setScalar(s)
     } else st.visible = false
     // Two knocks against the face, the dust puff on the floor.
@@ -460,28 +491,29 @@ export class HillSet implements PSet {
       shot.tgt.set(299.9, 0.38, -2.1)
       shot.fov = 34
       shot.handheld = 0.3
-    } else if (cu < 0.8) {
-      // Following the stone down the face, the stone in the upper third; the floor comes up.
+    } else if (cu < 0.78) {
+      // Down the face with the stone, from out over the ravine and to the side: the wall
+      // receding on the left, the depth on the right, the stone a third of the way into the
+      // frame; the floor comes up in its shadow and the dust puff marks the end.
       const sp = this.stoneAt(Math.min(u, 0.758), this.v)
-      const k = ss(0.22, 0.3, cu)
-      const y = Math.max(sp.y, FLOOR + 1.2)
-      shot.pos.set(lerp(299.18, sp.x + 1.2, k), lerp(0.66, y + 0.6, k), lerp(-2.78, sp.z - 2.0, k))
-      shot.tgt.set(lerp(299.9, sp.x - 0.1, k), lerp(0.38, y - 0.9, k), lerp(-2.1, sp.z + 0.3, k))
+      const k = ss(0.22, 0.32, cu)
+      const y = Math.max(sp.y, FLOOR + 1.5)
+      shot.pos.set(lerp(299.18, sp.x + 3.2, k), lerp(0.66, y + 6.2, k), lerp(-2.78, sp.z - 4.6, k))
+      shot.tgt.set(lerp(299.9, sp.x - 0.2, k), lerp(0.38, y - 2.4, k), lerp(-2.1, sp.z + 0.2, k))
       shot.fov = lerp(34, 46, k)
       shot.handheld = 0.15
     } else if (cu < 0.92) {
-      // The watch: 00:04.6, read upright.
+      // The watch: 00:04.6, read upright, from in front and above (clear of his head).
       const wf = boy.figure.root.getObjectByName('watch-face')
       if (wf) {
         wf.getWorldPosition(this.v)
         wf.getWorldQuaternion(this.q)
         this.n.set(0, 0, 1).applyQuaternion(this.q)
-        shot.pos.copy(this.v).addScaledVector(this.n, 0.15)
-        shot.pos.z -= 0.08
-        this.tmpUp.set(0, 1, 0).applyQuaternion(this.q)
-        shot.pos.addScaledVector(this.tmpUp, 0.05)
+        shot.pos.copy(this.v).addScaledVector(this.n, 0.12)
+        shot.pos.y += 0.04
+        shot.pos.z -= 0.1
         shot.tgt.copy(this.v)
-        d.level = levelTo(shot, this.n.set(0, 1, 0).applyQuaternion(this.q))
+        d.level = levelTo(shot, this.tmpUp.set(0, 1, 0).applyQuaternion(this.q))
       }
       shot.fov = 30
       shot.handheld = 0.1

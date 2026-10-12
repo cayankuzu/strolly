@@ -417,6 +417,22 @@ button {
   width: fit-content;
   max-width: calc(100vw - 2 * var(--gutter));
   text-align: center;
+  text-shadow:
+    0 0 2px rgba(var(--shade), 0.45),
+    0 1px 3px rgba(var(--shade), 0.35),
+    0 0 28px rgba(var(--shade), 0.6);
+}
+
+/* Words in the middle of the picture carry their own soft pool of shade, so they stay legible over a bright frame
+   (a white room, a classroom); over a dark one it disappears. */
+.nl-center .nl-item::before,
+.nl-top .nl-item::before {
+  content: '';
+  position: absolute;
+  inset: -2em -3em;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(var(--shade), 0.62), rgba(var(--shade), 0.4) 45%, rgba(var(--shade), 0.12) 78%, rgba(var(--shade), 0));
+  pointer-events: none;
 }
 
 .nl-center .nl-item {
@@ -788,10 +804,11 @@ button {
   animation-delay: 0.42s;
 }
 
+/* `translate` (not `transform`) so it adds to an element's own centring or hover shift. */
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    translate: 0 12px;
   }
 }
 
@@ -918,7 +935,7 @@ button {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(90deg, rgba(5, 5, 5, 0.94) 0%, rgba(5, 5, 5, 0.78) 34%, rgba(5, 5, 5, 0.35) 70%, rgba(5, 5, 5, 0.6) 100%),
+    linear-gradient(90deg, rgba(5, 5, 5, 0.94) 0%, rgba(5, 5, 5, 0.82) 34%, rgba(5, 5, 5, 0.56) 72%, rgba(5, 5, 5, 0.66) 100%),
     linear-gradient(0deg, rgba(5, 5, 5, 0.85) 0%, rgba(5, 5, 5, 0) 40%);
 }
 
@@ -1023,6 +1040,7 @@ button {
   display: flex;
   flex-direction: column;
   gap: 1em;
+  text-shadow: 0 0 22px rgba(5, 5, 5, 0.75);
 }
 
 .ss-detail-art {
@@ -1056,15 +1074,16 @@ button {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.3em;
-  color: var(--faint);
+  color: var(--muted);
 }
 
+/* A content note: plain words, the story's accent, lifted towards white so it reads at this size. */
 .ss-warning {
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  color: var(--accent);
-  opacity: 0.85;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--accent) 72%, #fff);
 }
 
 .ss-status {
@@ -1117,6 +1136,41 @@ button {
   color: var(--faint);
   cursor: default;
   opacity: 0.6;
+}
+
+/* The number (and its checkpoint dot) never breaks; a long title wraps beside it. */
+.ss-chapter span:first-child {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* The checkpoint (or, in the pause menu, the chapter being read). */
+.ss-chapter[aria-current='step'] {
+  color: var(--fg);
+}
+
+.ss-chapter[aria-current='step'] span:first-child::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 0.7em;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 0.15em;
+}
+
+.ss-chapter:focus-visible {
+  outline-offset: 2px;
+}
+
+/* The chapter list inside the pause menu. */
+.pause-chapters {
+  width: min(560px, calc(100vw - 2 * var(--gutter)));
+}
+
+.pause-chapters ol {
+  margin-top: 0;
 }
 
 /* ——— Credits, farewell ——— */
@@ -1189,7 +1243,7 @@ button {
   align-items: center;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background: rgba(4, 5, 6, 0.62);
+  background: rgba(4, 5, 6, 0.74);
   backdrop-filter: blur(12px) saturate(0.7);
   -webkit-backdrop-filter: blur(12px) saturate(0.7);
   animation: veil-in 0.35s var(--ease) both;
@@ -1268,41 +1322,72 @@ button {
   border-bottom: 0;
 }
 
-.settings-lang + .settings-tabs {
-  margin-top: 0.8em;
-}
+/* ——— Tabs (settings, journal): always one row; a row too wide for the screen scrolls sideways ——— */
 
-.settings-tabs {
+.tabbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em 2.4em;
-  margin: 2.2em 0 1.6em;
-  border-bottom: 1px solid var(--faint);
+  flex-wrap: nowrap;
+  --tab-pad: 7px;
+  gap: 0 1.2em;
+  /* The tabs' own padding lines their text up with the rows below. */
+  margin-inline: calc(-1 * var(--tab-pad));
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  /* The base line is drawn inside the box, under the chosen tab's line. */
+  box-shadow: inset 0 -1px 0 var(--faint);
 }
 
-.settings-tabs [role='tab'] {
+.tabbar::-webkit-scrollbar {
+  display: none;
+}
+
+.tabbar [role='tab'] {
   position: relative;
-  padding: 0 0 1em;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0.8em var(--tab-pad) 1.1em;
   border: 0;
   background: none;
   color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.32em;
+  white-space: nowrap;
   cursor: pointer;
+  transition: color 0.3s var(--ease);
 }
 
-.settings-tabs [role='tab'][aria-selected='true'] {
+.tabbar [role='tab']:hover,
+.tabbar [role='tab'][aria-selected='true'] {
   color: var(--fg);
 }
 
-.settings-tabs [role='tab'][aria-selected='true']::after {
+.tabbar [role='tab'][aria-selected='true']::after {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0.32em;
-  bottom: -1px;
+  left: var(--tab-pad);
+  /* Without the trailing letter-spacing. */
+  right: calc(var(--tab-pad) + 0.32em);
+  bottom: 0;
   height: 1px;
   background: var(--fg);
+}
+
+/* Focus is drawn inside the tab, where the scrolling row cannot clip it. */
+.tabbar [role='tab']:focus-visible {
+  outline: 1px solid var(--fg);
+  outline-offset: -1px;
+}
+
+.settings-tabs {
+  margin-top: 1.6em;
+  margin-bottom: 1.6em;
+}
+
+.settings-lang + .settings-tabs {
+  margin-top: 0.4em;
 }
 
 .settings-body {
@@ -1421,28 +1506,45 @@ button {
   max-width: 300px;
 }
 
+/* The track stays a hairline; the hit area is a finger tall. */
 .set-slider input {
   flex: 1;
+  min-width: 0;
   appearance: none;
+  height: 40px;
+  background: none;
+  cursor: pointer;
+}
+
+.set-slider input::-webkit-slider-runnable-track {
   height: 1px;
   background: linear-gradient(90deg, var(--fg) var(--fill, 50%), var(--faint) var(--fill, 50%));
-  cursor: pointer;
+}
+
+.set-slider input::-moz-range-track {
+  height: 1px;
+  background: linear-gradient(90deg, var(--fg) var(--fill, 50%), var(--faint) var(--fill, 50%));
 }
 
 .set-slider input::-webkit-slider-thumb {
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+  margin-top: -6.5px;
   border-radius: 50%;
   background: var(--fg);
 }
 
 .set-slider input::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border: 0;
   border-radius: 50%;
   background: var(--fg);
+}
+
+.set-slider input:focus-visible {
+  outline-offset: 0;
 }
 
 .set-slider output {
@@ -1528,6 +1630,13 @@ kbd {
   z-index: 12;
   pointer-events: none;
   font-family: var(--mono);
+  /* Legible over a bright frame too. */
+  text-shadow: 0 0 10px rgba(var(--shade), 0.7);
+}
+
+.hud-sound-icon i,
+.hud-menu-icon i {
+  box-shadow: 0 0 5px rgba(var(--shade), 0.6);
 }
 
 .hud-tl {
@@ -1881,8 +1990,18 @@ kbd {
 @keyframes msg {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    translate: 0 6px;
   }
+}
+
+/* A choice owns the lower half of the screen: captions and examined details move above it. */
+.strolly:has(.choice) .hud-msg--caption {
+  top: calc(var(--gutter-top) + 64px);
+  bottom: auto;
+}
+
+.strolly:has(.choice) .hud-msg--examine {
+  top: calc(var(--gutter-top) + 110px);
 }
 
 .hud-msg--saved {
@@ -1896,6 +2015,8 @@ kbd {
 .hud-msg--chapter {
   top: calc(var(--gutter-top) + 9vh);
   left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--gutter));
   transform: translateX(-50%);
   align-items: center;
   text-align: center;
@@ -1938,6 +2059,7 @@ kbd {
   left: 50%;
   bottom: calc(max(16px, env(safe-area-inset-bottom), 2.4vh) + 74px);
   transform: translateX(-50%);
+  width: max-content;
   max-width: min(60ch, calc(100vw - 2 * var(--gutter)));
   padding: 0.5em 0.9em;
   background: rgba(0, 0, 0, 0.55);
@@ -1951,6 +2073,7 @@ kbd {
   left: 50%;
   top: 58%;
   transform: translateX(-50%);
+  width: max-content;
   max-width: min(46ch, calc(100vw - 2 * var(--gutter)));
   align-items: center;
   text-align: center;
@@ -1961,9 +2084,11 @@ kbd {
 
 .hud-onboarding {
   position: absolute;
-  top: 70%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  /* Below an examined detail (58%), above the captions. */
+  top: 76%;
+  left: var(--gutter-left);
+  right: var(--gutter-right);
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 1.1em;
@@ -2007,7 +2132,18 @@ kbd {
   align-items: center;
   text-align: center;
   gap: 0.6em;
+  text-shadow: 0 0 18px rgba(var(--shade), 0.8);
   animation: rise 1.2s var(--ease) 0.4s both;
+}
+
+/* The end panel: a soft pool of shade behind it, so it reads over any last frame. */
+.complete::before {
+  content: '';
+  position: absolute;
+  inset: -56px -18vw -36px;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(var(--shade), 0.86), rgba(var(--shade), 0.66) 58%, rgba(var(--shade), 0));
+  pointer-events: none;
 }
 
 .complete-kicker {
@@ -2028,7 +2164,7 @@ kbd {
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.24em;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .complete-actions {
@@ -2057,7 +2193,7 @@ kbd {
   font-family: var(--mono);
   font-size: 9px;
   letter-spacing: 0.3em;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 /* ——— Loading ——— */
@@ -2382,8 +2518,10 @@ html[data-motion='reduced'] .menu-btn {
   white-space: normal;
 }
 
+/* Shown when linked to, and whenever focus is inside it (tabbing past the game lands here, never on invisible links). */
 .transcript:target,
-.transcript:focus {
+.transcript:focus,
+.transcript:focus-within {
   position: fixed;
   inset: 0;
   z-index: 60;
@@ -2497,8 +2635,10 @@ html[data-motion='reduced'] .menu-btn {
 
 .choice-head {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 1em;
+  align-items: baseline;
+  gap: 0.4em 1em;
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid rgba(236, 232, 225, 0.1);
@@ -2508,7 +2648,15 @@ html[data-motion='reduced'] .menu-btn {
   color: var(--muted);
 }
 
+/* A long title wraps on its own; the status keeps one line, at the right. */
+.choice-title {
+  flex: 1 1 18ch;
+  min-width: 0;
+}
+
 .choice-status {
+  margin-left: auto;
+  white-space: nowrap;
   color: var(--faint);
 }
 
@@ -2597,7 +2745,8 @@ html[data-motion='reduced'] .menu-btn {
 
 .choice-opt {
   display: grid;
-  grid-template-columns: 6.5em minmax(0, 1fr);
+  /* Wide enough for the longest tag on one line ("09.14.31 · %91"). */
+  grid-template-columns: 8em minmax(0, 1fr);
   align-items: baseline;
   gap: 0.8em;
   width: 100%;
@@ -2618,6 +2767,10 @@ html[data-motion='reduced'] .menu-btn {
 .choice--choice .choice-opt,
 .choice-opt--plain {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.choice-opt {
+  min-height: 42px;
 }
 
 .choice-opt:hover,
@@ -2658,17 +2811,32 @@ html[data-motion='reduced'] .menu-btn {
   flex-direction: column;
 }
 
-.journal-tabs {
+.journal-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0 1.6em;
-  margin: 1em 0 2.4vh;
-  padding-bottom: 1em;
-  border-bottom: 1px solid rgba(236, 232, 225, 0.1);
+  align-items: stretch;
+  gap: 1.2em;
+  margin: 0.6em 0 2.4vh;
+  box-shadow: inset 0 -1px 0 var(--faint);
 }
 
-.journal-tabs .is-on .menu-btn-label {
-  color: var(--fg);
+.journal-tabs {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: 0;
+  box-shadow: none;
+}
+
+.journal-close {
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+}
+
+.journal-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .journal-list {
@@ -2676,7 +2844,9 @@ html[data-motion='reduced'] .menu-btn {
   display: flex;
   flex-direction: column;
   gap: 1.6em;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 8px;
 }
 
@@ -2713,7 +2883,24 @@ html[data-motion='reduced'] .menu-btn {
   color: var(--faint);
 }
 
-.journal-unknown .journal-kicker {
+/* A discovery is named like a thing, not labelled like a machine field. */
+.journal-name {
+  display: block;
+  margin-bottom: 0.3em;
+  font-size: calc(15px * var(--ts, 1));
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.journal-found .journal-a {
+  color: var(--muted);
+}
+
+.journal-unknown .journal-name {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.3em;
   color: var(--faint);
 }
 
@@ -2735,10 +2922,19 @@ html[data-motion='reduced'] .menu-btn {
   margin-bottom: 5vh;
 }
 
+.archive-top {
+  padding-bottom: 4vh;
+}
+
 .archive-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 2.2em minmax(0, max-content) auto;
   align-items: baseline;
-  gap: 1.2em;
+  gap: 0.2em 1em;
+}
+
+.archive-state {
+  white-space: nowrap;
 }
 
 .archive-index,
@@ -2760,6 +2956,8 @@ html[data-motion='reduced'] .menu-btn {
 }
 
 .archive-found {
+  /* Under the name, past the number column (2.2em + the 1em gap of .archive-head). */
+  margin-left: 3.2rem;
   margin-top: 0.3em;
   font-family: var(--mono);
   font-size: 10.5px;
@@ -2926,6 +3124,131 @@ html[data-motion='reduced'] .menu-btn {
   }
   .credits-list dd {
     margin-bottom: 1.2em;
+  }
+  /* A long name wraps beside its number; the state goes under it. */
+  .archive-head {
+    grid-template-columns: 2.2em minmax(0, 1fr);
+  }
+  .archive-state {
+    grid-column: 2;
+  }
+  /* The © line becomes a band along the bottom: whatever scrolls under it fades out instead of colliding with it. */
+  .brand-mark {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 24px var(--gutter-right) max(10px, env(safe-area-inset-bottom));
+    background: linear-gradient(to top, rgba(5, 5, 5, 0.96) 56%, rgba(5, 5, 5, 0));
+  }
+  /* Dialogs end above it. */
+  .settings-inner,
+  .journal-inner {
+    max-height: calc(100dvh - var(--gutter-top) - 64px);
+    margin: var(--gutter-top) auto 56px;
+  }
+  /* Tabs fit one row on a phone (and scroll sideways on a narrower one). */
+  .tabbar {
+    --tab-pad: 6px;
+    gap: 0;
+  }
+  .tabbar [role='tab'] {
+    min-width: 44px;
+    justify-content: center;
+    min-height: 44px;
+    padding-block: 0.9em 1em;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+  }
+  .tabbar [role='tab'][aria-selected='true']::after {
+    right: calc(var(--tab-pad) + 0.16em);
+  }
+  .journal-bar {
+    gap: 0.6em;
+  }
+  /* The title takes the whole line; the status goes under it. */
+  .choice-head {
+    flex-direction: column;
+    align-items: flex-start;
+    letter-spacing: 0.22em;
+  }
+  .choice-title {
+    flex: none;
+  }
+  .choice-status {
+    margin-left: 0;
+  }
+  .hud-tl {
+    right: calc(var(--gutter-right) + 104px);
+  }
+  /* The lower half of a phone belongs to the story's words: the two-line welcome goes above the centre. */
+  .hud-onboarding {
+    top: 26%;
+  }
+}
+
+/* Touch, or a phone-sized window: everything that can be pressed is at least 40 px. */
+@media (pointer: coarse), (max-width: 700px) {
+  .menu-btn {
+    padding-block: 0.85em;
+  }
+  .menu-btn::before {
+    top: 1.35em;
+  }
+  .menu-btn--utility::before {
+    top: 1.26em;
+  }
+  .menu-btn--primary::before {
+    top: 1.7em;
+  }
+  .lang-switch {
+    top: calc(var(--gutter-top) - 14px);
+  }
+  .lang-switch button {
+    padding: 14px 12px 14px 14px;
+  }
+  .menu-sound {
+    top: calc(var(--gutter-top) - 14px);
+    padding: 14px 12px;
+  }
+  .ss-back {
+    margin: -14px -10px;
+    padding: 14px 10px;
+  }
+  .ss-item {
+    min-height: 40px;
+    align-items: center;
+  }
+  .ss-chapter {
+    min-height: 40px;
+    align-items: center;
+  }
+  .set-toggle,
+  .set-seg button {
+    min-height: 40px;
+  }
+  .hud-tr {
+    top: calc(var(--gutter-top) - 14px);
+    right: calc(var(--gutter-right) - 12px);
+    gap: 0.2em;
+  }
+  .hud-btn {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .hud-recenter {
+    min-height: 44px;
+  }
+  /* Inline padding widens the hit area of the studio link without moving the line. */
+  .brand-mark a {
+    padding: 15px 4px;
+  }
+}
+
+/* No keyboard to press Escape on. */
+@media (pointer: coarse) {
+  .pause-hint {
+    display: none;
   }
 }
 

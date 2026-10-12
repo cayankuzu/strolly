@@ -13,11 +13,11 @@ import { wall } from './parts'
 const PI = Math.PI
 
 export const POSTERS: Array<{ x: number; z: number; side: 1 | -1 }> = [
-  { x: 398.55, z: 0, side: 1 },
-  { x: 401.45, z: -3, side: -1 },
-  { x: 398.55, z: -6, side: 1 },
-  { x: 401.45, z: -9, side: -1 },
-  { x: 401.45, z: 4.5, side: -1 },
+  { x: 398.6, z: 0, side: 1 },
+  { x: 401.4, z: -3, side: -1 },
+  { x: 398.6, z: -6, side: 1 },
+  { x: 401.4, z: -9, side: -1 },
+  { x: 401.4, z: 4.5, side: -1 },
 ]
 export const KIOSKS = [-29, -30.5, -32]
 

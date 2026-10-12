@@ -73,9 +73,10 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [0, [136.95, 1.58, -14.15, 135.55, 1.52, -17.6, 40]],
     [1, [136.85, 1.56, -14.3, 135.5, 1.5, -17.65, 40]],
   ],
+  // Over his left shoulder, a step back: his head right of centre, his face in the mirror beside it.
   hallu: [
-    [0, [135.2, 1.92, -15.6, 134.73, 1.52, -16.8, 30]],
-    [1, [135.18, 1.9, -15.64, 134.73, 1.52, -16.8, 28]],
+    [0, [135.1, 1.78, -14.72, 134.8, 1.56, -16.7, 31]],
+    [1, [135.09, 1.77, -14.8, 134.8, 1.56, -16.7, 30]],
   ],
   nolimit: [
     [0, [136.05, 1.65, -16.4, 136.0, 1.78, -18.95, 36]],
@@ -363,11 +364,14 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       sv.setHelmet(1 - ss(0.08, 0.25, u), v)
       bands(w, 1 - ss(0.04, 0.2, u), 0, t)
       const pick = picked(f)
+      // The splash, then the day drawn hour by hour under a "YÜKLEME TAMAMLANDI" header while the
+      // `peaks` line arrives (0.06); the header becomes the map's own title as `map-label` comes in (0.22).
+      const uploaded = u < 0.22
       const state: S.MapState =
-        u < 0.22
+        u < 0.13
           ? { kind: 'uploaded' }
-          : { kind: 'map', draw: sub(u, 0.22, 0.48), push: sub(u, 0.4, 0.5), split: sub(u, 0.5, 0.6), picked: pick ? sub(u, 0.62, 0.8) : 0, pick }
-      const key = u < 0.22 ? 'up' : `m:${Math.round(sub(u, 0.22, 0.48) * 40)}:${Math.round(sub(u, 0.4, 0.5) * 10)}:${Math.round(sub(u, 0.5, 0.6) * 12)}:${Math.round(sub(u, 0.62, 0.8) * 12)}:${pick}`
+          : { kind: 'map', draw: sub(u, 0.13, 0.46), push: sub(u, 0.4, 0.5), split: sub(u, 0.5, 0.6), picked: pick ? sub(u, 0.62, 0.8) : 0, pick, uploaded }
+      const key = u < 0.13 ? 'up' : `m:${Math.round(sub(u, 0.13, 0.46) * 40)}:${Math.round(sub(u, 0.4, 0.5) * 10)}:${Math.round(sub(u, 0.5, 0.6) * 12)}:${Math.round(sub(u, 0.62, 0.8) * 12)}:${pick}:${uploaded}`
       sv.mapScreen.redraw((cx, W, H) => S.prepScreen(cx, W, H, state), key)
       w.lights.setPoint(4, 0xcff4ec, 1.5, [138, 1.3, -15.6], 2.5)
       motion.robots = win(u, 0.08, 0.1, 0.22, 0.25)

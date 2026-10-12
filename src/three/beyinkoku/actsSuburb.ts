@@ -36,8 +36,8 @@ const REMOTE_HOLD = new THREE.Euler(-1.2, 0, 0)
 const PHONE_HOLD = new THREE.Euler(-1.0, 0.2, 0)
 const SPOON_HOLD = new THREE.Euler(0.3, 0, 0)
 
-const BED = new THREE.Vector3(103.6, 0.9, -4.85)
-const EDGE = new THREE.Vector3(102.85, FLOOR + 0.07, -3.7)
+const BED = new THREE.Vector3(103.6, 0.87, -4.85)
+const EDGE = new THREE.Vector3(103.07, FLOOR + 0.07, -3.7)
 const WALK_TO_DOOR = makePath([
   [102.85, -3.7],
   [101.9, -4.6],
@@ -81,6 +81,20 @@ for (let k = 0; k < 6; k++) {
 DINERS.sort((a, b) => Math.hypot(a[0] - 207, a[1] + 7) - Math.hypot(b[0] - 207, b[1] + 7))
 
 const v = new THREE.Vector3()
+const eye = new THREE.Vector3()
+const bx = new THREE.Vector3()
+const by = new THREE.Vector3()
+const bz = new THREE.Vector3()
+const basis = new THREE.Matrix4()
+
+/** Turns a flat screen (normal +y, top toward −z) held at its place so that it faces `toward`, top up. */
+function screenTo(obj: THREE.Object3D, toward: THREE.Vector3) {
+  by.copy(toward).sub(obj.position).normalize()
+  bz.set(0, -1, 0).addScaledVector(by, by.y).normalize()
+  bx.crossVectors(by, bz)
+  basis.makeBasis(bx, by, bz)
+  obj.quaternion.setFromRotationMatrix(basis)
+}
 
 /** Levy in bed → sitting on its edge, as one blend (k 0 asleep … 1 seated). */
 function levyBed(d: Director, k: number, eyesClosed: number) {
@@ -290,9 +304,13 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       a.place(97.5, -5.05, FACE_N)
       a.y = FLOOR
       a.blend([[0, P.STAND], [0.08, TEMPLES], [0.46, TEMPLES], [0.5, TRACE], [0.76, TRACE], [0.8, COLLAR]], u)
+      const collar = S(0.77, 0.83, u)
+      a.reach('l', collar, 97.4, 1.47, -5.2, 0.4)
+      a.reach('r', collar, 97.6, 1.47, -5.2, 0.4)
       d.apply(d.levy)
       d.fx.wash(0.75, 0.85, 1.25, bump(0.595, 0.625, u) * 0.6)
-      d.cam([[0, [96.9, 1.75, -4.3, 97.5, 1.75, -5.95, 32]], [0.45, [96.95, 1.75, -4.4, 97.5, 1.75, -5.95, 30]], [0.6, [97.05, 1.78, -4.6, 97.5, 1.7, -5.95, 26]], [1, [97.05, 1.78, -4.6, 97.5, 1.7, -5.95, 26]]], u, shot)
+      // The camera is the mirror: what it shows him (his face, the hands lifting the hair, the scar).
+      d.cam([[0, [97.64, 1.97, -5.83, 97.5, 1.9, -5.05, 38]], [0.45, [97.66, 1.98, -5.82, 97.5, 1.95, -5.05, 33]], [0.6, [97.74, 2.0, -5.72, 97.47, 1.99, -5.1, 26]], [1, [97.74, 2.0, -5.72, 97.47, 1.99, -5.1, 26]]], u, shot)
       return true
     }
     case 'elen': {
@@ -304,8 +322,8 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       streetLife(d, f, true, true)
       d.cam(
         [
-          [0, [101.5, 1.9, 4.6, 98.6, 1.0, 20.8, 38]],
-          [0.36, [101.4, 1.9, 4.55, 98.6, 1.0, 20.8, 38]],
+          [0, [100.05, 1.9, 4.2, 98.85, 1.05, 20.8, 38]],
+          [0.36, [100.05, 1.9, 4.22, 98.85, 1.05, 20.8, 38]],
           [0.36, [99.6, 1.6, 15.5, 100.5, 1.55, 5.0, 28]],
           [0.72, [99.6, 1.6, 15.4, 100.5, 1.55, 5.0, 28]],
           [0.72, [98.0, 1.55, 18.6, 98.6, 1.4, 21.0, 32]],
@@ -331,7 +349,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       d.hold(sub.cup, d.levy, 'l', CUP_HOLD)
       elenWatering(d, f, 1)
       streetLife(d, f, false, true)
-      d.cam([[0, [101.2, 1.6, 7.5, 100.5, 1.55, 5.0, 30]], [1, [100.95, 1.62, 6.7, 100.5, 1.58, 5.0, 28]]], u, shot)
+      d.cam([[0, [100.0, 1.85, 7.6, 100.5, 1.82, 5.0, 30]], [1, [100.15, 1.88, 6.9, 100.5, 1.86, 5.0, 28]]], u, shot)
       return true
     }
     case 'busstop': {
@@ -362,7 +380,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
         shot.pos.set(a.x - 0.4, 1.6, 12.6)
         shot.tgt.set(a.x + 0.8, 1.3, 9.75)
         shot.fov = 40
-      } else d.cam([[0.38, [139.6, 1.6, 11.2, 141.1, 1.45, 9.7, 35]], [1, [139.8, 1.6, 11.0, 141.1, 1.45, 9.7, 35]]], u, shot)
+      } else d.cam([[0.38, [137.3, 1.62, 12.4, 140.5, 1.42, 9.75, 38]], [1, [137.5, 1.62, 12.2, 140.6, 1.42, 9.75, 36]]], u, shot)
       return true
     }
     case 'archive': {
@@ -377,8 +395,8 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
           [0.5, [197.6, 1.7, -0.7, 200, 1.0, -3.2, 40]],
           [0.5, [200.5, 1.35, -2.4, 200, 1.15, -3.4, 28]],
           [0.74, [200.5, 1.35, -2.4, 200, 1.15, -3.4, 28]],
-          [0.74, [199.15, 1.3, -2.3, 200, 1.25, -2.9, 30]],
-          [1, [199.2, 1.3, -2.35, 200, 1.25, -2.9, 30]],
+          [0.74, [199.35, 1.32, -3.15, 200, 1.24, -2.45, 32]],
+          [1, [199.37, 1.32, -3.13, 200, 1.24, -2.45, 32]],
         ],
         u,
         shot,
@@ -398,7 +416,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       a.hold(TRACE)
       d.bend(d.levy, 'head', 2, 0.2 * S(0.3, 0.6, u))
       d.apply(d.levy)
-      d.cam([[0, [97.05, 1.78, -4.6, 97.5, 1.7, -5.95, 26]], [1, [97.05, 1.78, -4.6, 97.5, 1.7, -5.95, 26]]], u, shot)
+      d.cam([[0, [97.66, 1.98, -5.82, 97.5, 1.95, -5.05, 33]], [1, [97.66, 1.98, -5.82, 97.5, 1.95, -5.05, 33]]], u, shot)
       return true
     }
     case 'again': {
@@ -410,7 +428,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       levyVeranda(d, wave, stall)
       elenWatering(d, f, S(0.2, 0.24, u))
       streetLife(d, f, true, true)
-      d.cam([[0, [99.6, 1.6, 15.5, 100.5, 1.55, 5.0, 28]], [0.42, [99.6, 1.6, 15.4, 100.5, 1.55, 5.0, 28]], [0.42, [101.0, 1.6, 7.0, 100.5, 1.55, 5.0, 28]], [1, [100.9, 1.6, 6.6, 100.5, 1.58, 5.0, 26]]], u, shot)
+      d.cam([[0, [99.6, 1.6, 15.5, 100.5, 1.55, 5.0, 28]], [0.42, [99.6, 1.6, 15.4, 100.5, 1.55, 5.0, 28]], [0.42, [100.1, 1.86, 7.1, 100.5, 1.84, 5.0, 28]], [1, [100.2, 1.9, 6.7, 100.5, 1.88, 5.0, 26]]], u, shot)
       return true
     }
     case 'bus': {
@@ -418,7 +436,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       light.bus(d)
       d.wear('cardigan')
       busInterior(d, f, S(0.63, 0.7, u), S(0.3, 0.38, u))
-      d.cam([[0, [169.2, 1.25, -59.4, 171.0, 0.95, -60.8, 35]], [0.65, [169.2, 1.25, -59.4, 171.0, 0.95, -60.8, 35]], [0.8, [169.2, 1.25, -59.4, 172, 1.3, -61.25, 35]], [1, [169.2, 1.25, -59.4, 172, 1.3, -61.25, 35]]], u, shot)
+      d.cam([[0, [169.05, 1.3, -59.5, 171.0, 0.92, -60.8, 35]], [0.65, [169.05, 1.3, -59.5, 171.0, 0.92, -60.8, 35]], [0.8, [169.05, 1.3, -59.5, 172, 1.3, -61.25, 35]], [1, [169.05, 1.3, -59.5, 172, 1.3, -61.25, 35]]], u, shot)
       return true
     }
     case 'wave': {
@@ -493,28 +511,36 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       d.tv.render(d.renderer, t, 1)
       ;(sub.tvScreen.material as THREE.MeshBasicMaterial).color.setScalar(1)
       sub.tvOverlay.mesh.visible = true
-      sub.tvOverlay.redraw((c, W, H) => drawTvOverlay(c, W, H, volume, ch, CRAWL, W - ((t * 110) % (W + 2400))), `tv:${volume}:${ch}:${tick(t, 30)}`)
+      sub.tvOverlay.redraw((c, W, H) => drawTvOverlay(c, W, H, volume, ch, CRAWL, 1 - ((t * 0.075) % 2.7)), `tv:${volume}:${ch}:${tick(t, 30)}`)
       if (seg === 'tv') d.cam([[0, [103.0, 1.5, 4.0, 103.5, 1.45, -0.9, 40]], [0.3, [103.0, 1.5, 4.0, 103.5, 1.45, -0.9, 40]], [0.62, [102.55, 1.5, 2.3, 103.5, 1.45, -0.9, 34]], [1, [103.3, 1.45, 0.8, 103.5, 1.45, -0.9, 30]]], u, shot)
       else if (seg === 'remote')
         d.cam(
           [
             [0, [104.8, 1.2, 1.2, 103.5, 0.95, 2.6, 35]],
             [0.36, [104.75, 1.2, 1.2, 103.5, 0.95, 2.6, 35]],
-            [0.36, [103.0, 1.0, 2.05, 103.25, 0.7, 2.55, 22]],
-            [0.7, [103.0, 1.0, 2.05, 103.25, 0.7, 2.55, 22]],
+            [0.36, [102.82, 1.24, 1.78, 103.26, 1.12, 2.22, 26]],
+            [0.7, [102.84, 1.24, 1.8, 103.26, 1.12, 2.22, 26]],
             [0.7, [103.5, 1.4, 1.5, 103.5, 1.45, -0.9, 30]],
             [1, [103.5, 1.4, 1.4, 103.5, 1.45, -0.9, 30]],
           ],
           u,
           shot,
         )
-      else d.cam([[0, [103.0, 1.25, 1.9, 103.5, 1.5, 2.55, 28]], [1, [103.1, 1.3, 2.0, 103.5, 1.52, 2.55, 26]]], u, shot)
+      else if (channel && u >= 0.82) d.cam([[0.82, [103.62, 1.62, 0.3, 103.93, 1.7, -0.9, 17]], [1, [103.66, 1.63, 0.15, 103.93, 1.7, -0.9, 15]]], u, shot)
+      else d.cam([[0, [103.02, 1.48, 1.72, 103.5, 1.47, 2.62, 28]], [1, [103.1, 1.48, 1.84, 103.5, 1.47, 2.62, 26]]], u, shot)
       return true
     }
     // ——— 05 ÇARŞAMBA ———
     case 'bell': {
       d.place('suburb')
       light.grey(d, 103.6, -3.5, S(0.5, 0.62, u))
+      if (u < 0.42) {
+        // Curtains shut, no lamp: only grey light around the curtain edges.
+        d.rig.hemi.intensity = 0.16
+        d.rig.pts[0].intensity = 0.25
+        d.scene.environmentIntensity = 0.12
+        d.rig.pt(1, 0xbfd0e6, 0.9, [105.6, 1.8, -3.6], 3.5, 1.6)
+      }
       sub.curtains(0)
       sub.envelope.mesh.visible = true
       if (u < 0.42) {
@@ -541,7 +567,7 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
           [0.42, [105, 1.6, -1.6, 103.6, 0.9, -4.9, 45]],
           [0.42, [100.0, 1.6, 6.2, 100.0, 1.4, 4.0, 40]],
           [0.65, [100.0, 1.6, 6.2, 100.0, 1.4, 4.0, 40]],
-          [0.75, [100.3, 1.0, 5.4, 100.0, 0.32, 4.6, 28]],
+          [0.69, [100.3, 1.0, 5.4, 100.0, 0.32, 4.6, 28]],
           [1, [100.3, 1.0, 5.4, 100.0, 0.32, 4.6, 28]],
         ],
         u,
@@ -582,8 +608,14 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       if (seg === 'calendar') {
         sub.phone.visible = true
         sub.phoneScreen.redraw((c, W, H) => drawCalendar(c, W, H, CALENDAR), 'calendar')
-        if (u < 0.76) d.hold(sub.phone, d.levy, 'l', PHONE_HOLD)
-        else {
+        if (u < 0.76) {
+          d.hold(sub.phone, d.levy, 'l', PHONE_HOLD)
+          // The screen faces his eyes (and the camera over his shoulder).
+          d.levy.figure.joints.head.getWorldPosition(eye)
+          eye.y += 0.06
+          eye.z -= 0.08
+          screenTo(sub.phone, eye)
+        } else {
           sub.phone.position.set(98.6, FLOOR + 0.74, -0.35)
           sub.phone.rotation.set(0, 0.3, 0)
         }
@@ -609,8 +641,8 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       else if (seg === 'calendar')
         d.cam(
           [
-            [0, [97.95, 1.78, 0.5, 98.05, 1.32, -0.3, 25]],
-            [0.42, [97.95, 1.78, 0.5, 98.05, 1.32, -0.3, 25]],
+            [0, [98.0, 1.7, 0.16, 98.09, 1.42, -0.29, 25]],
+            [0.42, [98.0, 1.7, 0.17, 98.09, 1.42, -0.29, 25]],
             [0.42, [97.6, 1.55, -1.3, 98.3, 1.48, -0.1, 32]],
             [1, [97.65, 1.55, -1.25, 98.3, 1.48, -0.1, 32]],
           ],
@@ -622,9 +654,9 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
           [
             [0, [97.0, 2.0, -0.6, 96.11, 2.0, -0.8, 25]],
             [0.15, [97.0, 2.0, -0.6, 96.11, 2.0, -0.8, 25]],
-            [0.15, [98.3, 1.8, -0.4, 98.3, 1.06, -0.52, 24]],
-            [0.72, [98.3, 1.38, -0.44, 98.3, 1.06, -0.44, 16]],
-            [0.74, [98.3, 1.38, -0.44, 98.3, 1.06, -0.44, 16]],
+            [0.15, [98.3, 1.8, -0.42, 98.3, 1.06, -0.56, 24]],
+            [0.72, [98.3, 1.38, -0.47, 98.3, 1.055, -0.522, 16]],
+            [0.74, [98.3, 1.38, -0.47, 98.3, 1.055, -0.522, 16]],
             [0.74, [100.4, 1.8, 1.2, 98.3, 1.3, -0.5, 40]],
             [1, [100.4, 1.8, 1.25, 98.3, 1.3, -0.5, 40]],
           ],
@@ -642,19 +674,30 @@ export const actSuburb: Act = (d, f, seg, u, shot) => {
       sub.frontDoor.rotation.y = -1.5 * door
       const a = d.use(d.levy)
       if (u < 0.5) {
-        a.place(99.0, 3.2, FACE_S)
+        a.place(99.0, 3.18, FACE_N)
         a.hold(TIE)
         d.bend(d.levy, 'spine', 0, -0.25 * S(0.3, 0.47, u))
         d.bend(d.levy, 'lUpper', 2, -0.1 * S(0.3, 0.47, u))
         d.bend(d.levy, 'rUpper', 2, 0.1 * S(0.3, 0.47, u))
       } else {
-        a.walk(TO_FRONT, S(0.5, 0.62, u), P.STAND, FACE_S, FACE_S)
+        a.walk(TO_FRONT, S(0.5, 0.62, u), P.STAND, FACE_N, FACE_S)
         a.blend([[0, TIE], [1, P.STAND]], S(0.5, 0.56, u))
         a.reach('r', bump(0.58, 0.8, u), 100.35, 1.05, 3.9, 0.5)
       }
       a.y = FLOOR
       d.apply(d.levy)
-      d.cam([[0, [99.0, 1.2, 2.6, 100.0, 0.8, 3.45, 35]], [0.45, [99.0, 1.25, 2.5, 99.2, 1.55, 3.3, 35]], [1, [98.9, 1.35, 2.4, 99.7, 1.75, 3.45, 35]]], u, shot)
+      // In front of him between the bench and the door: the shoes, then his face; at 0.5 outside, the door opening on him.
+      d.cam(
+        [
+          [0, [100.05, 1.32, 1.72, 99.0, 0.5, 2.95, 44]],
+          [0.45, [99.9, 1.36, 1.92, 99.0, 1.08, 3.0, 36]],
+          [0.5, [99.9, 1.36, 1.92, 99.0, 1.08, 3.0, 36]],
+          [0.5, [100.05, 1.62, 5.75, 99.75, 1.58, 3.5, 34]],
+          [1, [100.0, 1.62, 5.45, 99.75, 1.58, 3.5, 32]],
+        ],
+        u,
+        shot,
+      )
       return true
     }
     case 'empty': {

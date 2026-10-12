@@ -13,20 +13,25 @@ import { pbr } from '../../kit/surfaces'
 import { makePath } from '../../figure/paths'
 import { mesh } from '../../util'
 import { DEG, PI, fbm, ridged, rng, ss, win, instances, type Ctx, type Dir, type PSet } from '../common'
-import { bunched, crownGeometry, gridSurface, leafCluster, pineGeometry, taperTube, tuftGeometry } from '../geo'
+import { bunched, gridSurface, leafCluster, mergeAll, pineGeometry, taperTube, tuftGeometry } from '../geo'
 import { distantMaterial, type Shared } from '../shaders'
 import { carry } from '../rig'
 import * as PP from '../poses'
 import { sunDir, type SkyPreset } from '../env'
 import { ghostMaterial } from '../ghost'
-import { setGrip } from '../cast'
+import { gripLine } from '../grip'
 import type { Actor } from '../../kit/direct'
+
+const UP = new THREE.Vector3(0, 1, 0)
+const FWD = new THREE.Vector3(0, 0, -1)
 
 export const VX = 1000
 const PIVOT = new THREE.Vector3(1000, 4.55, -0.4)
 const ROPE = 3.7
 const W = (2 * PI) / 3.86
 const TREE = { x: 1002.0, z: 2.4 }
+/** Seconds of fall per screen of scroll for the men letting go (slow, as in a dream). */
+const FALL_SPEED = 4.2
 
 /** Cliff edge line: z of the rim at x. */
 export function zEdge(x: number) {
@@ -66,20 +71,20 @@ function hFloor(x: number, z: number) {
 
 /** Dusk over the valley. */
 const DUSK: SkyPreset = {
-  zenith: 0x2e2a52,
-  horizon: 0xe0866a,
+  zenith: 0x40386c,
+  horizon: 0xe98a4e,
   below: 0x1e2a44,
-  haze: 0xd99a86,
-  hazeAmt: 0.55,
+  haze: 0xc98d72,
+  hazeAmt: 0.42,
   sunColor: 0xffa860,
   disc: 4,
-  glow: 1.3,
+  glow: 1.2,
   cloud: 0.32,
-  cloudLit: 0xf0a07c,
-  cloudShade: 0x4a3d63,
-  power: 1.1,
+  cloudLit: 0xf2a070,
+  cloudShade: 0x443a62,
+  power: 1.05,
 }
-const DUSK_LATE: SkyPreset = { ...DUSK, zenith: 0x231f42, horizon: 0xc9665a, haze: 0xb07a7e, sunColor: 0xff8a50, glow: 0.9, disc: 2, cloudLit: 0xd9786a, power: 0.9 }
+const DUSK_LATE: SkyPreset = { ...DUSK, zenith: 0x2e2a58, horizon: 0xd2683f, haze: 0xa47870, sunColor: 0xff8a50, glow: 0.9, disc: 2, cloudLit: 0xdb7a5c, power: 0.9 }
 
 export const SHOTS: Partial<Record<string, ShotKeys>> = {
   swing: [
@@ -91,9 +96,11 @@ export const SHOTS: Partial<Record<string, ShotKeys>> = {
     [0, [1006.2, 1.7, -0.9, 1000, 2.0, -0.2, 50]],
     [1, [1006.0, 1.6, -0.6, 1000, 2.0, -0.4, 50]],
   ],
+  // From far out and below the rim: the dark cliff, the old tree and the tiny swing on the dusk sky,
+  // high in the right third (the title sits in the middle).
   end: [
-    [0, [1058, 12, -262, 1000.5, 3.2, 0, 30]],
-    [1, [1050, 10, -238, 1000.5, 3.2, 0, 30]],
+    [0, [1090, -60, -190, 1012, -5, 0, 10]],
+    [1, [1098, -62, -204, 1013, -5.5, 0, 11.5]],
   ],
 }
 
@@ -114,6 +121,8 @@ export class ValleySet implements PSet {
   private tmpM = new THREE.Matrix4()
   private tmpV = new THREE.Vector3()
   private tmpT = new THREE.Vector3()
+  private tmpG = new THREE.Vector3()
+  private rotOnly = new THREE.Matrix4()
   private seatM = new THREE.Matrix4()
   private releaseM: THREE.Matrix4[] = [new THREE.Matrix4(), new THREE.Matrix4(), new THREE.Matrix4()]
   private path = makePath([
@@ -160,6 +169,9 @@ export class ValleySet implements PSet {
 
     // The face: from the rim down to a talus at the valley floor. Rows bunched toward the top.
     const ny = 140
+    const lichen = new THREE.Color(0x343c2c)
+    const faceShade = new THREE.Color(0x1c2233)
+    const talus = new THREE.Color(0x2a3028)
     const faceGeo = gridSurface(
       nu,
       ny,
@@ -173,7 +185,9 @@ export class ValleySet implements PSet {
         if (t < 0.8) {
           y = top + (-340 - top) * (t / 0.8)
           const depth = top - y
-          const rough = (3.2 * fbm(x * 0.03, y * 0.03, 4, 31) + 1.2 * fbm(x * 0.15, y * 0.15, 3, 33) + 0.35 * fbm(x * 0.9, y * 0.9, 2, 35)) * ss(0, 3, depth)
+          // The swing's promontory is a clean overhang for its first metres (nothing juts out under the seat).
+          const clean = 1 - (1 - ss(4, 14, Math.abs(x - 1000.5))) * (1 - ss(8, 30, depth))
+          const rough = (3.2 * fbm(x * 0.03, y * 0.03, 4, 31) + 1.2 * fbm(x * 0.15, y * 0.15, 3, 33) + 0.35 * fbm(x * 0.9, y * 0.9, 2, 35)) * ss(0, 3, depth) * clean
           const strata = 1.1 * Math.sin(y * 0.17 + 3 * fbm(x * 0.02, y * 0.01, 2, 37)) * ss(0, 6, depth)
           // Overhang under the rim for the first meters, then a gentle outward lean.
           z = ze + 0.6 * ss(0, 2, depth) * (1 - ss(6, 30, depth)) - 0.02 * depth + rough + strata
@@ -189,17 +203,18 @@ export class ValleySet implements PSet {
         const streak = fbm(p.x * 0.35, p.y * 0.012, 3, 51)
         const band = 0.5 + 0.5 * Math.sin(p.y * 0.21 + 3 * fbm(p.x * 0.01, p.y * 0.01, 2, 55))
         const v = 0.62 + 0.22 * fbm(p.x * 0.05, p.y * 0.05, 3, 53) - 0.2 * ss(0.1, 0.5, streak) - 0.12 * band
-        out.setRGB(0.4 * v, 0.37 * v, 0.35 * v)
-        // Lichen and scrub on the ledges.
-        if (fbm(p.x * 0.08, p.y * 0.08, 2, 57) > 0.35) out.lerp(new THREE.Color(0x3c4430), 0.45)
-        if (p.y < -335) out.lerp(new THREE.Color(0x3a3e30), 0.5)
+        out.setRGB(0.33 * v, 0.325 * v, 0.33 * v)
+        // Lichen and scrub on the ledges; the lower face sinks into the valley's blue shadow.
+        if (fbm(p.x * 0.08, p.y * 0.08, 2, 57) > 0.35) out.lerp(lichen, 0.45)
+        out.lerp(faceShade, 0.55 * ss(-20, -260, p.y))
+        if (p.y < -335) out.lerp(talus, 0.5)
       },
     )
     const cliff = mesh(faceGeo, pbr('rock', 0xffffff, { vertexColors: true, roughness: 1, side: THREE.DoubleSide }), 0, 0, 0, g)
     cliff.receiveShadow = true
 
     const forestDark = new THREE.Color(0x26331f)
-    const meadow = new THREE.Color(0x56603a)
+    const meadow = new THREE.Color(0x46502f)
     const ridgeRock = new THREE.Color(0x8a7d70)
     const floorGeo = gridSurface(
       nu,
@@ -240,18 +255,26 @@ export class ValleySet implements PSet {
       const w = 6 + 2 * Math.sin(i * 0.7)
       out.set(pnt.x, -401.2, pnt.z + (j === 0 ? -w : w))
     })
-    mesh(riverGeo, new THREE.MeshBasicMaterial({ color: 0x7c7894 }), 0, 0, 0, g)
+    mesh(riverGeo, new THREE.MeshBasicMaterial({ color: 0x4e5a6e }), 0, 0, 0, g)
 
     // Forest on the valley floor (instanced crowns), and pines on the plateau's far slopes.
-    const crowns = instances(crownGeometry(), distantMaterial(this.shared, { vertexColors: false }), 26000, () => {
-      const x = 640 + rand() * 720
-      const z = -30 - Math.pow(rand(), 1.2) * 820
+    // Low-poly crowns (seen only from far above or far away): the whole floor is forest, with
+    // meadow clearings, thinning out where the far ridge turns to rock.
+    const crownGeo = mergeAll([new THREE.IcosahedronGeometry(0.6, 0).scale(1, 0.85, 1).translate(0, 1.15, 0)])
+    const crowns = instances(crownGeo, distantMaterial(this.shared, { vertexColors: false }), 52000, (i) => {
+      // Near half: the valley under the cliff; far half: the ridge's wooded flank, bigger and sparser.
+      const far = i >= 36000
+      const x = 505 + rand() * 990
+      const z = far ? -880 - rand() * 820 : -30 - rand() * 870
       if (Math.abs(z - RIVER(x)) < 14) return null
       if (fbm(x * 0.01, z * 0.01, 4, 61) > 0.3 && rand() < 0.85) return null
       if (z > zEdge(x) - 64) return null
-      const s = 3.5 + rand() * 4
-      return [x, hFloor(x, z) - 0.6, z, rand() * PI * 2, s, 0, 0, s * (0.7 + rand() * 0.5)]
-    }, { color: (i, out) => out.setHSL(0.22 + rand() * 0.08, 0.35, 0.07 + rand() * 0.07) })
+      const y = hFloor(x, z)
+      if (y > -140 && rand() < 0.3 + 0.7 * ss(-140, 60, y)) return null
+      const s = (3.5 + rand() * 4) * (far ? 1.7 : 1)
+      return [x, y - 0.6, z, rand() * PI * 2, s, 0, 0, s * (0.7 + rand() * 0.5)]
+    }, { color: (i, out) => out.setHSL(0.27 + rand() * 0.08, 0.32, 0.045 + rand() * 0.05) })
+    crowns.name = 'valley-forest'
     g.add(crowns)
     const pines = instances(pineGeometry(), distantMaterial(this.shared, { vertexColors: false }), 900, () => {
       const x = 900 + rand() * 260
@@ -366,36 +389,57 @@ export class ValleySet implements PSet {
     this.seat.position.set(0, -ROPE, 0)
     this.pivot.add(this.seat)
     this.swing.add(this.pivot)
-    const ropeGeo = new THREE.CylinderGeometry(0.013, 0.013, ROPE + 0.06, 8)
+    const ropeGeo = new THREE.CylinderGeometry(0.013, 0.013, ROPE + 0.06, 10)
     ropeGeo.translate(0, -(ROPE + 0.06) / 2 + 0.03, 0)
     const seatGeo = new THREE.BoxGeometry(0.62, 0.04, 0.2)
-    const knotGeo = new THREE.TorusGeometry(0.135, 0.017, 8, 20)
-    const ropeMat = pal.rope
+    // Three tight turns of rope round the branch (a helix about the branch's axis), the end tucked under.
+    const coilGeo = (x0: number) => {
+      const turns = 3
+      // The branch tapers 0.19 → 0.076 over its 3.45 m from the trunk; the turns sit snug on the bark.
+      const tb = (1001.6 - (PIVOT.x + x0)) / 3.45
+      const rc = 0.19 * (1 - 0.6 * tb) * 1.07 + 0.013
+      const pts: THREE.Vector3[] = []
+      for (let i = 0; i <= 96; i++) {
+        const t = i / 96
+        const a = -PI / 2 + t * turns * 2 * PI
+        pts.push(new THREE.Vector3(x0 - 0.04 + 0.08 * t, 4.645 + rc * Math.sin(a) - PIVOT.y, -0.42 + rc * Math.cos(a) - PIVOT.z))
+      }
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 160, 0.014, 8, false)
+    }
+    const coils = [coilGeo(-0.3), coilGeo(0.3)]
+    const twist = ropeTexture()
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0xb8a27e, map: twist, roughness: 1 })
+    ropeMat.map!.repeat.set(1, (ROPE + 0.06) / 0.04)
+    const coilMat = ropeMat.clone()
+    coilMat.map = twist.clone()
+    coilMat.map.repeat.set((3 * 2 * PI * 0.15) / 0.04, 1)
     const seatMat = pal.seat
-    const addSwing = (pivot: THREE.Group, seat: THREE.Group, rope: THREE.Material, plank: THREE.Material, shadow: boolean) => {
-      for (const sx of [-0.3, 0.3]) {
+    const addSwing = (pivot: THREE.Group, seat: THREE.Group, rope: THREE.Material, coil: THREE.Material, plank: THREE.Material, shadow: boolean) => {
+      ;[-0.3, 0.3].forEach((sx, k) => {
         const r = mesh(ropeGeo, rope, sx, 0, 0, pivot)
         r.castShadow = shadow
-        // Three turns of rope round the branch.
-        for (const dx of [-0.035, 0, 0.035]) {
-          const k = mesh(knotGeo, rope, sx + dx, 0.085, 0, pivot)
-          k.rotation.y = PI / 2
-          k.rotation.x = dx * 3
-          k.castShadow = shadow
+        r.name = 'swing-rope'
+        // The coil stays on the branch (it does not swing with the rope); the ghost swing shares it.
+        if (shadow) {
+          const c = mesh(coils[k], coil, 0, 0, 0, this.swing)
+          c.position.copy(PIVOT)
+          c.castShadow = true
+          c.name = 'rope-coil'
         }
-        mesh(new THREE.SphereGeometry(0.03, 10, 8), rope, sx, -0.05, 0, seat).castShadow = shadow
-      }
+        mesh(new THREE.SphereGeometry(0.028, 10, 8), rope, sx, -0.04, 0, seat).castShadow = shadow
+      })
       const s = mesh(seatGeo, plank, 0, 0, 0, seat)
       s.castShadow = shadow
       s.receiveShadow = shadow
+      s.name = 'swing-seat'
     }
-    addSwing(this.pivot, this.seat, ropeMat, seatMat, true)
+    addSwing(this.pivot, this.seat, ropeMat, coilMat, seatMat, true)
     g.add(this.swing)
     this.gPivot.position.copy(PIVOT)
     this.gSeat.position.set(0, -ROPE, 0)
     this.gPivot.add(this.gSeat)
     this.ghostSwing.add(this.gPivot)
-    addSwing(this.gPivot, this.gSeat, this.ghostSwingMat, this.ghostSwingMat, false)
+    addSwing(this.gPivot, this.gSeat, this.ghostSwingMat, this.ghostSwingMat, this.ghostSwingMat, false)
     this.ghostSwing.visible = false
     g.add(this.ghostSwing)
 
@@ -474,8 +518,8 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
     const t = f.time
     const sGate = (f.p - at('choose', 0.3)) * TOTAL_SCREENS
     const s1 = (at('grows', 0.2) - at('choose', 0.3)) * TOTAL_SCREENS
-    const s2 = (at('grows', 0.55) - at('choose', 0.3)) * TOTAL_SCREENS
-    const s3 = (at('grows', 0.9) - at('choose', 0.3)) * TOTAL_SCREENS
+    const s2 = (at('grows', 0.5) - at('choose', 0.3)) * TOTAL_SCREENS
+    const s3 = (at('grows', 0.76) - at('choose', 0.3)) * TOTAL_SCREENS
     const phase = (s: number) => {
       if (s <= s1) return PI + (3 * PI * s) / s1
       if (s <= s2) return 4 * PI + (2 * PI * (s - s1)) / (s2 - s1)
@@ -485,8 +529,11 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
     let ghost: number | null = null
     switch (seg) {
       case 'swing':
-      case 'feet':
         real = 25 * DEG * Math.sin(W * t)
+        break
+      case 'feet':
+        // A gentle sway: the feet stay out over the void even at the back of the arc.
+        real = 10 * DEG * Math.sin(W * t)
         break
       case 'arc':
         real = -40 * DEG * Math.cos((2 * PI * (u - 0.2)) / 0.6)
@@ -542,10 +589,10 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
       ],
       k,
     )
-    a.reach('l', 1, -0.3, 0.78, 0, 0.3)
-    a.reach('r', 1, 0.3, 0.78, 0, 0.3)
     a.apply(time, breathe)
-    setGrip(a.figure, true)
+    // Fists closed round the ropes (canonical seat space: ropes vertical at x ±0.3), thumbs up.
+    gripLine(a.figure, 'l', this.tmpG.set(-0.3, 0.7, 0), UP, FWD, 0.35)
+    gripLine(a.figure, 'r', this.tmpG.set(0.3, 0.7, 0), UP, FWD, 0.35)
     carry(a.figure, frame)
   }
 
@@ -553,16 +600,18 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
     const { seg, u, cu, f, shot, cast, env } = d
     const t = f.time
     // Light: dusk, the sun from −x just above the far hills; it sinks through the chapter.
+    const fromBelow = (seg === 'rope' && u >= 0.49) || seg === 'end'
     const late = seg === 'grows' || seg === 'still' || seg === 'end' ? ss(0, 1, seg === 'grows' ? u * 0.5 : seg === 'still' ? 0.5 + u * 0.2 : 0.7 + u * 0.3) : 0
     const el = lerp(3.2, 0.6, late) * DEG
-    const sd = sunDir(-PI / 2 + 0.25, el)
+    const sd = sunDir(-PI / 2 - 0.3, el)
     env.sky.mix(DUSK, DUSK_LATE, late, sd)
     env.setSun(new THREE.Vector3(1001, 1, 1), sd, 0xffb46a, lerp(2.6, 1.4, late), 14)
     env.sun.color.lerp(this.lateSun, late)
-    env.setHemi(0x7a6a9a, 0x2a2633, 0.6)
-    env.setFill(new THREE.Vector3(1000, 30, -200), new THREE.Vector3(1000, 0, 0), 0x6f7fb0, 0.35)
-    env.setFog(0x8a7590, 0.00085)
-    env.ibl('belfast_sunset_puresky', 0.45, PI)
+    env.setHemi(0x76779a, 0x2a2633, fromBelow ? 0.28 : 0.6)
+    // Sky fill from the open valley side; the void's point of view keeps the wall a dark silhouette.
+    env.setFill(new THREE.Vector3(1000, 30, -200), new THREE.Vector3(1000, 0, 0), 0x6f7fb0, fromBelow ? 0.08 : 0.25)
+    env.setFog(0x6c6886, 0.00085)
+    env.ibl('belfast_sunset_puresky', fromBelow ? 0.07 : 0.45, PI)
     // The last sun climbs the far ridge and leaves it at the end.
     this.shared.uSunLine.value = seg === 'open' ? -60 : seg === 'today' ? -30 : seg === 'end' ? lerp(80, 260, ss(0, 0.55, u)) : seg === 'grows' ? lerp(0, 60, u) : seg === 'still' ? 70 : -20
     // Wind in grass and leaves.
@@ -595,11 +644,12 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
       case 'today': {
         man.begin()
         const wu = u < 0.7 ? ss(0, 0.7, u) * 0.82 : 0.82 + 0.18 * ss(0.84, 1.0, u)
-        man.walk(this.path, wu, PP.POCKETS, undefined, undefined, 0.9)
+        // He stops for breath (feet together) and looks down the slope.
+        const halt = u > 0.6 && u < 0.9 ? win(0.62, 0.7, 0.82, 0.88, u) : 0
+        man.walk(this.path, wu, PP.POCKETS, undefined, undefined, 0.9 * (1 - halt))
         man.y = this.groundAt(man.x, man.z)
-        if (u > 0.68 && u < 0.86) {
-          // He stops for breath and looks down the slope.
-          man.walking *= 1 - win(0.68, 0.72, 0.82, 0.86, u)
+        if (halt > 0) {
+          man.walking *= 1 - halt
           man.lookAt(1040, 70, win(0.7, 0.76, 0.84, 0.9, u))
         }
         man.apply(t, true)
@@ -610,9 +660,10 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
         const bz = man.z
         const by = man.y
         if (cu < 0.45) {
-          shot.pos.set(bx + 2.2, by + 1.0, bz + 6)
-          shot.tgt.set(1002.5, 2.6, 2)
-          shot.fov = 40
+          // Behind him and low: the man climbing alone in the lower frame, the old tree on the ridge above.
+          shot.pos.set(bx + 2.4, by + 0.5, bz + 8)
+          shot.tgt.set(bx + (1002 - bx) * 0.25, by + 1.0 + (6 - by - 1.0) * 0.25, bz + (2 - bz) * 0.25)
+          shot.fov = 42
         } else {
           shot.pos.set(bx + 6, by + 1.5, bz - 0.5)
           shot.tgt.set(bx, by + 1.45, bz)
@@ -718,7 +769,7 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
       a.reach('r', 1 - uu / 0.04, 0.3, 0.78, 0, 0.3)
     }
     this.fallState.set(a, uu)
-    const sec = Math.max(0, uu) * (6.6 / 0.72)
+    const sec = Math.max(0, uu) * FALL_SPEED
     const y = 2.27 + 1.5 * sec - 4.9 * sec * sec
     return 0.32 * (1 - ss(-120, -200, y))
   }
@@ -727,7 +778,7 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
   /** Carries a falling man along his arc out over the valley, turning slowly. */
   private fallCarry(a: Actor, _tau: number, release: THREE.Matrix4) {
     const uu = this.fallState.get(a) ?? 0
-    const sec = Math.max(0, uu) * (6.6 / 0.72)
+    const sec = Math.max(0, uu) * FALL_SPEED
     const dz = -4.2 * sec
     const dy = 1.5 * sec - 4.9 * sec * sec
     const spin = -0.55 * sec
@@ -752,44 +803,53 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
       case 'end':
         keyed(SHOTS[seg]!, cu, shot)
         if (seg === 'end') shot.handheld = 0.3
+        // The centred line sits in the middle of the frame: keep the man right of it.
+        if (seg === 'swing') this.aimLeft(shot, 0.3 * shot.pos.distanceTo(shot.tgt))
         break
       case 'feet': {
-        // Riding the seat: below and behind it, looking down past his shoes into the abyss.
-        v.set(0, -0.3, 0.6).applyMatrix4(seatFrame)
+        // Riding the seat, just behind it and at his left, under the plank: his sneakers at the top
+        // of the frame, the valley 400 m below them, swinging with the seat.
+        v.set(-0.3, -0.1, 0.35).applyMatrix4(seatFrame)
         shot.pos.copy(v)
-        shot.tgt.set(1000, -380, -60)
+        this.tmpT.set(0, -0.53, -0.848).applyMatrix4(this.rotOnly.extractRotation(seatFrame))
+        shot.tgt.copy(v).addScaledVector(this.tmpT, 50)
         shot.fov = 55
         shot.handheld = 0
         break
       }
       case 'rope': {
         if (u < 0.49) {
-          shot.pos.set(1000.05, 4.38, -0.02)
-          shot.tgt.set(999.72, 4.6, -0.4)
+          // The rope's turns round the branch, from below and to the side: the other rope beyond.
+          const k = held(ss(0, 0.49, u), f.reduced)
+          shot.pos.set(1000.95 - 0.1 * k, 4.18 + 0.04 * k, 0.48 - 0.08 * k)
+          shot.tgt.set(1000.22, 4.6, -0.42)
           shot.fov = 30
-          shot.handheld = 0.6
+          shot.handheld = 0.3
         } else {
+          // The void's point of view: from the valley floor, up the dark wall to the swing on the sky.
           const k = held(ss(0.49, 1, u), f.reduced)
-          shot.pos.set(1000 + 2 * k, -320, -90)
-          shot.tgt.set(1000, 0, -1)
-          shot.fov = 25
+          // (far enough out that the swing stays above the rim even at the back of its arc)
+          shot.pos.set(984 + 2 * k, -300, -430)
+          shot.tgt.set(991.5, -1.5, -0.4)
+          shot.fov = 6
           shot.handheld = 0
         }
         break
       }
       case 'choose': {
-        shot.pos.set(995.2, 1.75, -1.3)
-        shot.tgt.set(1000.6, 1.75, 0.9)
+        // Side-on at seat height from the ledge (+x): the rock and tree to the left, the void to the right.
+        shot.pos.set(1005.6, 1.45, 0.1)
+        shot.tgt.set(1000, 1.65, -0.5)
         shot.fov = 45
-        shot.handheld = 0.4
+        shot.handheld = 0.3
         break
       }
       case 'grows': {
         if (u < 0.6) {
           const k = ss(0, 0.6, held(u, f.reduced))
-          shot.pos.set(1000, 6.5, 3.0 - 3.0 * k)
-          shot.tgt.set(1000, -400, -120)
-          shot.fov = lerp(35, 60, k)
+          shot.pos.set(1000, 7.0, 4.2 - 3.0 * k)
+          shot.tgt.set(1000, -400, -300)
+          shot.fov = lerp(38, 60, k)
         } else {
           const k = ss(0.6, 1, held(u, f.reduced))
           shot.pos.set(1012 - k * 0.6, 0 - k * 0.5, -14 + k * 0.6)
@@ -806,10 +866,21 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
         shot.tgt.copy(this.tmpT)
         shot.fov = 35
         shot.handheld = 0
+        // "Ve ben hâlâ buradayım." sits in the middle: his face goes to the right of it.
+        this.aimLeft(shot, 0.36)
         break
       }
     }
     void theta
+  }
+
+  /** Turns the look `d` metres to the camera's left at the target (the subject moves right in frame). */
+  private aimLeft(shot: { pos: THREE.Vector3; tgt: THREE.Vector3 }, d: number) {
+    const fx = shot.tgt.x - shot.pos.x
+    const fz = shot.tgt.z - shot.pos.z
+    const l = Math.hypot(fx, fz) || 1
+    shot.tgt.x += (fz / l) * d
+    shot.tgt.z += (-fx / l) * d
   }
 
   private leafM = new THREE.Matrix4()
@@ -836,4 +907,42 @@ transformed.y -= abs(uLean) * hgt * hgt * 1.2;`,
   groundAt(x: number, z: number) {
     return hPlateau(x, z)
   }
+}
+
+/** Laid rope: three strands twisting round the line (diagonal grooves that wrap as a helix). */
+function ropeTexture() {
+  const c = document.createElement('canvas')
+  c.width = c.height = 64
+  const g = c.getContext('2d')!
+  g.fillStyle = '#c9b48e'
+  g.fillRect(0, 0, 64, 64)
+  for (let s = 0; s < 3; s++)
+    for (const off of [-64, 0, 64]) {
+      const y = (s * 64) / 3 + off
+      const grad = g.createLinearGradient(0, y, 0, y + 21)
+      grad.addColorStop(0, '#7d6a4e')
+      grad.addColorStop(0.2, '#b29d78')
+      grad.addColorStop(0.55, '#d2bf98')
+      grad.addColorStop(0.88, '#a8926c')
+      grad.addColorStop(1, '#7d6a4e')
+      g.fillStyle = grad
+      g.beginPath()
+      g.moveTo(0, y)
+      g.lineTo(64, y + 64)
+      g.lineTo(64, y + 64 + 21.3)
+      g.lineTo(0, y + 21.3)
+      g.closePath()
+      g.fill()
+    }
+  // Fibre speckle.
+  const r = rng(77)
+  for (let i = 0; i < 260; i++) {
+    g.fillStyle = `rgba(${r() < 0.5 ? '60,45,30' : '235,220,190'},0.25)`
+    g.fillRect(r() * 64, r() * 64, 1 + r() * 2, 1)
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 8
+  return t
 }

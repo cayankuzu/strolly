@@ -107,6 +107,9 @@ export class Director implements SetDirector {
   f!: SetFrame
   seg: SegmentId = 'open'
   u = 0
+  /** What the sound follows besides steps: the fluorescents' level (1 on … 0 off) and the creature amount. */
+  glow = 1
+  dread = 0
   private used = new Set<Person>()
   private mo = { step: 0, walking: 0, robots: 0, doors: 0, frame: 0 }
   private v = new THREE.Vector3()
@@ -183,6 +186,8 @@ export class Director implements SetDirector {
     this.world.add(this.lab.ghostChair)
     // The envelope Levy carries into the Centre.
     this.envelopeHand = canvasPlane(0.22, 0.11, 256, (c, W, H) => drawEnvelope(c, W, H))
+    this.sub.envelope.redraw((c, W, H) => drawEnvelope(c, W, H), 'envelope')
+    this.sub.envelopeOnTable.redraw((c, W, H) => drawEnvelope(c, W, H, true), 'envelope:torn')
     this.world.add(this.envelopeHand.mesh)
     this.penRest.pos.copy(this.lab.pen.position)
     this.penRest.rot.copy(this.lab.pen.rotation)
@@ -191,6 +196,7 @@ export class Director implements SetDirector {
     // Compile the studio once, off-screen.
     this.tv.render(ctx.renderer, 0, 0)
     for (const g of this.groups()) g.visible = true
+    if (process.env.NODE_ENV !== 'production') (globalThis as Record<string, unknown>).__bk = this
   }
 
   /** Every prop back to its resting state; the acts switch on what their moment needs. */
@@ -242,6 +248,8 @@ export class Director implements SetDirector {
     lab.openHalo(0)
     lab.setStrip(0)
     lab.signal.mesh.visible = false
+    lab.chair.position.set(0, 0, -2.3)
+    lab.chair.rotation.y = Math.PI
     lab.pen.position.copy(this.penRest.pos)
     lab.pen.rotation.copy(this.penRest.rot)
     this.envelopeHand.mesh.visible = false
@@ -395,6 +403,8 @@ export class Director implements SetDirector {
     this.rig.reset()
     this.fx.reset(f.time)
     this.mo.walking = 0
+    this.glow = 1
+    this.dread = 0
     this.world.position.set(0, 0, 0)
     this.world.quaternion.identity()
     this.waterArc.visible = false
@@ -432,6 +442,10 @@ export class Director implements SetDirector {
     for (const x of this.everyone) if (!this.used.has(x)) x.figure.root.visible = false
     this.rig.settle()
     this.fx.settle()
+    // The sound's cues: the creature amount, the fluorescents, the scene clock (flickers are time-driven).
+    this.mo.robots = this.dread
+    this.mo.doors = this.glow
+    this.mo.frame = f.time
   }
 
   motion(m: SceneInfo['motion']) {
@@ -603,7 +617,7 @@ export class Director implements SetDirector {
   /** The over-exposed look of the real lab: a cold wash fading from white. */
   flashLook(u: number) {
     if (u < 0.02) this.fx.white(1)
-    else this.fx.wash(5.5, 6, 6.6, 0.55 * Math.exp(-(u - 0.02) * 9) + 0.1)
+    else this.fx.wash(2.0, 2.15, 2.4, 0.8 * Math.exp(-(u - 0.02) * 16) + 0.02)
   }
 
   /** Levy's costume of the day. */

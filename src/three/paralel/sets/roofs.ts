@@ -17,7 +17,7 @@ import { particleMaterial } from '../shaders'
 import { carry, pivotFrame } from '../rig'
 import * as PP from '../poses'
 import { sunDir, type SkyPreset } from '../env'
-import { H12, H9 } from '../cast'
+import { H12, H9, setGrip } from '../cast'
 
 const GOLD: SkyPreset = { zenith: 0x4f6fa6, horizon: 0xe9b47c, below: 0x6d5f55, haze: 0xd9b48a, hazeAmt: 0.7, sunColor: 0xffb060, disc: 6, glow: 1.6, cloud: 0.22, cloudLit: 0xffc89a, cloudShade: 0x8a7f8f, power: 1.15 }
 const BLUE: SkyPreset = { zenith: 0x1f2c55, horizon: 0x8b7fa0, below: 0x2a2833, haze: 0x6f6c92, hazeAmt: 0.6, sunColor: 0x8f7fb0, disc: 0, glow: 0.4, cloud: 0.18, cloudLit: 0x9a88b0, cloudShade: 0x2c3150, stars: 0.0, power: 0.9 }
@@ -28,21 +28,24 @@ const HUT = { x: -7, z: 7 }
 const BOY_GAP = { x: 9.35, z: -3 }
 
 const SHOTS: Record<string, ShotKeys> = {
+  // Over his left shoulder (he stays right of the rail): roof B a metre down across the dark slot.
   gapA: [
-    [0, [7.5, 1.4, -1.5, 13.6, -1, -3, 42]],
-    [1, [7.7, 1.38, -1.6, 13.6, -1.1, -3, 41]],
+    [0, [7.2, 1.45, -4.6, 13.6, -0.9, -2.3, 42]],
+    [1, [7.4, 1.42, -4.5, 13.6, -1.0, -2.4, 41]],
   ],
+  // His profile from the roof side, his eyes going down over the edge.
   gapB: [
-    [0, [9.0, 1.05, -1.5, 9.9, 0.75, -3.1, 36]],
-    [1, [9.4, 1.0, -1.75, 9.95, 0.7, -3.15, 34]],
+    [0, [8.75, 1.15, -1.25, 9.35, 0.72, -3.45, 36]],
+    [1, [9.0, 1.08, -1.45, 9.45, 0.68, -3.5, 33]],
   ],
+  // Behind him on A and to his left: he stays right of the rail as he backs up and runs.
   jumpA: [
-    [0, [2.0, 1.2, -1.0, 11, 0, -3, 45]],
-    [1, [2.3, 1.15, -1.1, 11, 0, -3, 45]],
+    [0, [2.0, 1.25, -4.9, 11, 0.1, -2.2, 45]],
+    [1, [2.3, 1.2, -4.8, 11, 0.0, -2.3, 45]],
   ],
   jumpB: [
-    [0, [11.2, 4.0, 9.0, 11.2, -2.0, -3, 50]],
-    [1, [11.4, 3.6, 8.2, 11.6, -1.8, -3, 48]],
+    [0, [11.0, 3.2, 5.0, 11.3, -1.6, -3, 55]],
+    [1, [11.1, 3.0, 4.6, 11.6, -2.6, -3, 55]],
   ],
   jumpC: [
     [0, [17.0, 0.6, 1.2, 13.2, -0.6, -3.2, 42]],
@@ -52,21 +55,23 @@ const SHOTS: Record<string, ShotKeys> = {
     [0, [-7.4, 0.25, -12.4, 2.5, 1.1, -9.8, 45]],
     [1, [-5.8, 0.35, -12.6, 4.5, 1.15, -9.8, 44]],
   ],
+  // From out over the street, at his height: Emre's face at the corner, the leader already round it.
   chainA: [
-    [0, [8.1, 1.45, -8.3, 9.2, 1.1, -9.75, 38]],
-    [1, [8.3, 1.42, -8.4, 9.4, 1.1, -9.7, 36]],
+    [0, [11.7, 2.05, -11.6, 9.25, 1.72, -9.55, 40]],
+    [1, [11.6, 2.0, -11.5, 9.3, 1.7, -9.5, 38]],
   ],
   chainHands: [
-    [0, [11.3, 1.25, -10.6, 9.5, 1.05, -9.2, 32]],
-    [1, [11.1, 1.2, -10.3, 9.5, 1.08, -9.0, 30]],
+    [0, [10.9, 1.38, -10.75, 9.62, 1.24, -9.55, 30]],
+    [1, [10.8, 1.34, -10.6, 9.64, 1.24, -9.45, 28]],
   ],
   chainB: [
     [0, [13.0, -0.5, -14.0, 10.0, 0.8, -10.0, 45]],
     [1, [13.6, -0.9, -14.6, 10.0, 0.8, -9.6, 45]],
   ],
+  // From out over the avenue, into the alley's mouth where the other three go down.
   fell: [
-    [0, [12.0, -1.0, -16.0, 9.0, 0.0, -10.0, 50]],
-    [1, [12.4, -1.4, -16.6, 8.6, -0.6, -9.4, 50]],
+    [0, [12.6, -0.6, -16.5, 10.4, 0.4, -9.0, 48]],
+    [1, [12.4, -3.0, -16.8, 10.9, -4.0, -8.9, 48]],
   ],
 }
 
@@ -404,10 +409,12 @@ export class RoofsSet implements PSet {
     d.step = boy.step
     d.walking = boy.walking
     if (cu < 0.5) {
+      // Wide and high from the south-east: the hut door opening toward us, the tank and the mast,
+      // the boy kept right of centre as he crosses the gravel.
       const k = ss(0, 0.5, cu)
-      shot.pos.set(lerp(-14, -12.4, k), lerp(6, 5.2, k), lerp(16, 14.2, k))
-      shot.tgt.set(lerp(-1.5, 0.5, k), 0.5, lerp(1.5, 0, k))
-      shot.fov = 45
+      shot.pos.set(lerp(6.5, 5.2, k), lerp(7.0, 6.0, k), lerp(19, 16.5, k))
+      shot.tgt.set(boy.x - 1.6, 0.7, boy.z + 1.5)
+      shot.fov = 38
     } else {
       shot.pos.set(boy.x + 0.55, 0.16, boy.z + 0.85)
       shot.tgt.set(boy.x + 0.25, 0.1, boy.z - 0.1)
@@ -466,9 +473,11 @@ export class RoofsSet implements PSet {
     boy.apply(f.time, true)
     for (const m of boy.figure.headMeshes) m.visible = false
     // POV: straight down the alley to the avenue; a slow vertigo pull.
+    // His eyes are out over the edge: A's wall falling away on the left, B's on the right, the
+    // alley floor between them and the avenue's mouth in the upper frame.
     const k = ss(0, 1, cu)
-    shot.pos.set(10.05 - 0.2 * k, 1.0 + 0.2 * k, -3.3 + 0.08 * k)
-    shot.tgt.set(11.2, STREET, -16)
+    shot.pos.set(10.32 - 0.05 * k, 1.02 + 0.3 * k, -3.3 + 0.06 * k)
+    shot.tgt.set(11.1, STREET, -10.5)
     shot.fov = lerp(55, 47, k)
     shot.handheld = 0.5
     // A pigeon crosses below the lens.
@@ -539,8 +548,8 @@ export class RoofsSet implements PSet {
       const brush = win(0.68, 0.72, 0.8, 0.84, u)
       if (brush > 0) {
         const wob = Math.sin(f.time * 14) * 0.03
-        boy.reach('l', brush, 13.8 + 0.22, H9 * 1.0 + wob, -3 - 0.02, 0.3)
-        boy.reach('r', brush, 13.8 + 0.22, H9 * 1.0 - wob, -3 + 0.05, 0.3)
+        boy.reach('l', brush, 13.8 + 0.2, -1.0 + H9 * 1.05 + wob, -3 - 0.02, 0.3)
+        boy.reach('r', brush, 13.8 + 0.2, -1.0 + H9 * 1.05 - wob, -3 + 0.05, 0.3)
       }
       boy.yaw = lerp(PI / 2, -PI / 2 - 0.3, ss(0.82, 0.96, u))
       boy.lookAt(11, -3, ss(0.78, 0.9, u))
@@ -613,9 +622,11 @@ export class RoofsSet implements PSet {
       sEmre = sLead - 1.15
       sBaris = sLead - 2.3
     } else if (seg === 'chain') {
-      sLead = lerp(10, corner + 0.7, ss(0, 0.32, u)) + 1.3 * ss(0.4, 1, u)
-      sEmre = lerp(8.85, corner - 0.85, ss(0.02, 0.16, u)) + 2.0 * ss(0.4, 1, u)
-      sBaris = lerp(7.7, corner - 2.0, ss(0.02, 0.2, u)) + 1.9 * ss(0.45, 1, u)
+      // One easing for the three so the order never changes; then round the corner together.
+      const e = ss(0, 0.3, u)
+      sLead = lerp(10, corner + 0.7, e) + 1.3 * ss(0.4, 1, u)
+      sEmre = lerp(8.85, corner - 0.45, e) + 1.6 * ss(0.4, 1, u)
+      sBaris = lerp(7.7, corner - 1.6, e) + 1.5 * ss(0.45, 1, u)
     } else {
       sLead = corner + 2.0
       sEmre = corner + 1.15
@@ -679,6 +690,12 @@ export class RoofsSet implements PSet {
     lead.apply(f.time, true)
     emre.apply(f.time, true)
     baris.apply(f.time, true)
+    if (linked) {
+      // The joined hands close on each other.
+      setGrip(lead.figure, true, ['r'])
+      setGrip(emre.figure, true, ['l', 'r'])
+      setGrip(baris.figure, true, ['l'])
+    }
     d.step = lead.step
     d.walking = lead.walking
 
@@ -693,14 +710,21 @@ export class RoofsSet implements PSet {
       const gk = { boy12: cast.ghosts.stones, emre: cast.ghosts.emre, baris: cast.ghosts.baris }
       keys.forEach(([k, real], i) => {
         const g = gk[k]
+        // The other three stay where the three stood on the parapet at the split (the real ones hop
+        // down and run off).
         const start = [sLead, sEmre, sBaris][i]
-        void start
+        pointAt(P, start / P.total, this.sA)
+        const sx = this.sA.x
+        const sz = this.sA.z
+        pointAt(P, (start + 0.35) / P.total, this.sA)
+        const yaw0 = Math.atan2(this.sA.x - sx, this.sA.z - sz)
+        void real
         cast.ghost(
           g,
           u,
           (a, uu) => {
             const tt = Math.max(0, uu - 0.1)
-            a.place(real.x, real.z, real.yaw)
+            a.place(sx, sz, yaw0)
             a.hold(PP.ARMS_HALF)
             a.y = 0.47
             const fall = ss(0, 0.7, tt)
@@ -729,9 +753,16 @@ export class RoofsSet implements PSet {
     if (seg === 'friends') keyed(SHOTS.friends, cu, shot)
     else if (seg === 'chain') {
       if (u < 0.4) keyed(SHOTS.chainA, cu / 0.4, shot)
-      else if (u > 0.55 && u < 0.75) keyed(SHOTS.chainHands, (cu - 0.55) / 0.2, shot)
+      else if (u > 0.64 && u < 0.8) keyed(SHOTS.chainHands, (cu - 0.64) / 0.16, shot)
       else keyed(SHOTS.chainB, (cu - 0.4) / 0.6, shot)
-    } else keyed(SHOTS.fell, cu, shot)
+    } else {
+      // Tilt down with the other three as they fall away along the facade.
+      keyed(SHOTS.fell, cu, shot)
+      // Follow the trio's fall (their height) a little behind, so they pass through the frame.
+      const tt = Math.max(0, cu - 0.1)
+      const yTrio = 0.47 - 26 * 1.4 * tt * tt
+      shot.tgt.y = lerp(shot.tgt.y, Math.max(yTrio + 1.5, -16), ss(0.12, 0.5, cu))
+    }
   }
   private trio = [0, 0, 0]
   private sA = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }

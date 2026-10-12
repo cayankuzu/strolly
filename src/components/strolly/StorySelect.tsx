@@ -33,6 +33,7 @@ function status(t: Translate, save: StorySave | null | undefined, chapters: numb
 
 export default function StorySelect({ active, saves, focus, onFocus, onPlay, onBack }: Props) {
   const listRef = useRef<HTMLOListElement>(null)
+  const chaptersRef = useRef<HTMLDivElement>(null)
   const [chaptersOpen, setChaptersOpen] = useState(false)
   const play = useUiSound()
   const t = useT()
@@ -43,6 +44,8 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
   const chapters = story.timeline.CHAPTERS
   const Art = STORY_ART[id]
   useMenuKeys(listRef, active && !chaptersOpen, false)
+  // The chapter list takes the arrow keys (and focus, on the checkpoint) while it is open.
+  useMenuKeys(chaptersRef, active && chaptersOpen)
 
   // Focus the remembered title when the screen opens.
   useEffect(() => {
@@ -51,6 +54,12 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
     // Only when the screen becomes active.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
+
+  // Leaving the chapter list puts focus back on the button that opened it.
+  const closeChapters = () => {
+    setChaptersOpen(false)
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.story-select [data-chapters]')?.focus())
+  }
 
   const unlocked = (index: number) => !!save && (save.completed || index <= save.maxChapter)
 
@@ -115,7 +124,8 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
                 }}
               >
                 <span className="ss-index">{pad(s.meta.index)}</span>
-                <span className="ss-name" data-long={s.meta.title.length > 14 || undefined}>
+                {/* Only a title that cannot keep one line at the list's size (ÖFKESEL…) gets the smaller one. */}
+                <span className="ss-name" data-long={s.meta.title.length > 20 || undefined}>
                   {s.meta.title}
                 </span>
                 {sv?.completed && <span className="ss-done" aria-label={t('select.doneLabel')} />}
@@ -159,19 +169,41 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
               </MenuButton>
             )}
             {save && (
-              <MenuButton tier="utility" sound="open" onClick={() => setChaptersOpen(true)}>
+              <MenuButton tier="utility" sound="open" data-chapters="" onClick={() => setChaptersOpen(true)}>
                 {t('select.chapterList')}
               </MenuButton>
             )}
           </div>
         ) : (
-          <div className="ss-chapters" role="group" aria-label={t('select.chooseChapter')}>
+          <div
+            ref={chaptersRef}
+            className="ss-chapters"
+            role="group"
+            aria-label={t('select.chooseChapter')}
+            onKeyDown={(e) => {
+              // Escape closes the list first (not the whole screen).
+              if (e.key !== 'Escape') return
+              e.stopPropagation()
+              play('close')
+              closeChapters()
+            }}
+          >
             <ol>
               {chapters.map((c) => {
                 const open = unlocked(c.index)
+                const checkpoint = !!save && !save.completed && c.index === save.chapter
                 return (
                   <li key={c.id}>
-                    <button type="button" className="ss-chapter" disabled={!open} onClick={() => onPlay(id, c.index)} onMouseEnter={() => open && play('hover')}>
+                    <button
+                      type="button"
+                      className="ss-chapter"
+                      data-menu-item=""
+                      data-autofocus={checkpoint ? '' : undefined}
+                      aria-current={checkpoint ? 'step' : undefined}
+                      disabled={!open}
+                      onClick={() => onPlay(id, c.index)}
+                      onMouseEnter={() => open && play('hover')}
+                    >
                       <span>{pad(c.index)}</span>
                       <span>{open ? c.title : t('select.locked')}</span>
                     </button>
@@ -179,7 +211,7 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
                 )
               })}
             </ol>
-            <MenuButton tier="utility" sound="close" onClick={() => setChaptersOpen(false)}>
+            <MenuButton tier="utility" sound="close" onClick={closeChapters}>
               {t('common.back')}
             </MenuButton>
           </div>

@@ -404,7 +404,7 @@ export type MapState =
   | { kind: 'idle' }
   | { kind: 'scan'; t: number; thumb: number; p?: number }
   | { kind: 'uploaded' }
-  | { kind: 'map'; draw: number; push: number; split: number; picked: number; pick: 'laugh' | 'money' | 'shh' | '' }
+  | { kind: 'map'; draw: number; push: number; split: number; picked: number; pick: 'laugh' | 'money' | 'shh' | ''; uploaded?: boolean }
   | { kind: 'copies'; fill: number; two: number }
 
 const PEAKS: Array<[number, string, string, number]> = [
@@ -567,8 +567,9 @@ export function prepScreen(c: C, W: number, H: number, s: MapState) {
     }
     return
   }
-  // The anger map.
-  header('ÖFKE HARİTASI · BUGÜN · 18.44')
+  // The anger map (under the upload notice while the first hours are drawn).
+  if (s.uploaded) header('YÜKLEME TAMAMLANDI', MINT_DARK)
+  else header('ÖFKE HARİTASI · BUGÜN · 18.44')
   const x0 = W * 0.06
   const x1 = W * 0.96
   const yBase = H * 0.86

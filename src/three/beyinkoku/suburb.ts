@@ -248,7 +248,7 @@ export class Suburb {
     rbox(1.62, 0.32, 2.08, m.deskWood, 103.6, FLOOR + 0.2, -4.92, g, 0.05)
     rbox(1.66, 0.95, 0.08, m.deskWood, 103.6, FLOOR + 0.62, -5.93, g, 0.04)
     rbox(1.5, 0.2, 1.98, m.linenWhite, 103.6, 0.75, -4.92, g, 0.07)
-    const duvet = rbox(1.56, 0.3, 1.4, m.linen, 103.6, 0.98, -4.45, g, 0.08)
+    const duvet = rbox(1.56, 0.3, 1.32, m.linen, 103.6, 0.99, -4.33, g, 0.09)
     duvet.castShadow = true
     for (const sx of [-0.36, 0.36]) rbox(0.6, 0.13, 0.36, m.linenWhite, 103.6 + sx, 0.92, -5.6, g, 0.06)
     // Nightstand, lamp.
@@ -349,7 +349,8 @@ export class Suburb {
     const tb = new THREE.Group()
     tb.position.set(98.3, FLOOR, -0.6)
     g.add(tb)
-    cyl(0.45, 0.45, 0.04, m.deskWood, 0, 0.73, 0, tb, 48)
+    // A painted top: the wood scan magnified into jagged grain at this size, and paper reads better on paint.
+    cyl(0.45, 0.45, 0.04, new THREE.MeshStandardMaterial({ color: 0xc9d4d8, roughness: 0.62 }), 0, 0.73, 0, tb, 48)
     cyl(0.05, 0.06, 0.7, m.deskWood, 0, 0.36, 0, tb, 16)
     cyl(0.28, 0.3, 0.03, m.deskWood, 0, 0.015, 0, tb, 32)
     for (const [dx, dz, ry] of [
@@ -546,7 +547,7 @@ export class Suburb {
       for (let i = 0; i < 8; i++) {
         const l = i === 0 ? models.lamp : models.lamp.clone(true)
         const north = i % 2 === 0
-        l.position.set(74 + i * 13, 0.12, north ? 10.25 : 16.75)
+        l.position.set(80 + i * 13, 0.12, north ? 10.25 : 16.75)
         l.rotation.y = north ? 0 : PI
         g.add(l)
       }

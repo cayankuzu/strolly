@@ -165,8 +165,9 @@ landing, huge stencilled floor numbers on the landing walls (7, 6, 5, 4, 3, 2,
   there are two copies) slides in through it and stops centred (161.2, 0, −1.9),
   long axis x. **The corner** = the north-east corner (162.5, −2.5).
 - **Reality**: 333 lies on the tray along the north wall, on his side, head at
-  (162.0, 0.12, −1.9), feet toward x 160.3. Two copies: 334 beside him at
-  z −1.1.
+  (162.0, 0.12, −1.9), feet toward x 160.3. Two copies: 333 lies on the tray's
+  front half (z −1.1, nothing between his eyes and the door in ch. 9) and 334
+  beside him along the wall (z −1.9); the blood lies in front of the wider tray.
 - **The hallucinated office** = set A's boss's office translated by
   (+160, 0, +6.5): desk centre (160, 0, −0.5), chair (160, 0, −1.35), window
   on the north wall, monitor (159.4, 0.75, −0.7), pen holder
@@ -822,7 +823,8 @@ segment. Text: `id` from–to (local) — *what the image shows then*.
 **`floor`** @90.5 · 1.4
 - u 0.05 the north hatch slides open; u 0.1–0.45 the tray glides in with 333
   lying on it and stops in the north-east corner; u 0.5 the hatch closes. Two
-  copies: 334 lies beside him.
+  copies: 334 lies beside him; the wide holds to u 0.62, pushing in on the two
+  side by side, and the POV starts there.
 - Camera: u 0–0.47 **the ch. 4 `towel` wide from the door**, same position
   (160, 1.7, 2.3), panning to the corner (161.2, 0.3, −1.9): the room that
   looked empty to Arif, with a man on the floor where the shadow was. u 0.47

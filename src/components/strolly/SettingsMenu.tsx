@@ -106,6 +106,12 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
     return () => document.removeEventListener('fullscreenchange', sync)
   }, [open])
 
+  // On a narrow screen the tabs scroll sideways: the chosen one is kept in view.
+  useEffect(() => {
+    if (!open) return
+    root.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [open, tab])
+
   if (!open) return null
 
   const toggleFull = () => {
@@ -132,13 +138,15 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
               />
             </Row>
           </div>
-          <div className="settings-tabs" role="tablist" aria-label={t('settings.groups')}>
+          <div className="tabbar settings-tabs" role="tablist" aria-label={t('settings.groups')}>
             {TABS.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 role="tab"
+                id={`settings-tab-${id}`}
                 aria-selected={tab === id}
+                aria-controls="settings-panel"
                 onClick={() => {
                   play('click')
                   setTab(id)
@@ -160,7 +168,7 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
           </div>
         </header>
 
-        <div className="settings-body" role="tabpanel">
+        <div id="settings-panel" className="settings-body" role="tabpanel" aria-labelledby={`settings-tab-${tab}`}>
           {tab === 'display' && (
             <>
               <Row label={t('settings.quality')} hint={t('settings.qualityHint')}>

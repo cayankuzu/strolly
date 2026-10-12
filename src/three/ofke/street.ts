@@ -103,9 +103,10 @@ export function arifCar(): CarRig {
   rbox(0.3, 0.42, 0.5, dash, 0, 0.55, 0.62, d, 0.03)
   rbox(0.22, 0.05, 0.4, dash, 0, 0.6, 0.15, d, 0.02)
   const screenHolder = new THREE.Group()
-  screenHolder.position.set(-0.04, 1.07, 0.62)
+  // Standing clear of the dash top's raised lip, so the whole screen shows from the seats.
+  screenHolder.position.set(-0.04, 1.11, 0.62)
   screenHolder.rotation.set(-0.12, -0.3, 0)
-  rbox(0.05, 0.08, 0.05, dash, -0.04, 1.0, 0.66, root, 0.01)
+  rbox(0.05, 0.12, 0.05, dash, -0.04, 1.02, 0.66, root, 0.01)
   root.add(screenHolder)
   rbox(0.29, 0.19, 0.025, std(0x0b0c0d, 0.3), 0, 0, -0.014, screenHolder, 0.008)
   const screen = canvasPlane(0.26, 0.16, 512, (c, W, H) => S.route(c, W, H, 0, 0), { emissive: true })

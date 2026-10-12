@@ -16,7 +16,7 @@ const mono = Geist_Mono({
 })
 
 const description =
-  'Kaydırdıkça ilerleyen, içinde 360° dönebildiğin sinematik interaktif kısa hikâyeler: TEKERRÜR, EMANET, ÖFKE NÖBETİ, YAŞAMAK, KALAN, EŞİK. Scroll-driven cinematic short stories you can turn around inside. Powered by MeMoDe.'
+  'Kaydırdıkça ilerleyen, içinde 360° dönebildiğin dokuz sinematik kısa hikâye: YAŞAMAK, ÖTE, TEK AYAK, ÖFKESEL DENEYİM SİMÜLASYONU, TAKINTI, PARALEL-LEŞ, TEKERRÜR, BEYİN-KÖKÜ, DURUM. Nine scroll-driven cinematic short stories you can turn around inside, in Turkish and English. Powered by MeMoDe.'
 
 const site =
   process.env.NEXT_PUBLIC_SITE_URL ??

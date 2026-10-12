@@ -20,7 +20,8 @@ export function palette() {
     concreteDark: pbr('concrete', 0x5f5b56, { roughness: 1 }),
     plaster: pbr('plaster', 0xb9b1a6, { roughness: 1 }),
     steel: pbr('metal', 0x5b6268, { roughness: 0.55 }),
-    steelWet: pbr('metal', 0x3e4a45, { roughness: 0.3 }),
+    // Old painted bridge steel, wet (the scanned 'metal' is a tread plate: wrong for girders).
+    steelWet: pbr('painted', 0x37423d, { roughness: 0.32, metalness: 0.35 }),
     rust: pbr('metal', 0x6b4a36, { roughness: 0.8, metalness: 0.4 }),
     galv: pbr('metal', 0xa7abae, { roughness: 0.45 }),
     paint: pbr('painted', 0xd9d4ca, { roughness: 0.8 }),

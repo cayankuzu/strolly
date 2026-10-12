@@ -76,6 +76,12 @@ export function ribbon(pts: Array<[number, number]>, width: number, y = 0.005) {
       idx.push(k - 2, k - 1, k, k - 1, k + 1, k)
     }
   }
+  // Every triangle faces up (a path heading −z used to wind downward and was culled from above).
+  for (let t = 0; t < idx.length; t += 3) {
+    const [a, b, c] = [idx[t] * 3, idx[t + 1] * 3, idx[t + 2] * 3]
+    const ny = (pos[c] - pos[a]) * (pos[b + 2] - pos[a + 2]) - (pos[b] - pos[a]) * (pos[c + 2] - pos[a + 2])
+    if (ny < 0) [idx[t + 1], idx[t + 2]] = [idx[t + 2], idx[t + 1]]
+  }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
@@ -141,7 +147,7 @@ export class Centre {
     const s = mesh(sky, m.sky, 300, 0, 20, g)
     s.frustumCulled = false
     s.renderOrder = -1
-    const lawn = mesh(new THREE.PlaneGeometry(120, 90), m.lawnDark, 300, 0, 40, g)
+    const lawn = mesh(new THREE.PlaneGeometry(120, 90), m.lawnDark, 300, -0.02, 40, g)
     lawn.rotation.x = -PI / 2
     lawn.receiveShadow = true
     // The white stone path along x 300, splitting around the pond.

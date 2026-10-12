@@ -9,7 +9,7 @@ import { lerp } from '@/lib/math'
 import type { SetFrame, Shot } from '../kit/SetScene'
 import { type Actor } from '../kit/direct'
 import { makePose } from '../figure/Figure'
-import { makePath, pointAt, type Sample } from '../figure/paths'
+import { makePath, pointAt, type Path, type Sample } from '../figure/paths'
 import * as P from '../figure/poses'
 import * as C from './cast'
 import { env, motion, PI, ss, sub, two, win, type Seg } from './common'
@@ -39,6 +39,13 @@ const BODY = [
   { x: 161.3, z: -1.1 },
 ]
 const DOOR = { x: 160, z: 2.5 }
+/**
+ * Which tray place body `i` (0 = 333, 1 = 334) takes. Alone, 333 lies along the wall. With 334, 333 lies on the
+ * front half — nothing between his eyes and the door in ch. 9 — and 334 beside him against the wall.
+ */
+const slot = (i: number, n2: boolean) => BODY[n2 ? 1 - i : i]
+/** With two, the blood lies in front of the wider tray (it would be under it). */
+const BLOOD_DZ_TWO = 0.8
 
 const v = new THREE.Vector3()
 const v2 = new THREE.Vector3()
@@ -88,12 +95,14 @@ function tray(w: World, z: number, n2: boolean) {
 function bodies(w: World, f: SetFrame, trayZ: number) {
   const c = w.cast
   const out: Actor[] = []
-  const list = two(f) ? [c.c333, c.c334] : [c.c333]
+  const n2 = two(f)
+  const list = n2 ? [c.c333, c.c334] : [c.c333]
   list.forEach((a, i) => {
     w.use(a)
     silhouette(a, seg7(f))
     a.figure.headMeshes.forEach((m) => (m.visible = true))
-    a.place(BODY[i].x, trayZ + (BODY[i].z - TRAY.z), 0).hold(LIE_SIDE)
+    const b = slot(i, n2)
+    a.place(b.x, trayZ + (b.z - TRAY.z), 0).hold(LIE_SIDE)
     a.y = 0.09
     out.push(a)
   })
@@ -134,6 +143,56 @@ function streak(m: THREE.Mesh, from: { x: number; z: number }, to: { x: number; 
   ;(m.material as THREE.MeshBasicMaterial).opacity = opacity
 }
 
+/** A body, head to feet, as the drag treats it (m). */
+const BODY_LEN = 1.7
+
+/** The line body `i` is pulled along: from its head on the tray, along the tray to its feet, then out the door. */
+function dragPath(i: number, n2: boolean): Path {
+  const b = slot(i, n2)
+  return makePath([
+    [b.x + 0.85, b.z],
+    [b.x - 0.85, b.z],
+    [160.4, 0.4],
+    [DOOR.x, DOOR.z + 0.4],
+    [DOOR.x, 5.6],
+  ])
+}
+
+/** The tray's top under (x, z), easing to the floor just past its edge (bodies and feet slide off it). */
+function trayTop(x: number, z: number, n2: boolean) {
+  const out = Math.max(TRAY.x - 1.0 - x, x - TRAY.x - 1.0, TRAY.z - 0.45 - z, z - TRAY.z - 0.45 - (n2 ? 0.82 : 0))
+  return 0.09 * (1 - ss(-0.06, 0.1, out))
+}
+
+const sC: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
+const sD: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
+
+/**
+ * A body pulled `s` metres by the ankles: head and feet both ride the drag line BODY_LEN apart, so it first slides
+ * along the tray, then swings round and follows its feet; the arms trail over the head.
+ */
+function dragBody(a: Actor, path: Path, s: number, n2: boolean) {
+  const head = pointAt(path, s / path.total, sC)
+  const feet = pointAt(path, (s + BODY_LEN) / path.total, sD)
+  const dir = Math.atan2(feet.x - head.x, feet.z - head.z)
+  const hx = (head.x + feet.x) / 2
+  const hz = (head.z + feet.z) / 2
+  a.place(hx, hz, dir + PI / 2).blend(
+    [
+      [0, LIE_SIDE],
+      [1, DRAGGED],
+    ],
+    ss(0, 0.6, s),
+  )
+  a.y = trayTop(hx, hz, n2)
+}
+
+/** Body `i`'s smear, from where its feet lay toward the door, `len` metres long. */
+function smearFor(r: World['room'], i: number, n2: boolean, len: number, opacity: number) {
+  const b = slot(i, n2)
+  streak(i === 0 ? r.smear : r.smear2, { x: b.x - 0.85, z: b.z }, { x: DOOR.x + (i === 0 ? 0 : 0.25), z: DOOR.z }, Math.max(0, len), opacity)
+}
+
 export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   chapter7 = seg === 'staff' || seg === 'corner' || seg === 'drag' || seg === 'cleaners' || seg === 'restart'
   const c = w.cast
@@ -141,6 +200,9 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
   const r = w.room
   const n2 = two(f)
   const post = w.post
+  // With two the blood lies in front of the wider tray, and the scrubber works there.
+  const bdz = n2 ? BLOOD_DZ_TWO : 0
+  r.blood.position.z = bdz
   switch (seg) {
     // ——— 07 TEMİZLİK ———
     case 'staff':
@@ -186,35 +248,58 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       const list = bodies(w, f, TRAY.z)
       list.forEach((a) => bare(w, a))
       const [o1, o2] = c.orderlies.map((a) => w.use(a))
-      // They walk in, take the ankles, pull; the second, faster.
-      const pulls = n2 ? [sub(u, 0.4, 0.66), sub(u, 0.74, 0.95)] : [sub(u, 0.4, 0.95)]
-      const path = (i: number) => makePath([[BODY[i].x - 0.9, BODY[i].z], [160.4, 0.4], [DOOR.x, DOOR.z + 0.4], [DOOR.x, 5.5]])
-      const pull = (i: number) => pulls[i] ?? 0
-      const active = n2 && u > 0.68 ? 1 : 0
-      const k = pull(active)
-      // The orderlies.
-      if (u < 0.35 || (n2 && u > 0.66 && u < 0.74)) {
-        const back = n2 && u > 0.66
-        const s = back ? sub(u, 0.66, 0.74) : sub(u, 0.04, 0.35)
-        o1.walk(makePath(back ? [[160.0, 3.4], [160.2, 0.3], [BODY[1].x - 1.05, BODY[1].z + 0.2]] : [[159.55, 1.1], [160.0, -0.6], [BODY[0].x - 1.05, BODY[0].z + 0.2]]), s, P.STAND, PI, -PI / 2)
-        o2.walk(makePath(back ? [[160.3, 3.6], [160.6, 0.3], [BODY[1].x - 1.0, BODY[1].z - 0.25]] : [[160.55, 0.85], [160.7, -0.5], [BODY[0].x - 1.0, BODY[0].z - 0.25]]), s, P.STAND, PI, -PI / 2)
-      } else if (k > 0 && k < 1) {
-        const p = path(active)
-        // Walking backward toward the door, bent, hands at the ankles.
-        const p1 = pointAt(p, Math.min(1, k * 0.85 + 0.1), sA)
-        o1.place(p1.x - 0.22, p1.z + 0.12, p1.yaw + PI + 0.35).hold(STOOP)
-        o2.place(p1.x + 0.22, p1.z + 0.02, p1.yaw + PI - 0.35).hold(STOOP)
-        o1.walking = o2.walking = 0.6
-        o1.step = o2.step = Math.floor(u * 60)
-      } else {
-        o1.place(BODY[active].x - 1.05, BODY[active].z + 0.2, -PI / 2).hold(STOOP)
-        o2.place(BODY[active].x - 1.0, BODY[active].z - 0.25, -PI / 2).hold(STOOP)
-        if (k >= 1) {
-          o1.visible = false
-          o2.visible = false
+      // They walk in, take the ankles, pull; with two they come back for the second (the one by the wall), faster.
+      const plan: Array<{ walk: [number, number]; pull: [number, number] }> = n2
+        ? [
+            { walk: [0.04, 0.32], pull: [0.36, 0.6] },
+            { walk: [0.6, 0.665], pull: [0.68, 0.95] },
+          ]
+        : [{ walk: [0.04, 0.35], pull: [0.4, 0.95] }]
+      const pull = (i: number) => (plan[i] ? sub(u, plan[i].pull[0], plan[i].pull[1]) : 0)
+      const cur = plan.length > 1 && u >= plan[1].walk[0] ? 1 : 0
+      const d = plan[cur]
+      const k = pull(cur)
+      const paths = list.map((_, i) => dragPath(i, n2))
+      // The orderlies' places at the ankles when the pull starts, and the yaw that faces back along the line.
+      const grip = (i: number, s: number, out: Sample) => pointAt(paths[i], Math.min(1, (s + BODY_LEN + 0.55) / paths[i].total), out)
+      const g0 = grip(cur, 0, sA)
+      const px = Math.cos(g0.yaw)
+      const pz = -Math.sin(g0.yaw)
+      const s1 = { x: g0.x - px * 0.22, z: g0.z - pz * 0.22, yaw: g0.yaw + PI - 0.3 }
+      const s2 = { x: g0.x + px * 0.22, z: g0.z + pz * 0.22, yaw: g0.yaw + PI + 0.3 }
+      if (u < d.walk[1]) {
+        const s = sub(u, d.walk[0], d.walk[1])
+        if (cur === 0) {
+          o1.walk(makePath([[159.55, 1.1], [159.95, s1.z + 0.7], [s1.x, s1.z]]), s, P.STAND, PI - 0.25, s1.yaw)
+          o2.walk(makePath([[160.55, 0.85], [160.75, s2.z + 0.7], [s2.x, s2.z]]), s, P.STAND, PI - 0.45, s2.yaw)
+        } else {
+          // Back in from the corridor, where the first pull left them.
+          o1.walk(makePath([[DOOR.x - 0.22, 5.6], [159.85, 2.6], [160.0, 0.2], [s1.x, s1.z]]), s, P.STAND, PI, s1.yaw)
+          o2.walk(makePath([[DOOR.x + 0.22, 5.6], [160.2, 2.6], [160.6, 0.2], [s2.x, s2.z]]), s, P.STAND, PI, s2.yaw)
         }
+      } else if (k <= 0) {
+        // At the ankles, bending down.
+        const bend = ss(d.walk[1], d.pull[0], u)
+        o1.place(s1.x, s1.z, s1.yaw).blend([[0, P.STAND], [1, STOOP]], bend)
+        o2.place(s2.x, s2.z, s2.yaw).blend([[0, P.STAND], [1, STOOP]], bend)
+      } else if (k < 1) {
+        // Walking backward toward the door, bent, hands at the ankles.
+        const s = k * (paths[cur].total - BODY_LEN)
+        const g = grip(cur, s, sB)
+        const qx = Math.cos(g.yaw)
+        const qz = -Math.sin(g.yaw)
+        o1.place(g.x - qx * 0.22, g.z - qz * 0.22, g.yaw + PI - 0.3).hold(STOOP)
+        o2.place(g.x + qx * 0.22, g.z + qz * 0.22, g.yaw + PI + 0.3).hold(STOOP)
+        o1.walking = o2.walking = 0.6
+        o1.step = o2.step = Math.floor(s / 0.55)
+      } else {
+        o1.visible = false
+        o2.visible = false
       }
-      // The bodies: dragged feet first along the path, out through the door.
+      // Standing on the tray where it is under their feet.
+      o1.y = trayTop(o1.x, o1.z, n2)
+      o2.y = trayTop(o2.x, o2.z, n2)
+      // The bodies: pulled by the ankles, they slide along the tray, swing round and follow their feet out the door.
       list.forEach((a, i) => {
         const pk = pull(i)
         if (pk <= 0) return
@@ -222,32 +307,29 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
           a.visible = false
           return
         }
-        const p = path(i)
-        const at = pointAt(p, pk * 0.85, sA)
-        const ahead = pointAt(p, Math.min(1, pk * 0.85 + 0.03), sB)
-        const dir = Math.atan2(ahead.x - at.x, ahead.z - at.z) || at.yaw
-        // Spine trailing behind the feet: the hips' +x axis points away from the direction of travel.
-        a.place(at.x - Math.sin(dir) * 0.45, at.z - Math.cos(dir) * 0.45, dir + PI / 2).hold(DRAGGED)
-        a.y = 0.0
+        dragBody(a, paths[i], pk * (paths[i].total - BODY_LEN), n2)
       })
       w.apply(t)
-      // Hands on the ankles.
-      list.forEach((a, i) => {
-        const pk = pull(i)
-        if (pk <= 0 || pk >= 1 || !o1.visible) return
+      // Hands on the ankles (while bending down, and through the pull).
+      const reachW = k > 0 && k < 1 ? 1 : u >= d.walk[1] && k <= 0 ? ss(d.walk[1], d.pull[0], u) : 0
+      if (reachW > 0 && o1.visible) {
+        const a = list[cur]
         jointPos(a.figure, 'lFoot', v)
         jointPos(a.figure, 'rFoot', v2)
-        o1.reach('r', 1, v.x, v.y + 0.05, v.z, 0.4)
-        o1.reach('l', 1, v.x, v.y + 0.05, v.z, 0.4)
-        o2.reach('r', 1, v2.x, v2.y + 0.05, v2.z, 0.4)
-        o2.reach('l', 1, v2.x, v2.y + 0.05, v2.z, 0.4)
+        o1.reach('r', reachW, v.x, v.y + 0.05, v.z, 0.4)
+        o1.reach('l', reachW, v.x, v.y + 0.05, v.z, 0.4)
+        o2.reach('r', reachW, v2.x, v2.y + 0.05, v2.z, 0.4)
+        o2.reach('l', reachW, v2.x, v2.y + 0.05, v2.z, 0.4)
         o1.apply(t, true)
         o2.apply(t, true)
+      }
+      // The smear drawn behind each body as its hips come off the tray.
+      list.forEach((_, i) => {
+        const pk = pull(i)
+        const s = pk * (paths[i].total - BODY_LEN)
+        smearFor(r, i, n2, pk <= 0 ? 0 : s - 0.55, 1)
       })
-      // The smear drawn toward the door.
-      const start = { x: BODY[0].x - 0.9, z: BODY[0].z }
-      streak(r.smear, start, { x: DOOR.x, z: DOOR.z }, 4.6 * ss(0, 0.85, pull(0)), 1)
-      if (n2) streak(r.smear2, { x: BODY[1].x - 0.9, z: BODY[1].z }, { x: DOOR.x + 0.15, z: DOOR.z }, 4.2 * ss(0, 0.85, pull(1)), 1)
+      if (!n2) r.smear2.visible = false
       motion.step = o1.step
       motion.walking = Math.max(o1.walking, o2.walking)
       motion.robots = k > 0 && k < 1 ? 1 : 0
@@ -260,10 +342,11 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       realRoom(w, { cornerDim: true })
       r.setDoor(1)
       r.blood.visible = true
-      const clean = ss(0.3, 0.95, u)
-      r.bloodMats.forEach((m, i) => (m.opacity = 1 - ss(0.3 + i * 0.12, 0.55 + i * 0.12, u)))
-      streak(r.smear, { x: BODY[0].x - 0.9, z: BODY[0].z }, { x: DOOR.x, z: DOOR.z }, 4.6, 1 - clean)
-      if (n2) streak(r.smear2, { x: BODY[1].x - 0.9, z: BODY[1].z }, { x: DOOR.x + 0.15, z: DOOR.z }, 4.2, 1 - clean)
+      const clean = ss(0.42, 0.95, u)
+      r.bloodMats.forEach((m, i) => (m.opacity = 1 - ss(0.42 + i * 0.1, 0.62 + i * 0.1, u)))
+      smearFor(r, 0, n2, 4.6, 1 - clean)
+      if (n2) smearFor(r, 1, n2, 4.6, 1 - clean)
+      else r.smear2.visible = false
       // The trolley pushed in and parked by the door.
       const tk = ss(0.06, 0.3, u)
       r.trolley.visible = true
@@ -275,32 +358,37 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         r.wetSign.rotation.y = 0.6
       }
       const [k1, k2] = c.cleaners.map((a) => w.use(a))
-      if (u < 0.3) {
-        k1.walk(makePath([[159.6, 5.4], [159.3, 2.6]]), tk, PUSH, PI, PI)
-        k2.walk(makePath([[160.4, 5.8], [160.3, 3.0], [160.6, 1.2]]), sub(u, 0.08, 0.34), P.STAND, PI, PI)
-      } else {
-        // Mop strokes across the floor; the scrubber humming by the corner.
-        const sx = Math.sin(t * 2.4) * 0.35
-        k1.place(160.7 + sx * 0.4, lerp(-0.2, 0.9, sub(u, 0.3, 0.95)), PI - 0.6).hold(C.MOP)
-        k2.place(161.5, lerp(-1.1, -0.6, sub(u, 0.35, 0.95)), PI + 0.4).hold(PUSH)
-      }
+      // The first parks the trolley, takes the mop and walks to the corner (0.3–0.42), then mops back toward the door.
+      const mopping = ss(0.42, 0.48, u)
+      const sx = Math.sin(t * 2.4) * 0.35 * mopping
+      if (u < 0.3) k1.walk(makePath([[159.6, 5.4], [159.3, 2.6]]), tk, PUSH, PI, PI)
+      else if (u < 0.42) k1.walk(makePath([[159.3, 2.6], [159.75, 2.0], [160.2, 0.9], [160.7, -0.2]]), sub(u, 0.3, 0.42), C.MOP, PI, PI - 0.6)
+      else k1.place(160.7 + sx * 0.4, lerp(-0.2, 0.9, sub(u, 0.42, 0.95)), PI - 0.6).hold(C.MOP)
+      // The second pushes the floor scrubber in to the corner and works along the blood.
+      const scrubZ = lerp(-1.1, -0.6, sub(u, 0.4, 0.95)) + bdz
+      if (u < 0.36) k2.walk(makePath([[160.4, 5.8], [160.3, 3.0], [161.0, 0.9], [161.5, -1.1 + bdz]]), sub(u, 0.08, 0.36), PUSH, PI, PI + 0.4)
+      else k2.place(161.5, scrubZ, PI + 0.4).hold(PUSH)
       w.apply(t)
-      // The mop in the first cleaner's hands; the scrubber in front of the second.
+      // The scrubber in front of the second, both hands on its handle.
+      const fx = Math.sin(k2.yaw)
+      const fz = Math.cos(k2.yaw)
+      r.scrubber.visible = u > 0.08
+      r.scrubber.position.set(k2.x + fx * 0.55, 0, k2.z + fz * 0.55)
+      r.scrubber.rotation.y = k2.yaw - 0.4
+      const hx = k2.x + fx * 0.2
+      const hz = k2.z + fz * 0.2
+      k2.reach('r', 1, hx - fz * 0.15, 1.0, hz + fx * 0.15, 0.4)
+      k2.reach('l', 1, hx + fz * 0.15, 1.0, hz - fx * 0.15, 0.4)
+      k2.apply(t, true)
+      // The mop in the first cleaner's hands once the trolley is parked.
       if (u >= 0.3) {
         jointPos(k1.figure, 'chest', v)
         r.mop.visible = true
-        const sx = Math.sin(t * 2.4) * 0.35
         r.mop.position.set(v.x - 0.35 + sx, 0, v.z - 0.65)
         r.mop.rotation.set(0.35, 0.4, 0)
         k1.reach('r', 1, r.mop.position.x + 0.2, 0.95, r.mop.position.z + 0.32, 0.4)
         k1.reach('l', 1, r.mop.position.x + 0.32, 1.25, r.mop.position.z + 0.45, 0.4)
-        r.scrubber.visible = true
-        r.scrubber.position.set(161.45, 0, lerp(-1.1, -0.6, sub(u, 0.35, 0.95)) - 0.55)
-        r.scrubber.rotation.y = PI
-        k2.reach('r', 1, 161.3, 1.0, r.scrubber.position.z + 0.38, 0.4)
-        k2.reach('l', 1, 161.6, 1.0, r.scrubber.position.z + 0.38, 0.4)
         k1.apply(t, true)
-        k2.apply(t, true)
       } else {
         k1.reach('r', 1, r.trolley.position.x - 0.1, 0.9, r.trolley.position.z + 0.3, 0.4)
         k1.reach('l', 1, r.trolley.position.x + 0.15, 0.9, r.trolley.position.z + 0.3, 0.4)
@@ -374,7 +462,8 @@ function fromTheFloor(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   tray(w, trayZ, n2)
   const list = bodies(w, f, trayZ)
   list.forEach((a) => bare(w, a))
-  const pov = seg !== 'floor' || u >= 0.47
+  // With two, the wide holds a little longer, pushing in on the two lying side by side ("334'ün yanında").
+  const pov = seg !== 'floor' || u >= (n2 ? 0.62 : 0.47)
   // The door: the seam splits (doorOpens 0.12), shut again (enters 0.6).
   let open = 0
   if (seg === 'doorOpens') open = ss(0.12, 0.3, u)
@@ -401,9 +490,11 @@ function fromTheFloor(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   } else if (seg === 'comes') {
     g2.visible = tech.visible = false
     // Toward the corner — toward us — with short, hard steps; hands reaching down.
+    // He stops at the tray's front edge, over 333 (with two, 333 lies on the front half).
+    const me0 = slot(0, n2)
     const start = { x: 160.0, z: 1.6 }
-    const end = { x: 161.05, z: -0.95 }
-    if (u < 0.2) arif.place(start.x, start.z, PI).hold(P.STAND).lookAt(161.85, -1.85, ss(0, 0.15, u))
+    const end = { x: 161.05, z: me0.z + 0.95 }
+    if (u < 0.2) arif.place(start.x, start.z, PI).hold(P.STAND).lookAt(161.85, me0.z + 0.05, ss(0, 0.15, u))
     else if (u < 0.86) arif.walk(makePath([[start.x, start.z], [end.x, end.z]]), sub(u, 0.2, 0.86), P.STAND, PI, PI - 0.5, 0.75)
     else arif.place(end.x, end.z, PI - 0.5).blend([[0.86, P.STAND], [1.0, REACH_DOWN]], u)
   }
@@ -414,7 +505,7 @@ function fromTheFloor(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   motion.doors = seg === 'doorOpens' ? win(u, 0.12, 0.14, 0.26, 0.3) : seg === 'enters' ? win(u, 0.55, 0.57, 0.64, 0.68) : seg === 'floor' ? win(u, 0.04, 0.06, 0.48, 0.52) : 0
   if (!pov) {
     // The ch. 4 wide from the door, panning to the corner.
-    shot.pos.set(160.0, 1.7, 2.25)
+    shot.pos.set(160.0, 1.7, 2.25).lerp(v.set(160.3, 1.42, 1.15), n2 ? ss(0.42, 0.62, u) : 0)
     shot.tgt.set(160.0, 1.15, -1.0).lerp(v.set(161.2, 0.35, -1.9), ss(0.08, 0.42, u))
     shot.fov = 50
     return

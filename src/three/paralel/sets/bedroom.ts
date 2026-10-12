@@ -307,7 +307,8 @@ export class BedroomSet implements PSet {
     const lens = this.group.getObjectByName('nightlight-lens') as THREE.Mesh
     ;(lens.material as THREE.MeshBasicMaterial).color.set(power ? 0x5c8bff : 0x101a30)
     this.hallTv.opacity = power ? 0.3 * tv : 0
-    this.leaf.rotation.y = seg === 'powerKept' ? 0 : 20 * (PI / 180)
+    // Ajar 20°; she pushes it wide when she comes (normal).
+    this.leaf.rotation.y = seg === 'powerKept' ? 0 : (seg === 'normal' ? lerp(20, 72, ss(0.02, 0.07, u)) : 20) * (PI / 180)
 
     // The flash and the burnt marks.
     this.flash.visible = flash > 0.01
@@ -485,7 +486,7 @@ export class BedroomSet implements PSet {
     // The mother: a silhouette in the doorway with a flashlight, from 0.05 to 0.64.
     const here = ss(0.03, 0.08, u) * (1 - ss(0.62, 0.68, u))
     anne.visible = here > 0.02
-    anne.place(lerp(703.0, 702.25, here), 0.85, -PI / 2)
+    anne.place(lerp(703.0, 702.02, here), 0.85, -PI / 2)
     anne.hold(PP.TORCH)
     anne.apply(t, true)
     // The beam: in through the door, across where the other one knelt, onto him; then away.
@@ -509,18 +510,28 @@ export class BedroomSet implements PSet {
       // Spill on the walls lights her from the front a little.
       env.point(0, aim.x, aim.y + 0.3, aim.z, 0xfff0d6, 0.5 * on, 3)
     }
-    // Faint moonlight so the dark is not black.
+    // Faint moonlight so the dark is not black; a cold window light down the hall outlines her.
     env.setFill(new THREE.Vector3(699.0, 1.5, 2.2), new THREE.Vector3(700.5, 0.3, -0.9), 0x6a7ab0, 0.2)
+    env.point(1, 703.7, 1.9, 3.0, 0x7a8cc8, 2.2 * here, 4.5)
 
-    if (cu < 0.6) {
+    if (cu < 0.33) {
+      // From behind him toward the door: her silhouette, the beam in our eyes.
       keyed(SHOTS.normalA, cu / 0.6, shot)
       shot.handheld = 0.4
+    } else if (cu < 0.6) {
+      // From the bed side, low: him on the floor in the beam, the pin going under his knee, the shrug.
+      const k = ss(0.33, 0.6, cu)
+      shot.pos.set(lerp(699.35, 699.45, k), lerp(0.62, 0.6, k), lerp(-0.25, -0.35, k))
+      shot.tgt.set(700.62, 0.32, -0.98)
+      shot.fov = lerp(42, 38, k)
+      shot.handheld = 0.3
     } else {
-      // Slow push to his face, lit by the receding beam, then dark.
+      // Slow push to his face from in front and to his right (clear of the desk), lit by the
+      // receding beam, then dark.
       boy.figure.joints.head.getWorldPosition(this.v)
       const k = ss(0.6, 1, cu)
-      shot.pos.set(this.v.x + lerp(0.55, 0.3, k), this.v.y + lerp(0.08, 0.02, k), this.v.z + lerp(-0.85, -0.5, k))
-      shot.tgt.set(this.v.x - 0.05, this.v.y - 0.02, this.v.z)
+      shot.pos.set(this.v.x + lerp(-0.5, -0.3, k), this.v.y + lerp(0.08, 0.03, k), this.v.z + lerp(-0.8, -0.5, k))
+      shot.tgt.set(this.v.x + 0.05, this.v.y - 0.02, this.v.z)
       shot.fov = lerp(40, 34, k)
       shot.handheld = 0.3
     }

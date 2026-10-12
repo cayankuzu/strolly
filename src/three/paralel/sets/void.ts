@@ -12,7 +12,7 @@ import { mesh } from '../../util'
 import { PI, rng, ss, win, canvasTexture, type Ctx, type Dir, type PSet } from '../common'
 import { lineMaterial, particleMaterial } from '../shaders'
 import * as PP from '../poses'
-import { H9 } from '../cast'
+import { H9, setGrip } from '../cast'
 import type { SkyPreset } from '../env'
 
 const X = -300
@@ -48,14 +48,19 @@ export function canLabel() {
       }
       g.restore()
     }
-    wing(W / 2 - 16, 92, 1.0, -1)
-    wing(W / 2 + 16, 92, 1.0, 1)
+    wing(W / 2 - 14, 66, 0.85, -1)
+    wing(W / 2 + 14, 66, 0.85, 1)
+    // The word, condensed to the third of the can that faces you.
+    g.save()
+    g.translate(W / 2, 146)
+    g.scale(0.62, 1)
     g.fillStyle = '#0d2a5c'
-    g.font = '800 40px sans-serif'
+    g.font = '800 34px sans-serif'
     g.textAlign = 'center'
-    g.fillText('KANATLANDIRIR', W / 2, 182)
+    g.fillText('KANATLANDIRIR', 0, 0)
+    g.restore()
     g.fillStyle = '#ffffff'
-    g.fillRect(W / 2 - 120, 198, 240, 3)
+    g.fillRect(W / 2 - 80, 160, 160, 3)
   })
 }
 
@@ -90,16 +95,23 @@ function bannerTexture() {
   })
 }
 
+/**
+ * Camera keys in the walker's frame (z relative to him). 0–0.42 a medium close from in front and to
+ * his right (the banner behind the camera, out of frame); the insert (0.42–0.64) is aimed at the can
+ * itself; 0.66–1 beside the line at his waist, looking down past his sneakers along the fall.
+ */
 const SHOTS: Record<'can', ShotKeys> = {
   can: [
-    [0, [-298.7, 0.75, 1.55, -300.05, 0.85, -0.05, 35]],
-    [0.4, [-298.8, 0.8, 1.45, -300.05, 0.95, -0.1, 33]],
-    [0.42, [-299.25, 0.98, 0.42, -300.05, 0.96, -0.2, 32]],
-    [0.64, [-299.3, 0.98, 0.36, -300.05, 0.96, -0.2, 30]],
-    [0.66, [-299.35, 1.1, 0.7, -300.15, -0.6, -0.55, 46]],
-    [1, [-299.4, 0.95, 0.6, -300.25, -3.2, -0.6, 50]],
+    [0, [-298.72, 0.86, -1.5, -299.8, 0.92, 0.12, 33]],
+    [0.3, [-298.85, 0.9, -1.32, -299.82, 0.97, 0.08, 30]],
+    [0.33, [-298.85, 0.9, -1.32, -299.82, 0.97, 0.08, 30]],
+    [0.66, [-298.7, 1.0, -0.9, -299.75, 0.55, -0.06, 46]],
+    [0.78, [-298.72, 0.95, -0.86, -299.8, 0.0, -0.05, 46]],
+    [1, [-298.72, 0.86, -0.82, -299.78, -1.1, -0.04, 46]],
   ],
 }
+/** Where the insert camera sits relative to the can held out to it. */
+const INSERT = new THREE.Vector3(0.3, 0.035, -0.36)
 
 export class VoidSet implements PSet {
   readonly group = new THREE.Group()
@@ -111,6 +123,8 @@ export class VoidSet implements PSet {
   private pose = makePose({})
   private v = new THREE.Vector3()
   private q = new THREE.Quaternion()
+  private q2 = new THREE.Quaternion()
+  private e = new THREE.Euler()
 
   build(c: Ctx) {
     const g = this.group
@@ -210,6 +224,8 @@ export class VoidSet implements PSet {
     }
     boy.y = 0.015
     boy.apply(t, true)
+    // The right hand closes on the can while he holds it.
+    if (seg === 'can') setGrip(boy.figure, u > 0.035 && u < 0.72, ['r'])
     d.step = boy.step
     d.walking = seg === 'line' ? 0.6 : 0
     if (seg === 'can') this.placeCan(d, bz)
@@ -246,14 +262,19 @@ export class VoidSet implements PSet {
       shot.handheld = 0.4
     } else {
       keyed(SHOTS.can, cu, shot)
-      // Shift into the walker's frame (keys are written for z = −5.18 → origin offset).
+      // Into the walker's frame.
       shot.pos.z += bz
       shot.tgt.z += bz
-      if (cu > 0.66) {
-        // Tilt down with the falling can.
+      if (cu >= 0.33 && cu < 0.66) {
+        // The insert: half a metre from the can, the label legible.
         const cp = this.can.position
-        shot.tgt.y = Math.min(shot.tgt.y, lerp(0.2, cp.y, ss(0.72, 0.8, u)))
-        shot.tgt.x = lerp(shot.tgt.x, cp.x, 0.5)
+        shot.pos.copy(cp).add(INSERT)
+        shot.tgt.copy(cp).setY(cp.y + 0.005)
+        shot.fov = 30
+      } else if (cu >= 0.66) {
+        // Follow the falling can down a little (it shrinks into the dark below the twin).
+        const cp = this.can.position
+        shot.tgt.y = lerp(shot.tgt.y, Math.max(cp.y, -4.5), 0.35 * ss(0.74, 0.9, u))
       }
       shot.handheld = 0.3
     }
@@ -268,7 +289,7 @@ export class VoidSet implements PSet {
     blendPose(PP.POCKETS, PP.STAND, k, this.pose)
     boy.hold(this.pose)
     // Head back while drinking.
-    const drink = win(0.16, 0.22, 0.36, 0.42, u)
+    const drink = win(0.15, 0.19, 0.25, 0.29, u)
     boy.pose[2 + 4 * 3] += -0.55 * drink
     boy.pose[2 + 3 * 3] += -0.2 * drink
     // Looking at us while he raises it; looking down after the drop.
@@ -284,16 +305,16 @@ export class VoidSet implements PSet {
     // Right hand targets (world), in sequence.
     const pocket = [X - 0.12 * H, chest(0.92), bz - 0.06]
     const front = [X - 0.06 * H, chest(1.08), bz - 0.22]
-    const mouth = [X - 0.02 * H, chest(1.46), bz - 0.12]
-    const toast = [X + 0.08, chest(1.32), bz + 0.28]
+    const mouth = [X - 0.02 * H, chest(1.46) + 0.13, bz - 0.11]
+    const toast = [X - 0.02, chest(1.3), bz - 0.3]
     const side = [X + 0.32, chest(1.12), bz - 0.06]
     const keys: Array<[number, number[]]> = [
       [0.04, pocket],
       [0.11, front],
       [0.16, front],
-      [0.22, mouth],
-      [0.38, mouth],
-      [0.44, toast],
+      [0.19, mouth],
+      [0.26, mouth],
+      [0.32, toast],
       [0.62, toast],
       [0.68, front],
       [0.71, side],
@@ -316,7 +337,7 @@ export class VoidSet implements PSet {
     // The left hand comes to open the tab.
     const open = win(0.09, 0.12, 0.14, 0.17, u)
     boy.reach('l', open, X + 0.0, chest(1.12), bz - 0.24, 0.4)
-    boy.lookAt(X + 2, bz + 2.5, win(0.42, 0.46, 0.6, 0.64, u) * 0.6)
+    boy.lookAt(X + 2, bz - 2.5, win(0.3, 0.34, 0.6, 0.64, u) * 0.6)
   }
 
   private placeCan(d: Dir, bz: number) {
@@ -335,14 +356,21 @@ export class VoidSet implements PSet {
       // Upright in the hand, label to whoever he shows it to.
       can.rotateX(-PI / 2 + 0.1)
       can.rotateY(PI)
-      can.position.y += 0.0
+      // Held out to us: upright, the wings and the word square to the lens.
+      const show = win(0.29, 0.33, 0.62, 0.66, u)
+      if (show > 0) {
+        // (the label's middle is the can's local +x)
+        this.q2.setFromEuler(this.e.set(0, Math.atan2(-INSERT.z, INSERT.x) - 0.35, 0))
+        can.quaternion.slerp(this.q2, show)
+        // Held by its lower end, so the hand does not cover the word.
+        can.position.y += 0.035 * show
+      }
     } else {
-      // Let go: it tumbles down into the dark past the twin, never landing.
-      const sec = (u - 0.72) * 9
-      boy.figure.rGrip.getWorldPosition(this.v)
+      // Let go: it tumbles slowly down into the dark past the twin, shrinking, never landing.
+      const sec = (u - 0.72) * 4
       const x0 = X + 0.32
       const y0 = H9 * 1.1
-      can.position.set(x0 + 0.12 * sec, y0 - 4.9 * sec * sec, bz - 0.06 + 0.05 * sec)
+      can.position.set(x0 + 0.05 * sec, y0 - 4.9 * sec * sec, bz - 0.06 + 0.04 * sec)
       can.rotation.set(sec * 3.1, sec * 1.3, sec * 2.2)
     }
     void bz

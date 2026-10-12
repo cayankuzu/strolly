@@ -106,6 +106,7 @@ const tr = {
 
   // Journal
   'journal.close': 'KAPAT',
+  'journal.sections': 'Günlük bölümleri',
   'journal.title': 'Günlük',
   'journal.discoveries': 'Keşifler',
   'journal.empty': 'Bu okumada henüz bir şey sorulmadı, bir şey seçilmedi.',
@@ -146,6 +147,7 @@ const tr = {
   'error.retry': 'SON KAYIT NOKTASINA DÖN',
   'crash.line': 'Bu hikâye şu anda açılamadı.',
   'crash.read': 'Metin olarak oku',
+  'skip.read': 'Hikâyeleri metin olarak oku',
 
   // Settings
   'settings.groups': 'Ayar grupları',
@@ -289,6 +291,7 @@ const en: Record<Key, string> = {
   'pause.hint': 'ESC · RESUME',
 
   'journal.close': 'CLOSE',
+  'journal.sections': 'Journal sections',
   'journal.title': 'Journal',
   'journal.discoveries': 'Discoveries',
   'journal.empty': 'Nothing has been asked or chosen in this reading yet.',
@@ -324,6 +327,7 @@ const en: Record<Key, string> = {
   'error.retry': 'BACK TO THE LAST CHECKPOINT',
   'crash.line': 'This story could not be opened right now.',
   'crash.read': 'Read as text (in Turkish)',
+  'skip.read': 'Read the stories as text (in Turkish)',
 
   'settings.groups': 'Setting groups',
   'settings.tabDisplay': 'DISPLAY',

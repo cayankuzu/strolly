@@ -36,6 +36,8 @@ const PINNED = makePose({ spine: [-0.1, 0, 0], neck: [0.1, 0, 0], head: [0.15, 0
 const WIPE = makePose({ rUpper: [-0.9, 0.3, -0.35], rFore: [-2.0, 0, 0], rHand: [0.2, 0, 0.3], head: [0.0, 0, 0] }, P.STAND)
 const STRAIGHT = makePose({ spine: [-0.04, 0, 0], chest: [-0.08, 0, 0], head: [-0.06, 0, 0] }, P.STAND)
 const TOWEL_TAKE = makePose({ rUpper: [-0.8, 0, -0.1], rFore: [-0.6, 0, 0], head: [-0.05, 0, 0] }, P.STAND)
+/** Leaning in over the desk toward the pen holder (the right arm is set by `reach`). */
+const LEAN_IN = makePose({ spine: [0.5, 0, 0], chest: [0.15, 0, 0], neck: [-0.2, 0, 0], head: [-0.15, 0, 0], lUpper: [-0.35, 0, 0.15], lFore: [-0.5, 0, 0] }, P.STAND)
 const HOLD_TOWEL = makePose({ lUpper: [-0.3, 0, 0.12], lFore: [-1.35, 0.3, 0], rUpper: [-0.3, 0, -0.12], rFore: [-1.35, -0.3, 0] }, P.STAND)
 
 // ——— Places ———
@@ -81,6 +83,7 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
 const v = new THREE.Vector3()
 const v2 = new THREE.Vector3()
 const v3 = new THREE.Vector3()
+const qHead = new THREE.Quaternion()
 
 /** The office's loose things, their rest transforms (local to the office holder). */
 type Rest = { pos: THREE.Vector3; rot: THREE.Euler }
@@ -178,8 +181,9 @@ function copies(w: World, f: SetFrame, a1: number, a2: number) {
   const u2 = w.copyU[1]
   u1.uSeed.value.set(160, 0.82, -0.45, 1 / 1.75)
   u2.uSeed.value.set(WINDOW_COPY.x + 0.1, 1.15, WINDOW_COPY.z + 0.25, 1 / 1.7)
-  u1.uReveal.value = a1 * 1.12
-  u2.uReveal.value = a2 * 1.12
+  // Once assembled, a copy stays whole wherever the fit takes him (the walls are > 2 m from the seed).
+  u1.uReveal.value = a1 >= 1 ? 40 : a1 * 1.12
+  u2.uReveal.value = a2 >= 1 ? 40 : a2 * 1.12
   const b1 = w.use(c.copy1)
   b1.visible = a1 > 0.001
   const b2 = w.use(c.copy2)
@@ -375,6 +379,18 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         b1.reach('l', flick, 160.3 + 0.08 * Math.sin(u * 90), 1.15, -0.85, 0.5)
       }
       w.apply(t)
+      if (m !== 'laugh' && m !== 'money') {
+        // "Şş…": the left hand up at his lips (the pose alone leaves it at the cheek).
+        const lips = win(u, 0.1, 0.18, 0.55, 0.62)
+        if (lips > 0) {
+          const head = b1.figure.joints.head
+          head.getWorldPosition(v)
+          head.getWorldQuaternion(qHead)
+          v2.set(0, 0.05, 0.15).applyQuaternion(qHead)
+          b1.reach('l', lips, v.x + v2.x, v.y + v2.y, v.z + v2.z, 0.3)
+          b1.apply(t, true)
+        }
+      }
       w.mouth(b1, open)
       w.mouth(b2, open)
       phoneIn(w, b1, 0)
@@ -476,9 +492,18 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       post.white = fl
       w.lights.setPoint(1, 0xffffff, 8 * fl / 0.45, [162.2, 1.6, -0.6], 3)
       jointPos(a.figure, 'head', v)
-      shot.pos.set(162.18, 1.58, 0.05).lerp(v2.set(162.12, 1.6, -0.18), sub(u, 0, 1))
-      shot.tgt.copy(v).add(v3.set(0.0, -0.02, 0))
-      shot.fov = 32
+      if (u < 0.42) {
+        // Line 1, "Patakladığı adam tıpkı patronuydu": over his left shoulder, the man pinned to the east wall — the
+        // boss's own face, untouched; the fist hangs at the top of its arc. Line 2 cuts to Arif's face.
+        jointPos(b1.figure, 'head', v2)
+        shot.pos.set(161.0, 1.76, -1.32).lerp(v3.set(161.06, 1.74, -1.27), sub(u, 0, 0.42))
+        shot.tgt.copy(v2).add(v3.set(0, -0.04, -0.2))
+        shot.fov = 36
+      } else {
+        shot.pos.set(162.18, 1.58, 0.05).lerp(v2.set(162.12, 1.6, -0.18), sub(u, 0.42, 1))
+        shot.tgt.copy(v).add(v3.set(0.0, -0.02, 0))
+        shot.fov = 32
+      }
       break
     }
     case 'monitor': {
@@ -661,8 +686,9 @@ function monitorScene(w: World, f: SetFrame, shot: Shot, u: number) {
   const a = w.use(c.arifO)
   if (u < 0.5) a.visible = false
   else {
-    // His hand reaching into frame toward the pen holder.
-    a.place(161.25, 0.25, PI + 0.6).hold(P.STAND)
+    // His hand reaching into frame toward the pen holder: he leans in over the desk's front edge, off the left
+    // of the desk-level camera (well clear of it), so only the arm crosses the frame.
+    a.place(160.35, 0.45, 2.81).blend([[0.5, P.STAND], [0.6, LEAN_IN]], u)
     a.reach('r', ss(0.52, 0.66, u), 160.68, 0.86, -0.32, 0.4)
   }
   w.apply(t)
@@ -671,7 +697,8 @@ function monitorScene(w: World, f: SetFrame, shot: Shot, u: number) {
   motion.doors = flash(u, 0.12, 0.05)
   if (u < 0.32) {
     shot.pos.set(158.6, 1.25, 0.25).lerp(v3.set(158.75, 1.2, 0.05), sub(u, 0, 0.32))
-    shot.tgt.set(159.45, 1.1, -0.75)
+    // Tilted up a touch so the second copy at the window (two) keeps his head in frame.
+    shot.tgt.set(159.45, 1.22, -0.75)
     shot.fov = 36
   } else if (u < 0.5) {
     shot.pos.set(159.6, 1.6, 0.9).lerp(v3.set(159.4, 1.6, 0.8), sub(u, 0.32, 0.5))

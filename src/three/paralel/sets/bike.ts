@@ -17,8 +17,12 @@ import { ghostMaterial } from '../ghost'
 import * as PP from '../poses'
 import { sunDir, type SkyPreset } from '../env'
 import { H15 } from '../cast'
+import { gripLine } from '../grip'
 
 const X = 500
+const BAR_IN_L = new THREE.Vector3(-1, 0, 0)
+const BAR_IN_R = new THREE.Vector3(1, 0, 0)
+const BAR_FWD = new THREE.Vector3(0, 0.4, 0.92)
 const DEPTH = -30
 const DUSTY: SkyPreset = { zenith: 0x5a7aa8, horizon: 0xe2c08e, below: 0x7a6650, haze: 0xd8b688, hazeAmt: 0.7, sunColor: 0xffc27a, disc: 4, glow: 1.2, cloud: 0.2, cloudLit: 0xffd8a8, cloudShade: 0x9a8a88, power: 1.15 }
 
@@ -124,6 +128,7 @@ export class BikeSet implements PSet {
   private land = new Burst(260, 0xc49a5c, 0.14, false, 41)
   private frameM = new THREE.Matrix4()
   private v = new THREE.Vector3()
+  private gp = new THREE.Vector3()
 
   build(c: Ctx) {
     const g = this.group
@@ -362,9 +367,10 @@ export class BikeSet implements PSet {
     // Canonical: rider at the origin facing +z; the bike's frame carries him.
     a.y = 0.26
     a.z = -0.08
-    a.reach('l', 1, 0.3, 0.95, 0.37, 0.2)
-    a.reach('r', 1, -0.3, 0.95, 0.37, 0.2)
     a.apply(time, breathe)
+    // Fists round the bar ends (thumbs in toward the stem, knuckles forward), fingers off the levers.
+    gripLine(a.figure, 'l', this.gp.set(0.3, 0.95, 0.37), BAR_IN_L, BAR_FWD, 0.2)
+    gripLine(a.figure, 'r', this.gp.set(-0.3, 0.95, 0.37), BAR_IN_R, BAR_FWD, 0.2)
     carry(a.figure, b.matrixWorld)
   }
 
@@ -487,10 +493,12 @@ export class BikeSet implements PSet {
       shot.tgt.set(X, lerp(0.6, 0.2, k), fz + 1.4)
       shot.fov = 50
     } else if (cu < 0.7) {
+      // Back along the cleft and up a little: its two walls converging on the dark, the rider
+      // above it, the other one's front wheel dropping into it.
       const k = win(0.5, 0.56, 0.64, 0.7, cu)
-      shot.pos.set(lerp(507.2, 505.0, k), 0.5, -3.4)
-      shot.tgt.set(X, lerp(0.2, -6.5, k), lerp(fz + 1.2, -4.4, k))
-      shot.fov = 50
+      shot.pos.set(lerp(507.2, 508.6, k), lerp(0.5, 1.5, k), lerp(-3.2, -3.3, k))
+      shot.tgt.set(X, lerp(0.2, -3.6, k), lerp(fz + 1.2, -3.4, k))
+      shot.fov = lerp(50, 54, k)
     } else {
       const k = ss(0.7, 1, cu)
       shot.pos.set(lerp(507.2, 505.4, k), lerp(0.5, -1.4, k), lerp(-3.4, -6.4, k))

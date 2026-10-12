@@ -70,8 +70,8 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [-5.55, 1.64, 2.62, -7.6, 1.4, 2.0, 38]],
   ],
   route: [
-    [0, [82.37, 1.14, 1.82, 82.25, 1.07, 1.39, 32]],
-    [1, [82.34, 1.12, 1.74, 82.25, 1.07, 1.39, 30]],
+    [0, [82.37, 1.19, 1.82, 82.25, 1.1, 1.39, 32]],
+    [1, [82.34, 1.17, 1.74, 82.25, 1.1, 1.39, 30]],
   ],
 }
 
@@ -643,7 +643,7 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
     if (u >= 0.45) {
       a.reach('l', ss(0.5, 0.56, u), 81.63, 0.97, 1.72, 0.5)
       a.reach('r', ss(0.5, 0.56, u) * (1 - ss(0.6, 0.66, u)), 81.97, 0.97, 1.72, 0.5)
-      a.reach('r', ss(0.62, 0.7, u), 82.22, 1.05 + 0.01 * Math.sin(f.time * 9), 1.42, 0.3)
+      a.reach('r', ss(0.62, 0.7, u), 82.22, 1.09 + 0.01 * Math.sin(f.time * 9), 1.42, 0.3)
     }
     w.apply(f.time)
     car.screen.redraw((c, W, H) => S.route(c, W, H, 0, 0), 'kb0')
@@ -669,7 +669,7 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
     const lit = sub(u, 0.4, 0.6)
     car.screen.redraw((c, W, H) => S.route(c, W, H, typed, lit), `r:${Math.floor(typed * 11)}:${Math.round(lit * 20)}`)
     a.reach('l', 1, cx - 0.57, 0.97, cz - 0.28, 0.5)
-    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), cx + 0.03 * Math.sin(f.time * 7), 1.04, cz - 0.6, 0.3)
+    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), cx + 0.03 * Math.sin(f.time * 7), 1.08, cz - 0.6, 0.3)
     w.apply(f.time)
     keyed(KEYS.route!, held(u, f.reduced), shot)
   } else {
@@ -679,7 +679,8 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
     w.apply(f.time)
     w.mouth(a, speech(f.time, 0.3))
     // His profile from the passenger seat; the view swings ahead to the billboard as it comes up on the right.
-    const look = win(u, 0.44, 0.54, 0.66, 0.74)
+    // Back on his moving lips well before the line about them leaves (radio line 2 runs 0.43–1.0).
+    const look = win(u, 0.4, 0.48, 0.63, 0.68)
     shot.pos.set(cx + 0.44 + 0.16 * look, 1.2, cz + 0.16)
     const toFace = v.set(cx - 0.4, 1.16, cz + 0.12).sub(shot.pos).normalize()
     const toSign = v2.set(st.billboard.position.x, 4.6, st.billboard.position.z).sub(shot.pos).normalize()

@@ -6,7 +6,7 @@ import { STORY_ORDER } from '@/stories/registry'
 import type { StoryId } from '@/stories/types'
 import type { StorySave } from '@/lib/save'
 import { useStories, useT } from '@/lib/i18n'
-import { MenuButton, useMenuKeys } from './ui'
+import { MenuButton, useMenuKeys, useUiSound } from './ui'
 
 /**
  * ARŞİV: what each story left behind — how far it was read, what was noticed
@@ -15,14 +15,21 @@ import { MenuButton, useMenuKeys } from './ui'
 export function ArchiveScreen({ active, saves, onBack }: { active: boolean; saves: Partial<Record<StoryId, StorySave | null>>; onBack: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
   const t = useT()
+  const play = useUiSound()
   const stories = useStories()
   useMenuKeys(menu, active)
   return (
     <section className="screen credits archive" aria-hidden={!active} inert={!active} aria-labelledby="archive-title" data-lenis-prevent>
-      <div className="credits-inner">
-        <h1 id="archive-title" className="credits-title">
-          {t('archive.title')}
-        </h1>
+      <div ref={menu} className="credits-inner">
+        {/* The way back is at the top too (and takes focus), as on the story select. */}
+        <header className="ss-head archive-top">
+          <button type="button" className="ss-back" data-menu-item="" data-autofocus="" onClick={onBack} onMouseEnter={() => play('hover')}>
+            <span aria-hidden="true">←</span> {t('common.mainMenu')}
+          </button>
+          <h1 id="archive-title" className="ss-title">
+            {t('archive.title')}
+          </h1>
+        </header>
         <ol className="archive-list">
           {STORY_ORDER.map((id) => {
             const st = stories[id]
@@ -55,7 +62,7 @@ export function ArchiveScreen({ active, saves, onBack }: { active: boolean; save
           <dt>{t('credits.libs')}</dt>
           <dd>{t('credits.libsBody')}</dd>
         </dl>
-        <div ref={menu} className="credits-actions">
+        <div className="credits-actions">
           <MenuButton tier="primary" sound="close" onClick={onBack}>
             {t('common.mainMenu')}
           </MenuButton>

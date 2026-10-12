@@ -33,6 +33,8 @@ export class AtriumSet implements PSet {
   private walls: THREE.ShaderMaterial[] = []
   private breakPane!: THREE.Mesh
   private crack!: THREE.Mesh
+  private glassMat!: THREE.MeshStandardMaterial
+  private teeth!: THREE.Mesh
   private shards!: THREE.InstancedMesh
   private shardSeed: number[] = []
   private shimmer!: THREE.Mesh
@@ -62,7 +64,16 @@ export class AtriumSet implements PSet {
     const outer = facadeMaterial(shared, { wall: 0xb0a594, wall2: 0xa39886, glass: 0x1d262e, sky: 0xc8d4e0, cell: [2.8, 3.4] })
     this.walls.push(outer)
     // Shell and roof deck around the glass (the rim).
-    box(28, 25.6, 34, outer, XC, -26 + 25.6 / 2 - 0.4, 0, g)
+    // (open on top: the atrium's well is under the glass, the decks close the rest)
+    const shellGeo = new THREE.BoxGeometry(28, 25.6, 34)
+    const idx = shellGeo.index!.array
+    const keep: number[] = []
+    shellGeo.groups.forEach((gr, k) => {
+      if (k !== 2) for (let i = gr.start; i < gr.start + gr.count; i++) keep.push(idx[i])
+    })
+    shellGeo.setIndex(keep)
+    shellGeo.clearGroups()
+    mesh(shellGeo, outer, XC, -26 + 25.6 / 2 - 0.4, 0, g).name = 'atrium-shell'
     for (const [x, z, w, d] of [
       [XC, -13, 28, 8],
       [XC, 13, 28, 8],
@@ -112,6 +123,7 @@ export class AtriumSet implements PSet {
 
     // Glass panes in a T-rail grid; the breaking pane and the one under his feet apart.
     const glass = new THREE.MeshStandardMaterial({ color: 0x9cc9c2, roughness: 0.04, metalness: 0.1, transparent: true, opacity: 0.22, envMapIntensity: 1.6, depthWrite: false, side: THREE.DoubleSide })
+    this.glassMat = glass
     const paneGeo = new THREE.PlaneGeometry(1.42, 1.42)
     paneGeo.rotateX(-PI / 2)
     const panes = instances(paneGeo, glass, 96, (i) => {
@@ -124,6 +136,33 @@ export class AtriumSet implements PSet {
     g.add(panes)
     this.breakPane = mesh(paneGeo, glass, BREAK.x, 0, BREAK.z, g)
     this.breakPane.renderOrder = 2
+    // What stays in the rails once it has broken: jagged teeth of glass round an empty square.
+    const teeth: number[] = []
+    const r3 = rng(31)
+    for (let side = 0; side < 4; side++) {
+      const ca = Math.cos((side * PI) / 2)
+      const sa = Math.sin((side * PI) / 2)
+      const put = (u: number, v: number) => teeth.push(u * ca - v * sa, 0, u * sa + v * ca)
+      const n = 6
+      for (let k = 0; k < n; k++) {
+        const a = -0.71 + (k / n) * 1.42
+        const b = a + 1.42 / n
+        const tip = (a + b) / 2 + (r3() - 0.5) * 0.18
+        const depth = 0.08 + r3() * 0.32
+        put(a, -0.71)
+        put(tip, -0.71 + depth)
+        put(b, -0.71)
+      }
+    }
+    const teethGeo = new THREE.BufferGeometry()
+    teethGeo.setAttribute('position', new THREE.Float32BufferAttribute(teeth, 3))
+    teethGeo.computeVertexNormals()
+    const teethMat = glass.clone()
+    teethMat.opacity = 0.6
+    teethMat.color.set(0xc4e4de)
+    this.teeth = mesh(teethGeo, teethMat, BREAK.x, 0.002, BREAK.z, g)
+    this.teeth.renderOrder = 2
+    this.teeth.visible = false
     const rail = pbr('metal', 0x5b6268, { roughness: 0.5 })
     const railX = instances(new THREE.BoxGeometry(12.08, 0.12, 0.08).translate(0, -0.055, 0), rail, 13, (k) => [XC, 0, -9 + 1.5 * k], { shadow: true })
     const railZ = instances(new THREE.BoxGeometry(0.08, 0.12, 18).translate(0, -0.055, 0), rail, 9, (k) => [94 + 1.5 * k, 0, 0], { shadow: true })
@@ -210,12 +249,13 @@ export class AtriumSet implements PSet {
     mesh(new THREE.PlaneGeometry(1.2, 1.2).rotateX(-PI / 2), new THREE.MeshBasicMaterial({ map: prints, transparent: true, depthWrite: false }), COL, 0.005, 8.25, g).renderOrder = 3
 
     // ——— Inside the well ———
-    const holesW: Array<[number, number, number, number]> = [[-2.5, -7.0, -0.5, -4.4]]
-    const holesE: Array<[number, number, number, number]> = [[-5.5, -11.0, -3.5, -8.45]]
-    const holesS: Array<[number, number, number, number]> = [[99.5, -15.0, 101.5, -12.45]]
+    // Openings from the gallery floor up (the people inside are seen whole, not cut at the waist).
+    const holesW: Array<[number, number, number, number]> = [[-2.5, -7.98, -0.5, -4.4]]
+    const holesE: Array<[number, number, number, number]> = [[-5.5, -11.98, -3.5, -8.45]]
+    const holesS: Array<[number, number, number, number]> = [[99.5, -15.98, 101.5, -12.45]]
     const holesN: Array<[number, number, number, number]> = [
-      [-98.5, -19.0, -96.5, -16.45],
-      [-104.5, -2.95, -102.5, -0.5],
+      [-98.5, -19.98, -96.5, -16.45],
+      [-104.5, -3.98, -102.5, -0.5],
     ]
     const inner = (holes: Array<[number, number, number, number]>) => facadeMaterial(shared, { wall: 0xd9cbb4, wall2: 0xcdbfa8, glass: 0x2a2620, sky: 0x8a8070, cell: [3.0, 4.0], holes })
     const mW = inner(holesW)
@@ -291,14 +331,15 @@ export class AtriumSet implements PSet {
     const warmWall = pbr('plaster', 0xd8c4a4, { roughness: 1 })
     const plank = pbr('planks', 0x7a5a3e, { roughness: 0.8 })
     const ceil = pbr('plaster', 0xe0d6c4, { roughness: 1 })
-    const roomAt = (cx: number, y: number, cz: number, w: number, d: number) => {
-      const r = room({ w, d, h: 3.4, x: cx, z: cz, wall: warmWall, floor: plank, ceiling: ceil, trim: null })
+    // (each room is open on its atrium side: the well's wall has the opening)
+    const roomAt = (cx: number, y: number, cz: number, w: number, d: number, open: 'n' | 's' | 'e' | 'w') => {
+      const r = room({ w, d, h: 3.4, x: cx, z: cz, wall: warmWall, floor: plank, ceiling: ceil, trim: null, skip: [open] })
       r.position.y = y
       g.add(r)
       return r
     }
     // Laundry, west, level −8.
-    roomAt(92.3, -8, -1.5, 3.4, 3.0)
+    roomAt(92.3, -8, -1.5, 3.4, 3.0, 'e')
     const tbl = table(1.2, 0.7, 0.78, pbr('wood', 0x8a6a4a, { roughness: 0.7 }))
     tbl.position.set(93.1, -8, -1.3)
     tbl.rotation.y = PI / 2
@@ -307,7 +348,7 @@ export class AtriumSet implements PSet {
     for (let k = 0; k < 4; k++) box(0.34, 0.05, 0.28, k % 2 ? towel : pbr('fabric', 0x8fa8c0, { roughness: 1 }), 93.15, -8 + 0.81 + k * 0.05, -1.65, g)
     this.cloth = mesh(new THREE.PlaneGeometry(0.55, 0.42), pbr('fabric', 0xd9d0c0, { roughness: 1, side: THREE.DoubleSide }), 0, 0, 0, g)
     // Old man and TV, east, level −12.
-    roomAt(107.7, -12, 4.5, 3.4, 3.4)
+    roomAt(107.7, -12, 4.5, 3.4, 3.4, 'w')
     const arm = new THREE.Group()
     const leather = pbr('leather', 0x5a3a2a, { roughness: 0.7 })
     box(0.8, 0.42, 0.8, leather, 0, 0.21, 0, arm)
@@ -323,18 +364,18 @@ export class AtriumSet implements PSet {
     scr.rotation.y = PI
     box(0.8, 0.5, 0.4, pbr('wood', 0x5a4030, { roughness: 0.8 }), 107.4, -12 + 0.25, 6.05, g)
     // Child at a table, south, level −16; office, north, level −4; a couple, north, level −20.
-    roomAt(100.5, -16, 10.6, 3.0, 3.2)
+    roomAt(100.5, -16, 10.6, 3.0, 3.2, 'n')
     const ktable = table(0.9, 0.6, 0.62, pbr('wood', 0x9a7a58, { roughness: 0.7 }))
     ktable.position.set(100.5, -16, 10.9)
     g.add(ktable)
-    roomAt(103.5, -4, -10.6, 3.0, 3.2)
+    roomAt(103.5, -4, -10.6, 3.0, 3.2, 's')
     const desk = table(1.2, 0.6, 0.74, pbr('wood', 0x6a5a48, { roughness: 0.7 }))
     desk.position.set(103.5, -4, -11.2)
     g.add(desk)
     box(0.04, 0.4, 0.04, pal.steel, 103.9, -4 + 0.94, -11.3, g)
     const shade = mesh(new THREE.ConeGeometry(0.12, 0.16, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xffd9a0, side: THREE.DoubleSide }), 103.9, -4 + 1.16, -11.25, g)
     void shade
-    roomAt(97.5, -20, -10.6, 3.0, 3.2)
+    roomAt(97.5, -20, -10.6, 3.0, 3.2, 's')
     const dtable = table(1.0, 0.8, 0.74, pbr('wood', 0x7a5a3e, { roughness: 0.7 }))
     dtable.position.set(97.5, -20, -11.0)
     g.add(dtable)
@@ -421,18 +462,23 @@ export class AtriumSet implements PSet {
 
     const broken = seg === 'glassBroke' || (seg === 'crack' && u >= 0.6) || seg === 'ironSlipped'
     this.breakPane.visible = !broken
+    this.teeth.visible = broken
     const crackGrow = seg === 'crack' ? ss(0.54, 0.6, u) : 0
     this.crack.visible = crackGrow > 0.01 && !broken
     this.crack.scale.setScalar(0.15 + 0.85 * crackGrow)
+    // From below, the panes read as tinted glass so the empty one stands out against the sky.
+    this.glassMat.opacity = seg === 'glassBroke' ? 0.62 : 0.22
+    this.glassMat.color.set(seg === 'glassBroke' ? 0xd2e6e2 : 0x9cc9c2)
     this.dustDrift(t, seg === 'crack' ? win(0.22, 0.23, 0.26, 0.4, u) : 0)
     this.people(d)
     this.shardsAt(d)
 
     const boy = cast.solids.boy9
     if (seg === 'glassBroke') {
-      shot.pos.set(XC, -23.6, 0)
-      shot.tgt.set(XC - 0.2, 0, -0.6)
-      shot.fov = 55
+      // From the −4 gallery, up at the empty pane: jagged teeth round a square of sky, shards hanging.
+      shot.pos.set(98.2, -6.0, 1.0)
+      shot.tgt.set(BREAK.x, 0, BREAK.z)
+      shot.fov = 42
       shot.handheld = 0
       return
     }
@@ -486,9 +532,9 @@ export class AtriumSet implements PSet {
           a.hold(fall > 0 ? PP.FALL : P.STAND)
           if (fall <= 0) a.pose[2 + 4 * 3] += 0.45
           this.ghostX = lerp(COL, BREAK.x, side)
-          this.ghostY = -260 * fall * fall
+          this.ghostY = -150 * fall * fall
           this.ghostSpin = fall * 3
-          return 0.34 * (1 - ss(-5.5, -8, this.ghostY))
+          return 0.34 * (1 - ss(-7, -11, this.ghostY))
         },
         t,
         {
@@ -515,17 +561,22 @@ export class AtriumSet implements PSet {
         break
       case 'rooms':
         if (cu < 0.46) {
-          shot.pos.set(COL, 1.3, bz + 0.02)
-          shot.tgt.set(COL + 0.4, -24, bz - 1)
+          // His look straight down, from just in front of his face: his sneakers at the bottom edge,
+          // the rail grid, then the galleries stepping down to the mosaic.
+          shot.pos.set(COL + 0.04, 1.02, bz - 0.34)
+          shot.tgt.set(COL + 0.35, -24, bz - 2.2)
           shot.fov = 55
           shot.handheld = 0.4
         } else {
+          // Below the glass: the woman folding laundry in her doorway (−8), the old man asleep before
+          // the TV (−12), then up at the small figure walking on the glass ceiling.
           keyed(
             [
-              [0, [100.2, -6.0, -6.6, 92.0, -7.0, -3.6, 48]],
-              [0.25, [100.2, -6.0, -6.6, 106.0, -10.6, 3.4, 46]],
-              [0.42, [100.3, -6.1, -6.6, 106.0, -10.6, 3.6, 46]],
-              [0.6, [100.4, -6.2, -6.7, COL - 0.6, 0, bz + 0.6, 44]],
+              [0, [97.4, -6.7, -0.6, 92.6, -7.1, -1.45, 40]],
+              [0.222, [97.0, -6.65, -0.9, 92.6, -7.1, -1.45, 38]],
+              [0.2221, [101.2, -10.9, 3.2, 107.3, -11.25, 4.3, 40]],
+              [0.444, [101.6, -10.95, 3.4, 107.3, -11.3, 4.3, 38]],
+              [0.4441, [100.2, -6.2, -6.6, COL - 0.6, 0, bz + 0.6, 44]],
               [1, [100.4, -6.2, -6.7, COL - 0.6, 0, bz + 0.4, 42]],
             ],
             (cu - 0.46) / 0.54,
@@ -538,14 +589,17 @@ export class AtriumSet implements PSet {
           shot.pos.set(101.25, 0.2, -2.25 - 0.62)
           shot.tgt.set(COL - 0.05, 0.08, -2.15)
           shot.fov = 35
-        } else if (cu < 0.75) {
-          shot.pos.set(103.5, 2.6, -2.25)
-          shot.tgt.set(100.0, 0.2, -2.25)
-          shot.fov = 45
+        } else if (cu < 0.8) {
+          // Above and to the side, looking down into the next pane: the boy on his, the other one's
+          // pane cracking, then the hole, the shards and the other one dropping into the atrium.
+          const k = ss(0.5, 0.8, cu)
+          shot.pos.set(lerp(103.4, 103.3, k), lerp(2.8, 3.4, k), lerp(-1.2, -1.0, k))
+          shot.tgt.set(lerp(99.9, 99.7, k), lerp(-0.6, -3.0, k), lerp(-2.4, -3.0, k))
+          shot.fov = 50
         } else {
-          const k = ss(0.75, 1, cu)
-          shot.pos.set(lerp(104, 106, k), lerp(4, 6, k), lerp(2, 6, k))
-          shot.tgt.set(XC, lerp(-3, -6, k), -2)
+          const k = ss(0.8, 1, cu)
+          shot.pos.set(lerp(104, 106, k), lerp(4.5, 6.5, k), lerp(2, 5.5, k))
+          shot.tgt.set(XC, lerp(-2.5, -4.5, k), lerp(-3.2, -4.4, k))
           shot.fov = 45
         }
         shot.handheld = 0.4
@@ -600,7 +654,7 @@ export class AtriumSet implements PSet {
         const ft = Math.max(0, tt - delay)
         const x = BREAK.x + (a - 0.5) * 1.3 + (a - 0.5) * ft * 3
         const z = BREAK.z + (b - 0.5) * 1.3 + (b - 0.5) * ft * 3
-        const y = -0.02 - (150 + c * 60) * ft * ft
+        const y = -0.02 - (95 + c * 50) * ft * ft
         setInstance(im, i, x, y, z, ft * 14 * (c + 0.5), ft * 9 * a, ft * 11 * b, 0.6 + c * 0.9)
       }
       im.count = N_SHARDS

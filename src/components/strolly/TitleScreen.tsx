@@ -79,10 +79,21 @@ function TitleReel({ active }: { active: boolean }) {
   )
 }
 
+type Item = 'primary' | 'stories' | 'newGame' | 'settings' | 'archive' | 'exit'
+
 export default function TitleScreen({ active, resume, onContinue, onStories, onNewGame, onSettings, onArchive, onExit }: Props) {
   const menu = useRef<HTMLElement>(null)
   const lang = useLang()
   const t = useT()
+  // Back from a screen or a dialog, focus returns to the item that opened it.
+  const [back, setBack] = useState<Item>('primary')
+  const item = (key: Item, action: () => void) => ({
+    'data-autofocus': back === key ? '' : undefined,
+    onClick: () => {
+      setBack(key)
+      action()
+    },
+  })
   useMenuKeys(menu, active)
   return (
     <section className="screen title-screen" aria-hidden={!active} inert={!active} aria-labelledby="title-mark">
@@ -97,31 +108,30 @@ export default function TitleScreen({ active, resume, onContinue, onStories, onN
           {resume ? (
             <MenuButton
               tier="primary"
-              data-autofocus=""
-              onClick={onContinue}
+              {...item('primary', onContinue)}
               sub={t('title.resume', { title: resume.title, n: pad(resume.chapter), chapter: resume.chapterTitle, percent: t('common.percent', { n: resume.percent }) })}
             >
               {t('common.continue')}
             </MenuButton>
           ) : (
-            <MenuButton tier="primary" data-autofocus="" onClick={onStories} sub={t('title.count', { count: countWord(lang, STORY_ORDER.length) })}>
+            <MenuButton tier="primary" {...item('primary', onStories)} sub={t('title.count', { count: countWord(lang, STORY_ORDER.length) })}>
               {t('title.start')}
             </MenuButton>
           )}
-          <MenuButton onClick={onStories} sound="open">
+          <MenuButton {...item('stories', onStories)} sound="open">
             {t('common.stories')}
           </MenuButton>
-          <MenuButton onClick={onNewGame} sound="open">
+          <MenuButton {...item('newGame', onNewGame)} sound="open">
             {t('title.newGame')}
           </MenuButton>
           <span className="title-menu-gap" aria-hidden="true" />
-          <MenuButton tier="utility" onClick={onSettings} sound="open">
+          <MenuButton tier="utility" {...item('settings', onSettings)} sound="open">
             {t('common.settings')}
           </MenuButton>
-          <MenuButton tier="utility" onClick={onArchive} sound="open">
+          <MenuButton tier="utility" {...item('archive', onArchive)} sound="open">
             {t('title.archive')}
           </MenuButton>
-          <MenuButton tier="utility" onClick={onExit} sound="close">
+          <MenuButton tier="utility" {...item('exit', onExit)} sound="close">
             {t('title.exit')}
           </MenuButton>
         </nav>

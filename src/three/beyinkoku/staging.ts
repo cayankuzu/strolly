@@ -137,6 +137,8 @@ export const light = {
   /** The second floor's fluorescents around z; `on` dims them, `under` is the low green-white light of the tear. */
   floor2(d: Director, z: number, on = 1, under = 0) {
     const r = d.rig
+    d.glow = on
+    d.dread = Math.max(d.dread, under)
     r.hemiSet(0xf4f7ff, 0xa0a4a8, 0.85 * on + 0.05)
     if (under > 0.01) r.keySet(0xc9ffd8, 7 * under, [400, 0.08, z + 1.2], [400, 1.9, z - 2.5], 1.0, 0.6, 9)
     else r.keySet(0xf6f8ff, 2.4 * on, [400, 2.95, z + 0.5], [400, 0, z], 1.0, 0.9, 6)
@@ -146,9 +148,9 @@ export const light = {
   /** The stretcher room: the screens are the light; the vitals monitor from below; the tanks. */
   g(d: Director, screens = 1) {
     const r = d.rig
-    r.hemiSet(0x202a36, 0x0a0c10, 0.22)
+    r.hemiSet(0x202a36, 0x0a0c10, 0.28)
     r.pt(0, 0x9fc4ff, 3.5 * screens, [500, 2.4, -3.8], 11, 1.5)
-    r.pt(1, 0xcfe0ff, 0.9, [500.45, 1.25, 2.25], 2.2, 1.6)
+    r.pt(1, 0xcfe0ff, 1.7, [500.45, 1.3, 2.15], 4.8, 1.4)
     r.pt(2, 0x9fe8c8, 2.5, [490.5, 1.0, -5.5], 9, 1.5)
     r.keySet(0xb8d0ff, 2.0 * screens, [500, 3.2, -4.6], [500, 1.3, 1.5], 0.7, 0.8, 12)
   },

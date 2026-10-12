@@ -16,26 +16,33 @@ import { pineGeometry, crownGeometry } from '../geo'
 import * as PP from '../poses'
 import * as P from '../../figure/poses'
 import { sunDir, type SkyPreset } from '../env'
-import { H12 } from '../cast'
+import { H12, setGrip } from '../cast'
+import { gripLine } from '../grip'
 
 const OVERCAST: SkyPreset = { zenith: 0x7d858c, horizon: 0xb6bbbe, below: 0x5a5f5a, haze: 0xaeb3b5, hazeAmt: 0.7, sunColor: 0xc8ccd0, disc: 0, glow: 0.25, cloud: 0.85, cloudLit: 0xc6cacc, cloudShade: 0x6d7378, power: 1.05 }
 const FLANGE_Y = 9.8
 const GZ = -1
 const GRIP_DROP = 2.1 * H12 + 0.02
+const AX = new THREE.Vector3(1, 0, 0)
+const AXN = new THREE.Vector3(-1, 0, 0)
+const UPV = new THREE.Vector3(0, 1, 0)
 
 const SHOTS: Record<string, ShotKeys> = {
+  // From low over the water near the west wall, downstream: the abutment and the boy right of
+  // centre, the steel overhead, the flood rushing under it toward us.
   river: [
-    [0, [222, 4, 18, 197, 8, 0, 48]],
-    [1, [221, 4.2, 16.5, 195, 8.4, 0, 46]],
+    [0, [194.6, 6.8, -9.6, 185.4, 9.0, 0.2, 34]],
+    [1, [193.8, 7.0, -8.8, 185.5, 8.9, 0.2, 32]],
   ],
   slipWide: [
     [0, [194.2, 0.9, 6.2, 192, 7.8, -1, 50]],
     [1, [194.6, 1.1, 6.6, 192, 7.4, -1, 50]],
   ],
+  // Between the girders: the empty flange where he hung, a drop leaving it, down to the brown water.
   iron: [
-    [0, [194, 9.2, 2, 192, 9.8, -1, 40]],
-    [0.4, [194, 9.2, 2, 192, 8.6, -1, 40]],
-    [1, [194, 9.0, 2.2, 192, 0.6, -2.2, 44]],
+    [0, [194.6, 9.25, 0.35, 192, 9.75, -0.9, 42]],
+    [0.6, [194.6, 9.25, 0.35, 192.1, 9.5, -0.95, 42]],
+    [1, [194.5, 9.1, 0.4, 194.0, 0.4, -2.6, 46]],
   ],
 }
 
@@ -51,6 +58,7 @@ export class BridgeSet implements PSet {
   private frameM = new THREE.Matrix4()
   private gy = 0
   private v = new THREE.Vector3()
+  private gp = new THREE.Vector3()
 
   build(c: Ctx) {
     const g = this.group
@@ -294,17 +302,26 @@ export class BridgeSet implements PSet {
     // Hands on the flange (the right one slips in `slip`).
     const slipX = seg === 'slip' ? win(0.3, 0.42, 0.52, 0.62, u) * 0.03 : 0
     const slipY = seg === 'slip' ? win(0.4, 0.5, 0.54, 0.64, u) * 0.06 : 0
-    if (hangW > 0.01) {
-      const lx = bodyX ? H.l : boy.x - 0.12
-      const rx = bodyX ? H.r : boy.x + 0.12
+    const lx = bodyX ? H.l : boy.x - 0.12
+    const rx = bodyX ? H.r : boy.x + 0.12
+    const hanging = hangW > 0.98
+    if (hangW > 0.01 && !hanging) {
       boy.reach('l', hangW, lx, FLANGE_Y - 0.01, GZ - 0.06, 0.2)
       boy.reach('r', hangW, rx + slipX, FLANGE_Y - 0.01 - slipY, GZ + 0.06, 0.2)
     }
     boy.lookAt(boy.x + 3, GZ, seg === 'slip' && u > 0.66 ? 0 : 0.2)
     boy.apply(t, true)
-    // Hands wrap the flange edge from below.
-    boy.figure.joints.lHand.rotation.x -= 0.6 * hangW
-    boy.figure.joints.rHand.rotation.x -= 0.6 * hangW
+    if (hanging) {
+      // Fists closed round the flange's near edge (palms in, under the girder); the right one
+      // slides and half opens while the fingers slip.
+      const edge = GZ + 0.15
+      gripLine(boy.figure, 'l', this.gp.set(lx, FLANGE_Y + 0.012, edge), AX, UPV, 0.2)
+      gripLine(boy.figure, 'r', this.gp.set(rx + slipX, FLANGE_Y + 0.012 - slipY, edge), AXN, UPV, 0.2)
+      if (slipY > 0.02) setGrip(boy.figure, true, ['r'])
+    } else if (hangW > 0.01) {
+      boy.figure.joints.lHand.rotation.x -= 0.6 * hangW
+      boy.figure.joints.rHand.rotation.x -= 0.6 * hangW
+    }
 
     // The split: his hands open; he drops straight into the foam.
     this.puff.visible = false

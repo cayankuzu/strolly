@@ -574,14 +574,16 @@ export function createOfkeAudio(kit: AudioKit): AudioProfile {
     }
     // 07 — TEMİZLİK
     if (crossed('staff', 0.08)) doorHiss(true)
-    if (crossed('drag', 0.4)) burst(ctx, noise.pink, fx, { freq: 700, q: 0.6, env: { attack: 0.5, decay: 2.2, peak: 0.07 } })
-    if (two && crossed('drag', 0.74)) burst(ctx, noise.pink, fx, { freq: 700, q: 0.6, env: { attack: 0.3, decay: 1.4, peak: 0.06 } })
+    // The pulls (actD): one 0.4–0.95; two 0.36–0.6, then back for the second 0.68–0.95.
+    if (crossed('drag', two ? 0.36 : 0.4)) burst(ctx, noise.pink, fx, { freq: 700, q: 0.6, env: { attack: 0.5, decay: 2.2, peak: 0.07 } })
+    if (two && crossed('drag', 0.68)) burst(ctx, noise.pink, fx, { freq: 700, q: 0.6, env: { attack: 0.3, decay: 1.4, peak: 0.06 } })
     if (crossed('cleaners', 0.08)) for (let i = 0; i < 3; i++) setTimeout(() => click(600 + Math.random() * 500, 0.05, 0.12), i * 300)
     if (crossed('cleaners', 0.2)) {
       burst(ctx, noise.pink, fx, { freq: 900, q: 0.6, env: { attack: 0.02, decay: 0.5, peak: 0.08 } })
       tone(ctx, fx, { freq: 90, to: 110, glide: 0.4, type: 'triangle', env: { attack: 0.05, decay: 0.45, peak: 0.03 } })
     }
-    for (const u of [0.32, 0.44, 0.56, 0.68, 0.8]) if (crossed('cleaners', u)) burst(ctx, noise.pink, fx, { freq: 1200, q: 0.5, env: { attack: 0.12, decay: 0.35, peak: 0.035 }, pan: (u - 0.56) * 2 })
+    // Mop strokes once he is at the corner (0.42).
+    for (const u of [0.45, 0.55, 0.65, 0.75, 0.85]) if (crossed('cleaners', u)) burst(ctx, noise.pink, fx, { freq: 1200, q: 0.5, env: { attack: 0.12, decay: 0.35, peak: 0.035 }, pan: (u - 0.65) * 2 })
     if (crossed('cleaners', 0.5)) tone(ctx, fx, { freq: 300, to: 640, glide: 0.6, type: 'sawtooth', env: { attack: 0.4, decay: 2.4, peak: 0.012 } })
     if (crossed('restart', 0.35)) doorHiss(false)
     if (crossed('restart', 0.55)) {

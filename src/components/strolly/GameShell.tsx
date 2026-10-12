@@ -28,7 +28,7 @@ import NarrativeLayer, { type NarrativeHandle } from './NarrativeLayer'
 import GameHUD, { useHudMessages, type HudHandle } from './GameHUD'
 import TitleScreen, { type ContinueInfo } from './TitleScreen'
 import StorySelect from './StorySelect'
-import PauseMenu from './PauseMenu'
+import PauseMenu, { type PauseChapter } from './PauseMenu'
 import SettingsMenu from './SettingsMenu'
 import Cursor, { type CursorHandle } from './Cursor'
 import MenuBackdrop from './MenuBackdrop'
@@ -135,6 +135,16 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
     document.title = pageTitle(next, id, settings.get().lang)
     setScreen(next)
   }, [])
+
+  // The skip link to the text version is server-rendered (page.tsx) in Turkish; it follows the
+  // player's language here. Only its text node's value changes, so React's node stays valid.
+  useEffect(() => {
+    const link = document.querySelector<HTMLAnchorElement>('a.skip-link')
+    const text = link?.firstChild
+    if (!link || !text || text.nodeType !== Node.TEXT_NODE) return
+    text.nodeValue = translate(s.lang, 'skip.read')
+    link.lang = s.lang
+  }, [s.lang])
 
   // A new language retitles the page (the first render keeps the title the server gave it).
   const titledIn = useRef(s.lang)
@@ -333,13 +343,20 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
 
   // The chapter the story was paused in (its title is read in the current language).
   const [pausedAt, setPausedAt] = useState<number | null>(null)
+  // Each pause is a new menu (its focus starts at RESUME again).
+  const [pauseCount, setPauseCount] = useState(0)
   const pause = useCallback((on: boolean) => {
     const rt = runtimeRef.current
     if (!rt || !rt.current) return
     rt.setPaused(on)
     setPaused(on)
-    if (on) setPausedAt(rt.chapter?.index ?? null)
-    else setSettingsOpen(false)
+    if (on) {
+      setPausedAt(rt.chapter?.index ?? null)
+      setPauseCount((n) => n + 1)
+    } else {
+      setSettingsOpen(false)
+      setJournalTab(null)
+    }
   }, [])
 
   // Escape: close the innermost thing; in a story, pause.
@@ -355,16 +372,17 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
         setConfirmNew(false)
         return
       }
+      // The journal opens over the pause menu: Escape goes back to it, not to the story.
+      if (journal) {
+        setJournalTab(null)
+        uiSound('close')
+        return
+      }
       if (screen === 'story') {
         if (phase === 'active') {
           uiSound(paused ? 'close' : 'open')
           pause(!paused)
         }
-        return
-      }
-      if (journal) {
-        setJournalTab(null)
-        uiSound('close')
         return
       }
       if (screen === 'stories' || screen === 'archive') {
@@ -469,6 +487,13 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
   const theme: StoryTheme | 'menu' = screen === 'story' && story ? story.meta.theme : screen === 'stories' && focusStory ? stories[focusStory].meta.theme : 'menu'
   const reducedText = s.reducedMotion || !s.motion
   const pausedChapter = story && pausedAt ? story.timeline.CHAPTERS[pausedAt - 1] : null
+  // The pause menu's chapter list: everything up to the furthest chapter reached (all of it once finished).
+  const pauseChapters = useMemo<PauseChapter[]>(() => {
+    if (!story) return []
+    const sv = saveData[story.meta.id]
+    const reached = Math.max(sv?.maxChapter ?? 1, pausedAt ?? 1)
+    return story.timeline.CHAPTERS.map((c) => ({ index: c.index, title: c.title, unlocked: !!sv?.completed || c.index <= reached }))
+  }, [story, saveData, pausedAt])
 
   return (
     <UiSoundContext.Provider value={uiSound}>
@@ -529,7 +554,6 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
         {screen === 'story' && !paused && <ChoicePanel gate={choice?.gate ?? null} picked={choice?.picked ?? []} flags={flagSet} reduced={reducedText} onPick={pick} onDone={release} />}
         <Farewell active={screen === 'farewell'} onReturn={() => go('title', null, 'none')} />
 
-        <BrandMark visible={screen !== 'story' || paused} />
         {screen !== 'story' && (
           <button type="button" className="menu-sound" aria-pressed={soundOn} aria-label={soundOn ? t('common.soundOff') : t('common.soundOn')} onClick={toggleSound}>
             <span className="hud-sound-icon" data-on={soundOn} aria-hidden="true">
@@ -541,15 +565,28 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
             {t('common.sound')}
           </button>
         )}
+        {/* After the sound switch, so focus goes menu → sound → © link. */}
+        <BrandMark visible={screen !== 'story' || paused} />
 
         <PauseMenu
+          key={`pause-${pauseCount}`}
           open={paused && !settingsOpen && !journal && screen === 'story'}
           title={story?.meta.title ?? ''}
           chapter={pausedChapter ? `${t('common.chapter', { n: String(pausedChapter.index).padStart(2, '0') })} ${pausedChapter.title}` : ''}
           onResume={() => pause(false)}
+          chapters={pauseChapters}
+          current={pausedAt}
           onRestartChapter={() => {
             runtimeRef.current?.restartChapter()
             pause(false)
+          }}
+          onChapter={(index) => {
+            if (!story) return
+            // The chapter being read starts over in place; another one opens there (answers before it are kept).
+            if (index === pausedAt) {
+              runtimeRef.current?.restartChapter()
+              pause(false)
+            } else enter(story.meta.id, index, 'replace')
           }}
           onStories={() => leaveTo('stories')}
           onSettings={() => setSettingsOpen(true)}

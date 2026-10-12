@@ -29,10 +29,10 @@ const CUFF = new THREE.Euler(PI / 2, 0, 0)
 const IN_WALK = makePath([
   [400, 5.5],
   [400.1, -2],
-  [400.4, -8.0],
+  [400.3, -9.75],
 ])
 const TOWARD = makePath([
-  [400.1, -8.6],
+  [400.15, -9.75],
   [400.0, -13.0],
 ])
 const BACK_SOUTH = makePath([
@@ -125,7 +125,7 @@ function swarm(d: Director, k: number, monster: number, around?: { x: number; z:
     const p = extra(d, i, 'white')
     const a = d.use(p)
     if (around) {
-      const ang = (i / 7) * PI * 2 + 0.4
+      const ang = -1.35 + (i / 6) * 2.7
       const x = around.x + Math.sin(ang) * around.r
       const z = around.z + Math.cos(ang) * around.r
       a.place(C(x, 398.75, 401.25), Math.max(z, -33.7), yawTo(around.x - x, around.z - z))
@@ -159,9 +159,9 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       const a = d.use(d.levy)
       if (u < 0.5) a.walk(IN_WALK, u / 0.5, P.STAND, FACE_N, FACE_N)
       else {
-        a.place(400.4, -8.0, yawTo(1.05, -1.0))
+        a.place(400.3, -9.75, yawTo(1.1, 0.75))
         a.hold(P.STAND_EASY)
-        a.lookAt(401.45, -9, 1)
+        a.lookAt(401.4, -9, 1)
       }
       d.apply(d.levy)
       d.steps(a.walking, a.step)
@@ -170,7 +170,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
         shot.pos.set(400.2, 1.7, a.z + 2.6)
         shot.tgt.set(400, 1.5, a.z - 6)
         shot.fov = 45
-      } else d.cam([[0.45, [400.1, 1.7, -4.4, 400, 1.5, -13, 45]], [0.5, [400.1, 1.7, -4.4, 400, 1.5, -13, 45]], [0.5, [399.3, 1.6, -7.2, 401.45, 1.6, -9.0, 32]], [1, [399.3, 1.6, -7.25, 401.45, 1.6, -9.0, 32]]], u, shot)
+      } else d.cam([[0.45, [400.1, 1.7, -6.0, 400, 1.5, -14, 45]], [0.5, [400.1, 1.7, -6.0, 400, 1.5, -14, 45]], [0.5, [399.0, 1.62, -7.35, 401.3, 1.55, -9.25, 34]], [1, [399.02, 1.62, -7.4, 401.3, 1.55, -9.25, 34]]], u, shot)
       return true
     }
     case 'staff': {
@@ -179,7 +179,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       kiosks(d, f, ['off', 'off', 'off'])
       light.floor2(d, -14)
       const a = d.use(d.levy)
-      a.place(400.1, -8.6, FACE_N)
+      a.place(400.15, -9.75, FACE_N)
       a.hold(P.STAND_EASY)
       d.apply(d.levy)
       d.f2.staffDoor.rotation.y = 1.3 * S(0, 0.06, u) * (1 - S(0.3, 0.45, u))
@@ -195,7 +195,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
         walkAmt: kn > 0.01 && kn < 0.99 ? 0.8 : 0,
         yaw: kn < 0.99 ? L(FACE_W, FACE_S, kn) : FACE_S,
       })
-      d.cam([[0, [400.6, 1.7, -6.5, 400, 1.5, -20, 32]], [0.5, [400.6, 1.7, -6.6, 400, 1.5, -20, 32]], [0.5, [400, 1.6, -16.5, 400, 1.55, -20, 35]], [1, [400, 1.6, -16.6, 400, 1.55, -20, 35]]], u, shot)
+      d.cam([[0, [400.65, 1.72, -7.6, 400, 1.5, -20, 32]], [0.5, [400.65, 1.72, -7.7, 400, 1.5, -20, 32]], [0.5, [400, 1.6, -16.5, 400, 1.55, -20, 35]], [1, [400, 1.6, -16.6, 400, 1.55, -20, 35]]], u, shot)
       return true
     }
     case 'flicker': {
@@ -213,7 +213,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       pair(d, { nx: 399.7, nz: -19.9, mx: 400.5, mz: -20.3, monster, needle: S(0.42, 0.55, u) })
       d.cam(
         [
-          [0, [399.3, 1.7, -6.8, 400, 1.55, -19, 38]],
+          [0, [399.3, 1.7, -7.9, 400, 1.55, -19, 38]],
           [0.37, [399.3, 1.7, -11.2, 400, 1.55, -19, 38]],
           [0.4, [399.3, 1.7, -11.2, 400, 1.55, -19, 38]],
           [0.4, [400.3, 1.6, -18.4, 399.7, 1.6, -19.9, 28]],
@@ -291,7 +291,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
         walkPhase: (a.z + 16.6) * 4.5,
         walkAmt: back * 1.2,
       })
-      if (u < 0.5) d.cam([[0, [400, 1.6, -15.5, 400, 1.55, -19.9, 35]], [0.5, [400, 1.6, -15.6, 400, 1.55, -19.9, 35]]], u, shot)
+      if (u < 0.5) d.cam([[0, [400.72, 1.66, -15.25, 399.95, 1.55, -19.9, 35]], [0.5, [400.7, 1.66, -15.3, 399.95, 1.55, -19.9, 35]]], u, shot)
       else {
         shot.pos.set(400.35, 1.6, Math.min(1.4, a.z + 3.6))
         shot.tgt.set(a.x, 1.5, a.z)
@@ -382,7 +382,7 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       if (u < 0.2) a.walk(TO_END, u / 0.2, P.STAND, FACE_N, FACE_W)
       else {
         const shift = S(0.47, 0.52, u)
-        a.place(399.8, L(-29.6, -30.3, shift), FACE_W)
+        a.place(L(399.8, 399.7, shift), L(-29.6, -30.0, shift), L(FACE_W, yawTo(-0.8, -0.5), shift))
         a.hold(P.STAND_EASY)
         a.reach('r', bump(0.2, 0.3, u), 399.05, 1.33, -29.0, 0.5)
         a.lookAt(398.9, u < 0.5 ? -29 : -30.5, 1)
@@ -395,8 +395,8 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
           [0.2, [400.3, 1.7, -24.5, 399.4, 1.3, -31, 40]],
           [0.22, [399.95, 1.55, -28.5, 398.9, 1.3, -29, 26]],
           [0.48, [399.95, 1.55, -28.5, 398.9, 1.3, -29, 26]],
-          [0.5, [399.95, 1.55, -30.0, 398.9, 1.3, -30.5, 26]],
-          [1, [399.95, 1.55, -30.0, 398.9, 1.3, -30.5, 26]],
+          [0.5, [400.3, 1.6, -31.35, 399.0, 1.35, -30.2, 34]],
+          [1, [400.28, 1.6, -31.33, 399.0, 1.35, -30.2, 34]],
         ],
         u,
         shot,
@@ -411,11 +411,11 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       d.rig.pt(1, 0xbfd3ff, 1.2, [399.3, 1.4, -32], 2, 1.6)
       const a = d.use(d.levy)
       const turn = S(0.48, 0.54, u)
-      a.place(399.8, -31.6, L(FACE_W, FACE_N, turn))
+      a.place(399.72, -31.3, L(yawTo(-0.8, -0.7), FACE_N, turn))
       a.hold(P.STAND_EASY)
       a.lookAt(398.9, -32, 1 - turn)
       d.apply(d.levy)
-      d.cam([[0, [399.95, 1.55, -31.5, 398.9, 1.3, -32, 26]], [0.5, [399.95, 1.55, -31.5, 398.9, 1.3, -32, 26]], [0.5, [400.6, 1.6, -30.4, 399.8, 1.6, -31.8, 28]], [1, [400.6, 1.6, -30.3, 399.8, 1.6, -31.8, 28]]], u, shot)
+      d.cam([[0, [400.3, 1.62, -32.75, 399.1, 1.35, -31.65, 34]], [0.5, [400.28, 1.62, -32.72, 399.1, 1.35, -31.65, 34]], [0.5, [399.55, 1.62, -32.55, 399.72, 1.6, -31.3, 30]], [1, [399.56, 1.62, -32.5, 399.72, 1.6, -31.3, 30]]], u, shot)
       return true
     }
     case 'swarm': {
@@ -490,8 +490,9 @@ export const actFloor: Act = (d, f, seg, u, shot) => {
       n.hold(STAFF_REACH)
       d.apply(d.nurse)
       d.nurse.kit?.set(1, 0.5)
-      swarm(d, 1, 1, { x: 400.0, z: -32.6, r: L(1.9, 1.1, S(0, 0.47, u)) })
-      d.fx.wash(0.9, 0.92, 0.94, 0.35 * S(0, 0.3, u))
+      swarm(d, 1, 1, u < 0.5 ? { x: 400.0, z: -32.6, r: L(1.9, 1.1, S(0, 0.47, u)) } : { x: 400.0, z: -30.6, r: 1.1 })
+      d.fx.wash(0.9, 0.92, 0.94, 0.35 * S(0, 0.3, u) * (1 - S(0.45, 0.5, u)))
+      if (u >= 0.5) d.rig.pt(2, 0xff3b3b, 1.4, [400, 0.12, -33.7], 2.6, 1.6)
       d.fx.vignette(0, 0, 0, 0.85 * S(0.1, 0.5, u))
       d.fx.black(S(0.62, 0.98, u))
       if (u < 0.5) d.cam([[0, [400, 1.6, -33, 400, 1.9, -31, 50]], [0.47, [400, 0.4, -33, 400, 2.6, -31.5, 50]], [0.5, [400, 0.4, -33, 400, 2.6, -31.5, 50]]], u, shot)

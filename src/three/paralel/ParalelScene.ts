@@ -70,7 +70,7 @@ class ParalelDirector implements SetDirector {
         const b = new THREE.Box3().setFromObject(m)
         sizes[k] = [b.min.x, b.min.y, b.min.z, b.max.x, b.max.y, b.max.z].map((v) => +v.toFixed(2))
       }
-      ;(window as unknown as { __paralel?: unknown }).__paralel = { sizes }
+      ;(window as unknown as { __paralel?: unknown }).__paralel = { sizes, scene, dir: () => this.dir }
     }
     this.cast = new Cast()
     scene.add(this.cast.group)
@@ -147,6 +147,16 @@ class ParalelDirector implements SetDirector {
       shot.pos.set(0, 1.6, 4)
       shot.tgt.set(0, 1.2, 0)
       shot.fov = 40
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      // Development: a camera override for framing checks (window.__paralelShot = [px,py,pz, tx,ty,tz, fov]).
+      const o = (globalThis as { __paralelShot?: number[] }).__paralelShot
+      if (o && o.length === 7) {
+        shot.pos.set(o[0], o[1], o[2])
+        shot.tgt.set(o[3], o[4], o[5])
+        shot.fov = o[6]
+        shot.handheld = 0
+      }
     }
     this.env.follow(shot.pos, f.time)
     this.roll = (f.reduced ? 0 : d.roll) + d.level

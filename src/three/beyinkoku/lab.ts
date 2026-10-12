@@ -254,6 +254,9 @@ export class Lab {
     this.signal.mesh.position.set(0, 2, -10)
     ;(this.signal.material as THREE.MeshBasicMaterial).depthWrite = false
     ;(this.signal.material as THREE.MeshBasicMaterial).blending = THREE.AdditiveBlending
+    // Drawn after the black overlay: the last image is the line alone.
+    ;(this.signal.material as THREE.MeshBasicMaterial).depthTest = false
+    this.signal.mesh.renderOrder = 10001
     g.add(this.signal.mesh)
     void m
   }

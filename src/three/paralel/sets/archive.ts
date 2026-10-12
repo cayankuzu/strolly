@@ -280,9 +280,15 @@ function plateTexture(text: string) {
     g.lineWidth = 3
     g.strokeRect(3, 3, W - 6, H - 6)
     g.fillStyle = '#2a1a08'
-    g.font = '700 30px serif'
     g.textAlign = 'center'
     g.textBaseline = 'middle'
+    // The longest plates (ŞU AN · SALINCAK, 12 · KÖPRÜ ALTI) shrink to fit inside the border.
+    let px = 30
+    g.font = `700 ${px}px serif`
+    while (px > 14 && g.measureText(text).width > W - 26) {
+      px -= 1
+      g.font = `700 ${px}px serif`
+    }
     g.fillText(text, W / 2, H / 2 + 1)
   })
 }
@@ -879,16 +885,19 @@ export class ArchiveSet implements PSet {
       }
       case 'exception': {
         const k = ss(0, 0.6, cu)
-        shot.pos.set(lerp(900, 902.6, k), lerp(5, 13.5, k), lerp(-26, -43.5, k))
-        shot.tgt.set(lerp(900, SLOT.x, k), lerp(1.2, SLOT.y, k), lerp(-31, SLOT.z, k))
-        shot.fov = lerp(50, 40, k)
+        // Up out of the aisle and over the shelves: the grid running into the dark, and the one
+        // dark case among the amber lids, right of centre.
+        shot.pos.set(lerp(900, 902.1, k), lerp(5, 7.9, k), lerp(-26, -44.2, k))
+        shot.tgt.set(lerp(900, SLOT.x - 0.45, k), lerp(1.2, SLOT.y, k), lerp(-31, SLOT.z, k))
+        shot.fov = lerp(50, 34, k)
         shot.handheld = 0.15
         break
       }
       case 'diorama': {
         const k = ss(0.15, 1, cu)
         shot.pos.set(lerp(900.35, 901.06, k), lerp(4.3, SLOT.y + 0.01, k), SLOT.z + lerp(0.02, 0.012, k))
-        shot.tgt.set(SLOT.x + 0.05, lerp(SLOT.y - 0.05, SLOT.y - 0.005, k), SLOT.z + 0.01)
+        // (the brass plate under the front stays in frame until the last push into the miniature)
+        shot.tgt.set(SLOT.x + 0.05, lerp(SLOT.y - 0.11, SLOT.y - 0.005, ss(0.55, 1, cu)), SLOT.z + 0.01)
         shot.fov = lerp(40, 30, k)
         shot.handheld = 0.1
         break

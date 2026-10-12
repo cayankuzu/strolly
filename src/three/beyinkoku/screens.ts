@@ -1092,7 +1092,7 @@ export function drawNotice(ctx: C, W: number, H: number, lines: string[], heavy:
   ctx.textAlign = 'left'
 }
 
-export function drawEnvelope(ctx: C, W: number, H: number) {
+export function drawEnvelope(ctx: C, W: number, H: number, torn = false) {
   ctx.fillStyle = '#fbfaf6'
   ctx.fillRect(0, 0, W, H)
   ctx.strokeStyle = 'rgba(0,0,0,0.08)'
@@ -1102,6 +1102,16 @@ export function drawEnvelope(ctx: C, W: number, H: number) {
   ctx.lineTo(W / 2, H * 0.55)
   ctx.lineTo(W, 0)
   ctx.stroke()
+  if (torn) {
+    // The top edge torn open: a ragged strip of shadow.
+    ctx.fillStyle = 'rgba(60,50,40,0.18)'
+    ctx.beginPath()
+    ctx.moveTo(0, 0)
+    for (let i = 0; i <= 16; i++) ctx.lineTo((i / 16) * W, H * (0.04 + (i % 2) * 0.05))
+    ctx.lineTo(W, 0)
+    ctx.closePath()
+    ctx.fill()
+  }
   mono(ctx, Math.round(H * 0.16), 600)
   ctx.fillStyle = '#1e2633'
   ctx.textAlign = 'center'
@@ -1668,10 +1678,19 @@ export function drawFourRooms(ctx: C, W: number, H: number, notes: string[], not
   OLD(ctx, W, H * 0.64, Math.floor(t * 12) + 11, 'rgba(70,90,110,0.12)')
   if (notesOn > 0) {
     ctx.globalAlpha = clamp01(notesOn)
-    mono(ctx, Math.round(H * 0.07), 700)
+    let size = Math.round(H * 0.065)
+    mono(ctx, size, 700)
+    const gap = '   '
+    const full = ctx.measureText(notes.join(gap)).width
+    if (full > W * 0.92) {
+      size = Math.floor((size * W * 0.92) / full)
+      mono(ctx, size, 700)
+    }
+    let x = (W - ctx.measureText(notes.join(gap)).width) / 2
     notes.forEach((n, i) => {
       ctx.fillStyle = i === 2 ? '#4cff9a' : '#e6eef8'
-      ctx.fillText(n, W * 0.04 + i * W * 0.33, H * 0.82)
+      ctx.fillText(n, x, H * 0.84)
+      x += ctx.measureText(n + gap).width
     })
     ctx.globalAlpha = 1
   }
@@ -1724,8 +1743,8 @@ export function drawTyped(ctx: C, W: number, H: number, text: string, reveal: nu
   const n = Math.floor(text.length * clamp01(reveal))
   const w = ctx.measureText(text).width
   const x = (W - w) / 2
-  ctx.fillText(text.slice(0, n), x, H * 0.54)
-  if (reveal > 0 && Math.sin(t * 6) > 0) ctx.fillRect(x + ctx.measureText(text.slice(0, n)).width + 4, H * 0.48, H * 0.035, H * 0.075)
+  ctx.fillText(text.slice(0, n), x, H * 0.8)
+  if (reveal > 0 && Math.sin(t * 6) > 0) ctx.fillRect(x + ctx.measureText(text.slice(0, n)).width + 4, H * 0.74, H * 0.035, H * 0.075)
 }
 
 export type Heaven = 'sea' | 'mountain' | 'summer' | 'tea'
@@ -1952,11 +1971,52 @@ export function drawLog(ctx: C, W: number, H: number, s: LogState) {
     ctx.fillStyle = '#dfe9ee'
     ctx.fillRect(0, 0, sw, sh)
     person(ctx, sw * 0.5, sh * 1.5, sh * 1.6, { top: '#b9d3ef', hair: '#3a2a20', scar: true, smile: 0.2 })
-  } else {
-    ctx.fillStyle = f === 'bed' ? '#cfe0ee' : '#9fb69a'
+  } else if (f === 'bed') {
+    // Monday dawn: the bedroom, the window warming, Levy asleep.
+    ctx.fillStyle = '#e9e2d4'
     ctx.fillRect(0, 0, sw, sh)
+    const sky = ctx.createLinearGradient(0, sh * 0.12, 0, sh * 0.55)
+    sky.addColorStop(0, '#bfdcf2')
+    sky.addColorStop(1, '#ffd9a8')
+    ctx.fillStyle = sky
+    ctx.fillRect(sw * 0.66, sh * 0.12, sw * 0.24, sh * 0.43)
+    ctx.fillStyle = '#9fb69a'
+    ctx.fillRect(sw * 0.62, sh * 0.08, sw * 0.05, sh * 0.52)
+    ctx.fillRect(sw * 0.89, sh * 0.08, sw * 0.05, sh * 0.52)
+    ctx.fillStyle = '#b89a78'
+    ctx.fillRect(sw * 0.06, sh * 0.42, sw * 0.05, sh * 0.42)
+    ctx.fillStyle = '#cfe0ee'
+    ctx.fillRect(sw * 0.1, sh * 0.62, sw * 0.46, sh * 0.2)
     ctx.fillStyle = '#f7f3ea'
-    ctx.fillRect(sw * 0.2, sh * 0.4, sw * 0.6, sh * 0.5)
+    ctx.fillRect(sw * 0.11, sh * 0.56, sw * 0.1, sh * 0.08)
+    ctx.fillStyle = '#d9b39a'
+    ctx.beginPath()
+    ctx.arc(sw * 0.16, sh * 0.55, sh * 0.06, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#3b2a1e'
+    ctx.beginPath()
+    ctx.arc(sw * 0.16, sh * 0.53, sh * 0.06, Math.PI, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#b9cfe2'
+    ctx.fillRect(sw * 0.22, sh * 0.55, sw * 0.34, sh * 0.12)
+  } else {
+    // The curtains part by themselves; the same sun.
+    const sky = ctx.createLinearGradient(0, 0, 0, sh)
+    sky.addColorStop(0, '#bfe3ff')
+    sky.addColorStop(1, '#ffe9c4')
+    ctx.fillStyle = sky
+    ctx.fillRect(0, 0, sw, sh)
+    ctx.fillStyle = '#9cc985'
+    ctx.fillRect(0, sh * 0.72, sw, sh * 0.28)
+    ctx.fillStyle = '#fff3c9'
+    ctx.beginPath()
+    ctx.arc(sw * 0.62, sh * 0.42, sh * 0.1, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#7f9a7c'
+    ctx.fillRect(0, 0, sw * 0.24, sh)
+    ctx.fillRect(sw * 0.76, 0, sw * 0.24, sh)
+    ctx.fillStyle = '#f3ead8'
+    ctx.fillRect(0, 0, sw, sh * 0.06)
   }
   ctx.restore()
   ctx.strokeStyle = 'rgba(207,224,255,0.5)'

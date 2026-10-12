@@ -196,8 +196,8 @@ export class MonsterKit {
     for (const e of this.eyes) e.visible = on
     this.split.visible = on
     this.mouth.visible = on
-    this.mouth.scale.set(0.75, 0.6 + 2.6 * amount, 1)
-    this.mouth.position.y = 0.046 - 0.03 * amount
+    this.mouth.scale.set(0.8 + 0.1 * amount, 0.4 + 0.75 * amount, 1)
+    this.mouth.position.y = 0.048 - 0.006 * amount
     this.ghost.visible = on && overlap > 0.01
     this.ghost.scale.set(1.04, 1.1 + 0.2 * overlap, 1.04)
     this.ghost.position.x = 0.03 * overlap
@@ -273,7 +273,7 @@ export const STRAPPED = makePose({
 /** Asleep on his back (the scene turns the root to lie along the bed). */
 export const SLEEP = makePose({
   hipY: 0.12,
-  hips: [-1.57, 0, 0],
+  hips: [-1.47, 0, 0],
   lThigh: [-0.04, 0, 0.04],
   rThigh: [-0.04, 0, -0.04],
   lShin: [0.06, 0, 0],
@@ -282,6 +282,8 @@ export const SLEEP = makePose({
   rUpper: [-0.4, 0, -0.1],
   lFore: [-0.3, 0, 0],
   rFore: [-1.3, 0, 0],
+  lFoot: [0.85, 0, 0],
+  rFoot: [0.85, 0, 0],
   head: [-0.15, 0.25, 0],
 })
 
@@ -336,10 +338,12 @@ export const TEMPLES = makePose({
 export const TRACE = makePose({ lUpper: [0.03, 0, 0.07], lFore: [-0.12, 0, 0], lHand: [0, 0, 0], head: [0.04, 0.12, 0.1] }, TEMPLES)
 /** Straightening the collar with both hands. */
 export const COLLAR = makePose({
-  lUpper: [-0.5, 0, 0.6],
-  rUpper: [-0.5, 0, -0.6],
-  lFore: [-2.0, 0.3, 0],
-  rFore: [-2.0, -0.3, 0],
+  lUpper: [-0.28, 0, 0.42],
+  rUpper: [-0.28, 0, -0.42],
+  lFore: [-2.25, 0.45, 0],
+  rFore: [-2.25, -0.45, 0],
+  lHand: [0.2, 0, 0],
+  rHand: [0.2, 0, 0],
   head: [-0.04, 0, 0],
 })
 

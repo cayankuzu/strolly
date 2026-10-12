@@ -35,9 +35,15 @@ export function hSand(x: number, z: number) {
 }
 
 const SHOTS: Record<string, ShotKeys> = {
+  // Wide from the dunes as he walks into the wind; the warning board read close; the flag snapping
+  // over the beach with him small at the waterline.
   flag: [
     [0, [395.2, 2.6, 17.2, 405.6, 2.3, 3.4, 52]],
-    [1, [396.0, 2.3, 15.6, 404.6, 1.9, -0.4, 52]],
+    [0.45, [395.6, 2.45, 16.4, 405.1, 2.1, 1.6, 52]],
+    [0.4501, [410.0, 1.85, 7.5, 409.35, 1.82, 4.5, 40]],
+    [0.72, [409.85, 1.82, 7.15, 409.4, 1.8, 4.5, 38]],
+    [0.7201, [411.8, 1.6, 14.5, 404.6, 2.9, 4.6, 50]],
+    [1, [411.6, 1.55, 14.1, 404.4, 2.8, 4.2, 50]],
   ],
   waves: [
     [0, [400.7, 0.55, 0.2, 400.1, 1.3, -10, 55]],
@@ -57,6 +63,7 @@ export class SeaSet implements PSet {
   private sheet!: THREE.Mesh
   private under!: THREE.ShaderMaterial
   private seabed!: THREE.Mesh
+  private underMesh!: THREE.Mesh
   private wave!: THREE.Mesh
   private waveGeo!: THREE.BufferGeometry
   private waveMat!: THREE.ShaderMaterial
@@ -141,6 +148,7 @@ export class SeaSet implements PSet {
     this.under = undersideMaterial(shared)
     const under = mesh(new THREE.PlaneGeometry(240, 240, 1, 1).rotateX(-PI / 2), this.under, X, -0.08, -118, g)
     under.name = 'sea-underside'
+    this.underMesh = under
 
     // The wave: a long curling wall, shaped per frame.
     this.waveGeo = new THREE.BufferGeometry()
@@ -379,7 +387,9 @@ export class SeaSet implements PSet {
     this.water.uniforms.uSwell.value = grey ? 0.15 : seg === 'up' ? 0.25 : 1.1
     this.water.uniforms.uFoam.value = grey ? 0.25 : 0.55
     this.sheet.visible = !underwater
-    this.seabed.visible = true
+    // Lost under the wave: no bottom, no surface, only green in every direction.
+    this.seabed.visible = seg !== 'under'
+    this.underMesh.visible = seg !== 'under'
 
     // Flag snapping toward +x; sand blowing.
     this.flagWind(t, grey ? 0.25 : 1)

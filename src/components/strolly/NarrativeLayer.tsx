@@ -6,7 +6,7 @@
  * frame loop seeks it, so every line scrubs forward and backward with the
  * scroll and is always in sync with the picture.
  *
- * Slots: the rail (left for TEKERRÜR, right for EMANET, bottom on phones)
+ * Slots: the rail (left or right, as the story asks; bottom on phones)
  * holds at most a chapter label, one caption and one to three sentences.
  * Revelations take the centre; machine labels the top.
  */
