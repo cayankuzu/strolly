@@ -135,7 +135,6 @@ const tr = {
   'credits.libsBody': 'Next.js, React, three.js (MIT) · GSAP, ScrollTrigger (GSAP Standard License) · Lenis (MIT)',
 
   // Words painted into the story art
-  'art.session': 'OTURUM {n}',
   'art.timeLeft': 'KALAN SÜRE',
 
   // Leaving, failures
@@ -315,7 +314,6 @@ const en: Record<Key, string> = {
   'credits.libs': 'LIBRARIES',
   'credits.libsBody': 'Next.js, React, three.js (MIT) · GSAP, ScrollTrigger (GSAP Standard License) · Lenis (MIT)',
 
-  'art.session': 'SESSION {n}',
   'art.timeLeft': 'TIME LEFT',
 
   'farewell.label': 'Exit',
