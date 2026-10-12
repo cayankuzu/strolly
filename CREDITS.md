@@ -1,42 +1,40 @@
 # Credits
 
-STROLLY ships **no third-party visual or audio assets**. Every model, texture,
-shader, screen, photograph and sound is generated in code at runtime, so every
-asset below is original to this repository: © 2026 Çayan Kuzu, powered by
-MeMoDe, all rights reserved (see `LICENSE`).
+Models, scanned surfaces, HDR environments and the forest panorama are CC0
+assets from Poly Haven; every one of them, with its creator, source and
+licence, is listed in [`ASSET_MANIFEST.md`](ASSET_MANIFEST.md). Everything
+else — the figures, the sets' procedural props and stand-ins, every screen,
+sign and photograph, the card art and all sound — is made in code and original
+to this repository: © 2026 Çayan Kuzu, powered by MeMoDe, all rights reserved
+(see `LICENSE`).
 
-## Visual assets
+## Visual work in code
 
 | Asset | Source | Author | License |
 | --- | --- | --- | --- |
 | Figure rig and poses (all characters) | `src/three/figure/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 | Skinned body surface, sculpted heads, eyes, hands, shoes | `src/three/figure/skin.ts`, `figureBody.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 | Set kit: rooms, doors, furniture, office equipment, server racks, facades, street lamps, cars, crowd, canvas screens | `src/three/kit/props.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Procedural PBR surfaces (wood, laminate, knit, denim, concrete, paint, tile, carpet, skin, hair…) | `src/three/kit/surfaces.ts` (seeded fBm) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| TEKERRÜR observatory: office, server hall, corridor, kitchen, night city, coat, tea glass | `src/three/tekerrur/TekerrurScene.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| DURUM interface: queries, predictions, particle, causal chain, archive, observer | `src/three/tekerrur/screens.ts` (Canvas 2D) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| EMANET apartment, props, calendar, city view | `src/three/emanet/Apartment.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Memory dissolve and selective blur | `src/three/emanet/memory.ts`, `MemoryPass.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Photograph, clock face, record, Ege's phone | `src/three/emanet/canvas.ts` (Canvas 2D) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| ÖFKE NÖBETİ street, lobby, booths, meters, source file, phone, public screen, copy | `src/three/ofke/OfkeScene.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| YAŞAMAK internet cafe, seasons, accretion disk (GLSL) | `src/three/yasamak/YasamakScene.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| KALAN apartment, recorder, the other apartment | `src/three/kalan/KalanScene.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| EŞİK street, shop window, cafe, other cities, back room | `src/three/esik/EsikScene.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Concrete, wood, fabric textures | `src/three/textures.ts` (seeded value noise) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Screen and sign graphics | `src/three/screens.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| Story art, menu backdrop, cursor | `src/components/strolly/StoryArt.tsx`, `MenuBackdrop.tsx`, `Cursor.tsx` (SVG/CSS) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| Procedural PBR surfaces (fallbacks for every scanned kind; skin, hair, paper, ceramic, plastic, rubber) | `src/three/kit/surfaces.ts` (seeded fBm) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| Asset pipeline (GLB + Meshopt, WebP, HDR loading with procedural fallback) | `src/three/kit/assets.ts`, `scripts/optimize-assets.py` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| YAŞAMAK: internet cafe, seasons, timers, scarf | `src/three/yasamak/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| ÖTE: signing room, elevator, shuttle, habitat, Earth, black hole (GLSL), mission room | `src/three/ote/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| TEK AYAK: classroom, paper plane, chalkboards, wheelchair | `src/three/tekayak/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| ÖFKESEL DENEYİM SİMÜLASYONU: office, car, service centre, white room, convict line | `src/three/ofke/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| TAKINTI: the house, sewing room, wall shadow | `src/three/takinti/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| PARALEL-LEŞ: roofs, atrium, bridge, cliff, sea, slope, socket, the shelf room, the swing | `src/three/paralel/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| TEKERRÜR: the forest room (screen walls over the panorama), robots, archive, the square across eras, the network | `src/three/tekerrur/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| BEYİN-KÖKÜ: the lab, suburb, Centre, second floor, stretcher room, screens | `src/three/beyinkoku/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| DURUM: observatory, server hall and mirror, papers, boxes, the machine's screens | `src/three/durum/` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| Screen and sign graphics, procedural textures | `src/three/screens.ts`, `src/three/textures.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| Story cards, title reel, menu backdrop, cursor | `src/components/strolly/StoryArt.tsx`, `art/`, `MenuBackdrop.tsx`, `Cursor.tsx` (SVG/CSS) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 | Social images, favicon | `src/app/og/[id]/route.tsx`, `src/app/icon.svg` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 
-## Audio
+## Audio (all synthesized)
 
 | Sound | Source | Author | License |
 | --- | --- | --- | --- |
-| TEKERRÜR: air handling, mains hum, server hall, fridge, coffee machine, city, corridor tube, stopped clock, keyboard, glass, phone, door, sparse music | `src/stories/tekerrur/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| EMANET: room tone, fridge, kettle, city, slippers, cups, keys, ringback, phone, piano | `src/stories/emanet/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| ÖFKE NÖBETİ: street, lobby music and chime, booth hum, meter, muffled impacts, knocks, phone, notch, ringing | `src/stories/ofke/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| YAŞAMAK: cafe, keyboards, wall clock, street, door bell, horizon, piano | `src/stories/yasamak/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| KALAN: room tone, fridge, tape, knocks, birds, the other room, piano | `src/stories/kalan/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
-| EŞİK: night city, cars, shop hum, cafe, other cities, terminal, phones, keys | `src/stories/esik/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
+| Each story's ambience, one-shots and music | `src/stories/<id>/audio.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 | Menu ambience, interface sounds | `src/lib/audio/selector.ts`, `src/lib/audio/core.ts` | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 | Noise, bursts, tones, reverb impulse | `src/lib/audio/synth.ts` (generated) | Çayan Kuzu · MeMoDe | All rights reserved (LICENSE) |
 
@@ -54,3 +52,4 @@ MeMoDe, all rights reserved (see `LICENSE`).
 | three.js | MIT |
 | GSAP (incl. ScrollTrigger) | GSAP Standard "No Charge" License |
 | Lenis | MIT |
+| @gltf-transform/cli (asset pipeline only, not shipped) | MIT |

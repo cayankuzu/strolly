@@ -5,6 +5,7 @@ import type { StoryId } from '@/stories/types'
 import { useT } from '@/lib/i18n'
 import { DurumArt } from './art/DurumArt'
 import { OteArt } from './art/OteArt'
+import { ParalelArt } from './art/ParalelArt'
 import { TakintiArt } from './art/TakintiArt'
 import { TekAyakArt } from './art/TekAyakArt'
 import { TekerrurArt } from './art/TekerrurArt'
@@ -78,7 +79,7 @@ export const STORY_ART: Record<StoryId, () => React.JSX.Element> = {
   tekayak: TekAyakArt,
   ofke: OfkeArt,
   takinti: TakintiArt,
-  paralel: PendingArt,
+  paralel: ParalelArt,
   tekerrur: TekerrurArt,
   beyinkoku: PendingArt,
   durum: DurumArt,
