@@ -17,7 +17,7 @@
  * Choices: when the reading reaches a choice gate, the scroll holds there
  * until the reader answers; answers become flags the text and the scene read.
  */
-import { STORIES } from '@/stories/registry'
+import { storiesIn } from '@/stories/localize'
 import { meets, type CaptionCue, type ChoiceGate, type ChoiceOption, type Discovery, type StoryContent, type StoryId } from '@/stories/types'
 import { loadAudio, loadScene } from '@/stories/loaders'
 import { createScroll, type ScrollHandle } from '@/lib/scroll'
@@ -70,7 +70,10 @@ const NO_MOTION: AudioFrame['motion'] = { step: 0, walking: 0, robots: 0, doors:
 const NO_FLAGS: ReadonlySet<string> = new Set()
 
 type Reading = {
+  /** The story in the reader's language (swapped in place if the language changes mid-reading). */
   story: StoryContent
+  /** The story's discoveries in that language, by id (the tracker keeps the ones it was made with). */
+  found: Map<string, Discovery>
   tracker: DiscoveryTracker
   savedChapter: number
   lastP: number
@@ -161,6 +164,7 @@ export class StoryRuntime {
 
   private applySettings() {
     const s = settings.get()
+    this.relocalize()
     this.look.options = { sensitivity: s.sensitivity, invertY: s.invertY, autoCenter: s.autoCenter, reduced: s.reducedCamera || s.reducedMotion, enabled: s.look }
     this.audio.setVolumes({ master: s.master, music: s.music, ambient: s.ambient, sfx: s.sfx, ui: s.ui, spatial: s.spatial })
     this.scroll.setSmooth(!s.reducedMotion)
@@ -177,6 +181,12 @@ export class StoryRuntime {
 
   get progress() {
     return this.held ?? this.scroll.state.progress
+  }
+
+  /** Renderer counters for the development debug API. */
+  get renderStats() {
+    const r = this.stage?.renderer
+    return r ? { calls: r.info.render.calls, triangles: r.info.render.triangles, geometries: r.info.memory.geometries, textures: r.info.memory.textures } : null
   }
 
   get stageInfo() {
@@ -229,7 +239,7 @@ export class StoryRuntime {
     // A second click on the story already opening (or open) does nothing.
     if (this.reading?.story.meta.id === id && (this.phase === 'loading' || this.phase === 'active') && !opts.chapter) return
     const token = ++this.token
-    const story = STORIES[id]
+    const story = storiesIn(settings.get().lang)[id]
     const start = opts.chapter && opts.chapter > 1 ? (story.timeline.CHAPTERS[opts.chapter - 1]?.start ?? 0) : 0
     // Choices: a reading from a chapter keeps the answers given before it; anything later is asked again.
     const gates = story.choices
@@ -247,6 +257,7 @@ export class StoryRuntime {
     this.setGate(null)
     this.reading = {
       story,
+      found: new Map(story.discoveries.map((d) => [d.id, d])),
       tracker: new DiscoveryTracker(story, (d) => this.onSeen(d)),
       savedChapter: 0,
       lastP: start,
@@ -360,6 +371,25 @@ export class StoryRuntime {
     this.setGate(null)
     if (this.reading && !this.paused) this.scroll.setActive(true)
     this.scroll.scrollToProgress(c.start + (c.start > 0 ? 0.0005 : 0), true)
+  }
+
+  /**
+   * The language changed: the open reading continues in the new one. Only
+   * words change (same timeline, flags and answers); an open choice and the
+   * examine prompt are handed over in the new language.
+   */
+  private relocalize() {
+    const r = this.reading
+    if (!r) return
+    const story = storiesIn(settings.get().lang)[r.story.meta.id]
+    if (story === r.story) return
+    r.story = story
+    r.found = new Map(story.discoveries.map((d) => [d.id, d]))
+    // Captions keep their order (and so their positions in `captionAt`).
+    r.captions = story.captions
+    r.gates = r.gates.map((g) => ({ gate: story.choices.find((x) => x.id === g.gate.id) ?? g.gate, p: g.p }))
+    if (this.gate) this.setGate(r.gates.find((g) => g.gate.id === this.gate!.gate.id) ?? this.gate)
+    if (this.prompt) this.setPrompt(r.found.get(this.prompt.id) ?? this.prompt)
   }
 
   // ——— Choices ———
@@ -610,7 +640,7 @@ export class StoryRuntime {
     const info = this.stageInfo
     if (info && this.mode === 'webgl') {
       const f = r.tracker.update(p, dt, info.camera, info.forward)
-      this.setPrompt(f.focus)
+      this.setPrompt(f.focus ? (r.found.get(f.focus.id) ?? f.focus) : null)
       this.setHint(this.look.options.enabled ? f.hint : null)
       this.input.hover(!!f.focus)
     }

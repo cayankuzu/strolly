@@ -2,16 +2,17 @@
 
 /** Settings, as a game has them: display, sound, controls, accessibility. Every change applies at once and is remembered. */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { settings, useSettings, type QualityChoice, type Settings, type TextSize } from '@/lib/settings'
+import { settings, useSettings, type Lang, type QualityChoice, type Settings, type TextSize } from '@/lib/settings'
+import { t as translate, useT, type Key } from '@/lib/i18n'
 import { MenuButton, useUiSound } from './ui'
 
 type Tab = 'display' | 'audio' | 'controls' | 'access'
 
-const TABS: Array<[Tab, string]> = [
-  ['display', 'GÖRÜNTÜ'],
-  ['audio', 'SES'],
-  ['controls', 'KONTROLLER'],
-  ['access', 'ERİŞİLEBİLİRLİK'],
+const TABS: Array<[Tab, Key]> = [
+  ['display', 'settings.tabDisplay'],
+  ['audio', 'settings.tabAudio'],
+  ['controls', 'settings.tabControls'],
+  ['access', 'settings.tabAccess'],
 ]
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -28,6 +29,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
   const play = useUiSound()
+  const t = useT()
   return (
     <button
       type="button"
@@ -40,21 +42,23 @@ function Toggle({ value, onChange, label }: { value: boolean; onChange: (v: bool
         onChange(!value)
       }}
     >
-      <span>{value ? 'AÇIK' : 'KAPALI'}</span>
+      <span>{value ? t('settings.on') : t('settings.off')}</span>
       <i aria-hidden="true" />
     </button>
   )
 }
 
-function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: Array<[T, string]>; onChange: (v: T) => void; label: string }) {
+/** Options are [value, text], or [value, text, the language the text is in]. */
+function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: Array<[T, string] | [T, string, Lang]>; onChange: (v: T) => void; label: string }) {
   const play = useUiSound()
   return (
     <div className="set-seg" role="radiogroup" aria-label={label}>
-      {options.map(([v, text]) => (
+      {options.map(([v, text, lang]) => (
         <button
           key={v}
           type="button"
           role="radio"
+          lang={lang}
           aria-checked={v === value}
           onClick={() => {
             play('click')
@@ -82,6 +86,7 @@ const pct = (v: number) => `${Math.round(v * 100)}`
 
 export default function SettingsMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
   const s = useSettings()
+  const t = useT()
   const [tab, setTab] = useState<Tab>('display')
   const [full, setFull] = useState(false)
   const [canFull, setCanFull] = useState(false)
@@ -112,17 +117,31 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
     <div ref={root} className="overlay settings" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <div className="settings-inner">
         <header className="settings-head">
-          <h2 id="settings-title">AYARLAR</h2>
-          <div className="settings-tabs" role="tablist" aria-label="Ayar grupları">
-            {TABS.map(([t, label]) => (
+          <h2 id="settings-title">{t('common.settings')}</h2>
+          {/* The language comes first, and is named in both languages so it can be found without reading either. */}
+          <div className="settings-lang">
+            <Row label={t('lang.label')} hint={translate(s.lang === 'tr' ? 'en' : 'tr', 'lang.label')}>
+              <Segmented<Lang>
+                label={t('lang.switch')}
+                value={s.lang}
+                onChange={(v) => set({ lang: v })}
+                options={[
+                  ['tr', t('lang.tr'), 'tr'],
+                  ['en', t('lang.en'), 'en'],
+                ]}
+              />
+            </Row>
+          </div>
+          <div className="settings-tabs" role="tablist" aria-label={t('settings.groups')}>
+            {TABS.map(([id, label]) => (
               <button
-                key={t}
+                key={id}
                 type="button"
                 role="tab"
-                aria-selected={tab === t}
+                aria-selected={tab === id}
                 onClick={() => {
                   play('click')
-                  setTab(t)
+                  setTab(id)
                 }}
                 onKeyDown={(e) => {
                   const i = TABS.findIndex(([x]) => x === tab)
@@ -135,7 +154,7 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
                   }
                 }}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -144,85 +163,85 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
         <div className="settings-body" role="tabpanel">
           {tab === 'display' && (
             <>
-              <Row label="Kalite" hint="Kenar yumuşatma ve gölgeler bir sonraki hikâyede uygulanır.">
+              <Row label={t('settings.quality')} hint={t('settings.qualityHint')}>
                 <Segmented<QualityChoice>
-                  label="Kalite"
+                  label={t('settings.quality')}
                   value={s.quality}
                   onChange={(v) => set({ quality: v })}
                   options={[
-                    ['auto', 'OTOMATİK'],
-                    ['high', 'YÜKSEK'],
-                    ['mid', 'ORTA'],
-                    ['low', 'DÜŞÜK'],
+                    ['auto', t('settings.auto')],
+                    ['high', t('settings.high')],
+                    ['mid', t('settings.mid')],
+                    ['low', t('settings.low')],
                   ]}
                 />
               </Row>
-              <Row label="Çözünürlük ölçeği" hint="Düşük değer daha akıcı, daha yumuşak görüntü.">
-                <Slider label="Çözünürlük ölçeği" value={s.resolution} min={0.6} max={1} step={0.05} onChange={(v) => set({ resolution: v })} format={(v) => `%${pct(v)}`} />
+              <Row label={t('settings.resolution')} hint={t('settings.resolutionHint')}>
+                <Slider label={t('settings.resolution')} value={s.resolution} min={0.6} max={1} step={0.05} onChange={(v) => set({ resolution: v })} format={(v) => t('common.percent', { n: pct(v) })} />
               </Row>
               {canFull && (
-                <Row label="Tam ekran">
-                  <Toggle label="Tam ekran" value={full} onChange={toggleFull} />
+                <Row label={t('settings.fullscreen')}>
+                  <Toggle label={t('settings.fullscreen')} value={full} onChange={toggleFull} />
                 </Row>
               )}
-              <Row label="Hareket efektleri" hint="Elde tutulan kamera titreşimi, yumuşak metin geçişleri.">
-                <Toggle label="Hareket efektleri" value={s.motion} onChange={(v) => set({ motion: v })} />
+              <Row label={t('settings.motion')} hint={t('settings.motionHint')}>
+                <Toggle label={t('settings.motion')} value={s.motion} onChange={(v) => set({ motion: v })} />
               </Row>
             </>
           )}
 
           {tab === 'audio' && (
             <>
-              <Row label="Ana ses">
-                <Slider label="Ana ses" value={s.master} min={0} max={1} step={0.05} onChange={(v) => set({ master: v })} format={pct} />
+              <Row label={t('settings.master')}>
+                <Slider label={t('settings.master')} value={s.master} min={0} max={1} step={0.05} onChange={(v) => set({ master: v })} format={pct} />
               </Row>
-              <Row label="Müzik">
-                <Slider label="Müzik" value={s.music} min={0} max={1} step={0.05} onChange={(v) => set({ music: v })} format={pct} />
+              <Row label={t('settings.music')}>
+                <Slider label={t('settings.music')} value={s.music} min={0} max={1} step={0.05} onChange={(v) => set({ music: v })} format={pct} />
               </Row>
-              <Row label="Ortam">
-                <Slider label="Ortam" value={s.ambient} min={0} max={1} step={0.05} onChange={(v) => set({ ambient: v })} format={pct} />
+              <Row label={t('settings.ambient')}>
+                <Slider label={t('settings.ambient')} value={s.ambient} min={0} max={1} step={0.05} onChange={(v) => set({ ambient: v })} format={pct} />
               </Row>
-              <Row label="Efektler">
-                <Slider label="Efektler" value={s.sfx} min={0} max={1} step={0.05} onChange={(v) => set({ sfx: v })} format={pct} />
+              <Row label={t('settings.sfx')}>
+                <Slider label={t('settings.sfx')} value={s.sfx} min={0} max={1} step={0.05} onChange={(v) => set({ sfx: v })} format={pct} />
               </Row>
-              <Row label="Arayüz">
-                <Slider label="Arayüz sesleri" value={s.ui} min={0} max={1} step={0.05} onChange={(v) => set({ ui: v })} format={pct} />
+              <Row label={t('settings.ui')}>
+                <Slider label={t('settings.uiLabel')} value={s.ui} min={0} max={1} step={0.05} onChange={(v) => set({ ui: v })} format={pct} />
               </Row>
-              <Row label="Uzamsal ses" hint="Sesler sahnedeki yerlerinden gelir; arkandaki ses arkandan duyulur.">
-                <Toggle label="Uzamsal ses" value={s.spatial} onChange={(v) => set({ spatial: v })} />
+              <Row label={t('settings.spatial')} hint={t('settings.spatialHint')}>
+                <Toggle label={t('settings.spatial')} value={s.spatial} onChange={(v) => set({ spatial: v })} />
               </Row>
             </>
           )}
 
           {tab === 'controls' && (
             <>
-              <Row label="360° bakış" hint="Kapalıyken kamera yalnızca hikâyenin gösterdiğine bakar.">
-                <Toggle label="360 derece bakış" value={s.look} onChange={(v) => set({ look: v })} />
+              <Row label={t('settings.look')} hint={t('settings.lookHint')}>
+                <Toggle label={t('settings.lookLabel')} value={s.look} onChange={(v) => set({ look: v })} />
               </Row>
-              <Row label="Kamera hassasiyeti">
-                <Slider label="Kamera hassasiyeti" value={s.sensitivity} min={0.4} max={2} step={0.1} onChange={(v) => set({ sensitivity: v })} format={(v) => `${v.toFixed(1)}×`} />
+              <Row label={t('settings.sensitivity')}>
+                <Slider label={t('settings.sensitivity')} value={s.sensitivity} min={0.4} max={2} step={0.1} onChange={(v) => set({ sensitivity: v })} format={(v) => `${v.toFixed(1)}×`} />
               </Row>
-              <Row label="Y eksenini ters çevir">
-                <Toggle label="Y eksenini ters çevir" value={s.invertY} onChange={(v) => set({ invertY: v })} />
+              <Row label={t('settings.invertY')}>
+                <Toggle label={t('settings.invertY')} value={s.invertY} onChange={(v) => set({ invertY: v })} />
               </Row>
-              <Row label="Kamerayı otomatik ortala" hint="Bir süre bakmadığında görüş yavaşça hikâyeye döner.">
-                <Toggle label="Kamerayı otomatik ortala" value={s.autoCenter} onChange={(v) => set({ autoCenter: v })} />
+              <Row label={t('settings.autoCenter')} hint={t('settings.autoCenterHint')}>
+                <Toggle label={t('settings.autoCenter')} value={s.autoCenter} onChange={(v) => set({ autoCenter: v })} />
               </Row>
               <p className="set-keys">
                 <span>
-                  <kbd>←</kbd> <kbd>→</kbd> bak
+                  <kbd>←</kbd> <kbd>→</kbd> {t('settings.keyLook')}
                 </span>
                 <span>
-                  <kbd>⇧</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> yukarı / aşağı
+                  <kbd>⇧</kbd> + <kbd>↑</kbd> <kbd>↓</kbd> {t('settings.keyUpDown')}
                 </span>
                 <span>
-                  <kbd>C</kbd> ortala
+                  <kbd>C</kbd> {t('settings.keyCenter')}
                 </span>
                 <span>
-                  <kbd>E</kbd> incele
+                  <kbd>E</kbd> {t('settings.keyExamine')}
                 </span>
                 <span>
-                  <kbd>ESC</kbd> duraklat
+                  <kbd>ESC</kbd> {t('settings.keyPause')}
                 </span>
               </p>
             </>
@@ -230,33 +249,33 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
 
           {tab === 'access' && (
             <>
-              <Row label="Azaltılmış hareket" hint="Yumuşak kaydırma ve kamera hareketleri durur.">
-                <Toggle label="Azaltılmış hareket" value={s.reducedMotion} onChange={(v) => set({ reducedMotion: v })} />
+              <Row label={t('settings.reducedMotion')} hint={t('settings.reducedMotionHint')}>
+                <Toggle label={t('settings.reducedMotion')} value={s.reducedMotion} onChange={(v) => set({ reducedMotion: v })} />
               </Row>
-              <Row label="Azaltılmış kamera hareketi" hint="Bakış daha yavaş; kayma ve otomatik dönüş yok.">
-                <Toggle label="Azaltılmış kamera hareketi" value={s.reducedCamera} onChange={(v) => set({ reducedCamera: v })} />
+              <Row label={t('settings.reducedCamera')} hint={t('settings.reducedCameraHint')}>
+                <Toggle label={t('settings.reducedCamera')} value={s.reducedCamera} onChange={(v) => set({ reducedCamera: v })} />
               </Row>
-              <Row label="Ses altyazıları" hint="Önemli sesler ekranda yazıyla belirir.">
-                <Toggle label="Ses altyazıları" value={s.captions} onChange={(v) => set({ captions: v })} />
+              <Row label={t('settings.captions')} hint={t('settings.captionsHint')}>
+                <Toggle label={t('settings.captions')} value={s.captions} onChange={(v) => set({ captions: v })} />
               </Row>
-              <Row label="Metin boyutu">
+              <Row label={t('settings.textSize')}>
                 <Segmented<TextSize>
-                  label="Metin boyutu"
+                  label={t('settings.textSize')}
                   value={s.textSize}
                   onChange={(v) => set({ textSize: v })}
                   options={[
-                    ['S', 'KÜÇÜK'],
-                    ['M', 'ORTA'],
-                    ['L', 'BÜYÜK'],
-                    ['XL', 'ÇOK BÜYÜK'],
+                    ['S', t('settings.textS')],
+                    ['M', t('settings.textM')],
+                    ['L', t('settings.textL')],
+                    ['XL', t('settings.textXL')],
                   ]}
                 />
               </Row>
-              <Row label="Yüksek kontrast">
-                <Toggle label="Yüksek kontrast" value={s.contrast} onChange={(v) => set({ contrast: v })} />
+              <Row label={t('settings.contrast')}>
+                <Toggle label={t('settings.contrast')} value={s.contrast} onChange={(v) => set({ contrast: v })} />
               </Row>
-              <Row label="Sürükleyici mod" hint="Arayüz en aza iner; yalnızca hikâye kalır.">
-                <Toggle label="Sürükleyici mod" value={s.immersion} onChange={(v) => set({ immersion: v })} />
+              <Row label={t('settings.immersion')} hint={t('settings.immersionHint')}>
+                <Toggle label={t('settings.immersion')} value={s.immersion} onChange={(v) => set({ immersion: v })} />
               </Row>
             </>
           )}
@@ -264,10 +283,10 @@ export default function SettingsMenu({ open, onClose }: { open: boolean; onClose
 
         <footer className="settings-foot">
           <MenuButton tier="utility" sound="warning" onClick={() => settings.reset()}>
-            VARSAYILANLAR
+            {t('settings.defaults')}
           </MenuButton>
           <MenuButton tier="primary" sound="close" onClick={onClose}>
-            TAMAM
+            {t('settings.done')}
           </MenuButton>
         </footer>
       </div>

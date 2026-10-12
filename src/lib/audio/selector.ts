@@ -9,11 +9,14 @@ import { filter } from './synth'
 const CHORDS: Record<StoryTheme | 'menu', { notes: number[]; air: number; cutoff: number }> = {
   menu: { notes: [110, 164.81, 220], air: 300, cutoff: 600 },
   archival: { notes: [98, 146.83, 196, 233.08], air: 260, cutoff: 700 },
-  memory: { notes: [146.83, 220, 277.18], air: 420, cutoff: 900 },
   clinical: { notes: [123.47, 174.61, 246.94], air: 900, cutoff: 1400 },
   temporal: { notes: [87.31, 130.81, 174.61, 220], air: 340, cutoff: 650 },
-  uncertain: { notes: [103.83, 155.56, 207.65, 233.08], air: 380, cutoff: 760 },
-  perception: { notes: [82.41, 123.47, 185, 277.18], air: 520, cutoff: 1100 },
+  cosmic: { notes: [73.42, 110, 164.81, 246.94], air: 600, cutoff: 1000 },
+  chalk: { notes: [130.81, 164.81, 196, 261.63], air: 500, cutoff: 1300 },
+  dread: { notes: [77.78, 82.41, 116.54], air: 200, cutoff: 450 },
+  vertigo: { notes: [98, 146.83, 220, 329.63], air: 700, cutoff: 1200 },
+  neural: { notes: [92.5, 138.59, 207.65, 311.13], air: 800, cutoff: 1500 },
+  state: { notes: [98, 146.83, 196, 293.66], air: 300, cutoff: 800 },
 }
 
 export function selectorAudio(theme: StoryTheme | 'menu' | 'silence' = 'menu'): AudioProfileFactory {

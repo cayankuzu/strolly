@@ -1,143 +1,143 @@
 /**
- * TEKERRÜR — "Her Şeyin Durumu". The screenplay, measured in scroll.
+ * TEKERRÜR — the screenplay, measured in scroll. The first version, told in
+ * full: one evening in Arif's room of screens, from the moment he wakes at
+ * his desk to the moment the machine he built says a single word — and the
+ * night after, which has already been recorded.
  *
- * One night at the DURUM observatory, from 20:58 to 03:12. Ten chapters:
- * the system, its predictions, a person predicted, the first deviation,
- * probability and chaos, the observer, the system modelling itself, a
- * choice, the archive of questions, and the question.
+ * Chapters 1–4 follow the author's text beat by beat (wake, the right door,
+ * the robots and the coffee, the archive and the switch). Chapters 5–9 are
+ * the first version's: history on one square, the pattern, the record that
+ * has not happened yet, the word, and the observer.
+ *
+ * Chapter order follows the author's text: he goes through the right door
+ * (DIŞARISI) before the robots bring the coffee (RUTİN).
+ *
+ * Sets (see docs/stories/tekerrur.md): the room at the origin, the right-door
+ * walkway at x 5…9, the archive behind the left door at x −5…−60, the city
+ * square at x 300, the network void at x 600.
  */
 import { createTimeline } from '../timeline'
 
 const SEGMENTS = [
-  // 01 — DURUM
-  ['open', 1.6],
-  ['office', 2.6],
-  ['coffee', 2.4],
-  ['coffee2', 1.8],
-  ['desk', 2.6],
-  ['query1', 2.6],
-  // 02 — TAHMİN
-  ['log', 2.4],
-  ['test', 2.6],
-  ['small', 1.8],
-  ['pen', 2.2],
-  ['drop', 2.4],
-  ['routine', 1.6],
-  // 03 — İNSAN
-  ['ask', 2.6],
-  ['me', 2.0],
-  ['cup', 2.6],
-  ['cupChoice', 3.2],
-  ['act', 2.6],
-  ['wait13', 2.4],
-  // 04 — SAPMA
-  ['crash', 2.6],
-  ['done', 2.6],
-  ['selin', 2.8],
-  ['selinQuery', 2.4],
-  ['late', 2.8],
-  ['wrong', 2.6],
-  ['calc', 1.8],
-  // 05 — OLASILIK
-  ['particle', 2.8],
-  ['cloud', 3.4],
-  ['chaosQuery', 2.4],
-  ['chain', 3.4],
-  ['some', 2.4],
-  ['knowing', 2.8],
-  // 06 — GÖZLEMCİ
-  ['asking', 2.8],
-  ['before', 2.0],
-  ['selfref', 3.0],
-  ['because', 2.8],
-  // 07 — KENDİSİ
-  ['hall', 3.0],
-  ['inside', 2.4],
-  ['future', 2.4],
-  ['depth', 2.8],
-  ['you', 2.0],
-  ['t0312', 3.8],
-  // 08 — SEÇİM
-  ['phone', 2.8],
-  ['homeQuery', 2.8],
-  ['wantKnow', 2.8],
-  // 09 — TEKERRÜR
-  ['archive', 2.6],
-  ['record', 2.6],
-  ['record2', 2.8],
-  ['pending', 2.2],
-  ['count', 2.8],
-  ['questions', 2.4],
-  // 10 — SORU
-  ['leaving', 2.8],
-  ['empty', 3.0],
-  ['observer2', 2.4],
-  ['finalQuery', 2.6],
-  ['accepted', 2.2],
-  ['end', 3.0],
+  // 01 — UYANIŞ (late afternoon → sunset)
+  ['black', 1.3],
+  ['asleep', 2.5],
+  ['desk', 3.0],
+  ['walls', 3.1],
+  ['stream', 1.6],
+  ['doors', 3.1],
+  ['ceiling', 3.5],
+  ['wake', 2.6],
+  ['wipe', 2.0],
+  ['throw', 2.5],
+  // 02 — DIŞARISI (dusk → blue hour; the room empty for forty minutes)
+  ['rise', 1.3],
+  ['walk', 2.7],
+  ['floor', 1.6],
+  ['rightDoor', 3.3],
+  ['forty', 3.3],
+  // 03 — RUTİN (early night; three robots, one coffee)
+  ['reopen', 2.2],
+  ['robots', 1.9],
+  ['sits', 1.6],
+  ['reach', 2.5],
+  ['sip', 2.4],
+  ['thousands', 2.1],
+  // 04 — ARŞİV (the left door, the archive, the switch)
+  ['hover', 2.1],
+  ['toLeft', 1.2],
+  ['leftDoor', 1.9],
+  ['deep', 2.0],
+  ['aisles', 4.2],
+  ['core', 2.1],
+  ['lever', 2.2],
+  ['whistle', 1.5],
+  // 05 — TARİH (the red button; one square, five eras)
+  ['red', 2.5],
+  ['dive', 0.9],
+  ['history', 6.5],
+  // 06 — ÖRÜNTÜ (four more eras; the network; the spiral; from above)
+  ['repeat', 3.6],
+  ['network', 3.6],
+  ['spiral', 2.6],
+  ['above', 2.7],
+  // 07 — ANOMALİ (a record after today)
+  ['beyond', 1.6],
+  ['anomaly', 2.0],
+  ['checked', 2.2],
+  ['feed', 2.6],
+  ['feedWide', 2.8],
+  // 08 — TEKERRÜR (the press, the dark, the word)
+  ['back', 1.5],
+  ['press', 1.7],
+  ['dark', 1.2],
+  ['word', 2.2],
+  ['law', 2.1],
+  // 09 — GÖZLEMCİ (the records, the engine, the room again, the observer)
+  ['records', 6.0],
+  ['engine', 2.5],
+  ['again', 2.0],
+  ['halt', 1.9],
+  ['turn', 1.5],
+  ['observer', 2.0],
+  ['maybe', 2.2],
+  ['end', 1.0],
 ] as const
 
 export type SegmentId = (typeof SEGMENTS)[number][0]
 
 export const timeline = createTimeline(SEGMENTS, [
-  { id: 'state', index: 1, title: 'DURUM', first: 'open', last: 'query1' },
-  { id: 'prediction', index: 2, title: 'TAHMİN', first: 'log', last: 'routine' },
-  { id: 'human', index: 3, title: 'İNSAN', first: 'ask', last: 'wait13' },
-  { id: 'deviation', index: 4, title: 'SAPMA', first: 'crash', last: 'calc' },
-  { id: 'probability', index: 5, title: 'OLASILIK', first: 'particle', last: 'knowing' },
-  { id: 'observer', index: 6, title: 'GÖZLEMCİ', first: 'asking', last: 'because' },
-  { id: 'itself', index: 7, title: 'KENDİSİ', first: 'hall', last: 't0312' },
-  { id: 'choice', index: 8, title: 'SEÇİM', first: 'phone', last: 'wantKnow' },
-  { id: 'recurrence', index: 9, title: 'TEKERRÜR', first: 'archive', last: 'questions' },
-  { id: 'question', index: 10, title: 'SORU', first: 'leaving', last: 'end' },
+  { id: 'awakening', index: 1, title: 'UYANIŞ', first: 'black', last: 'throw' },
+  { id: 'outside', index: 2, title: 'DIŞARISI', first: 'rise', last: 'forty' },
+  { id: 'routine', index: 3, title: 'RUTİN', first: 'reopen', last: 'thousands' },
+  { id: 'archive', index: 4, title: 'ARŞİV', first: 'hover', last: 'whistle' },
+  { id: 'history', index: 5, title: 'TARİH', first: 'red', last: 'history' },
+  { id: 'pattern', index: 6, title: 'ÖRÜNTÜ', first: 'repeat', last: 'above' },
+  { id: 'anomaly', index: 7, title: 'ANOMALİ', first: 'beyond', last: 'feedWide' },
+  { id: 'tekerrur', index: 8, title: 'TEKERRÜR', first: 'back', last: 'law' },
+  { id: 'observer', index: 9, title: 'GÖZLEMCİ', first: 'records', last: 'end' },
 ])
 
 export const { SEG, SEGMENT_LIST, TOTAL_SCREENS, CHAPTERS, at, local, sub, segmentAt, chapterAt } = timeline
 
-/** Scroll length of one screen, in viewport heights (percent). */
-export const SCREEN_VH = 92
+/** One scroll "screen" in viewport-height percent. */
+export const SCREEN_VH = 80
 
-/**
- * The night's clock, in hours since midnight (20.97 = 20:58), as a function of
- * progress. Time jumps between scenes; inside a scene it moves with the scroll.
- */
-export function storyHours(p: number) {
-  const keys: Array<[number, number]> = [
-    [0, 20 + 58 / 60],
-    [at('query1', 1), 21 + 0 / 60],
-    [at('routine', 1), 21 + 3 / 60],
-    [at('cup', 0.5), 21 + 4 / 60],
-    [at('act', 1), 21 + 12.5 / 60],
-    [at('wait13', 0.62), 21 + 13 / 60 + 4 / 3600],
-    [at('crash', 0.5), 21 + 13 / 60 + 9 / 3600],
-    [at('selinQuery', 1), 21 + 31 / 60],
-    [at('late'), 22 + 40 / 60],
-    [at('calc', 1), 22 + 47 / 60],
-    [at('particle'), 23 + 30 / 60],
-    [at('knowing', 1), 24 + 25 / 60],
-    [at('hall'), 24 + 50 / 60],
-    [at('t0312', 1), 25 + 10 / 60],
-    [at('phone'), 25 + 20 / 60],
-    [at('wantKnow', 1), 25 + 31 / 60],
-    [at('archive'), 26 + 15 / 60],
-    [at('questions', 1), 26 + 55 / 60],
-    [at('leaving'), 27 + 5 / 60],
-    [at('empty', 0.5), 27 + 12 / 60],
-    [1, 27 + 14 / 60],
-  ]
-  for (let i = 1; i < keys.length; i++) {
-    const [p1, h1] = keys[i]
-    const [p0, h0] = keys[i - 1]
-    if (p <= p1) return h0 + (h1 - h0) * Math.max(0, Math.min(1, (p - p0) / Math.max(1e-9, p1 - p0)))
+/** The iteration the first reading belongs to. Each pass of the loop adds one. */
+export const BASE_ITERATION = 7184
+
+/** The square's eras: TARİH plays the first five over `history`, ÖRÜNTÜ the last four over `repeat`. */
+export const ERAS = [
+  { year: '1914', word: '' },
+  { year: '1917', word: 'SAVAŞ' },
+  { year: '1931', word: 'KRİZ' },
+  { year: '1944', word: 'ENKAZ' },
+  { year: '1962', word: 'TOPARLANMA' },
+  { year: '1991', word: 'YENİ ÇATIŞMA' },
+  { year: '2008', word: 'YENİ KRİZ' },
+  { year: '2029', word: '' },
+  { year: '2041', word: '' },
+] as const
+
+/** Which era of the square shows at p, and how far into it (0–1). */
+export function eraAt(p: number): { era: number; t: number } {
+  if (p < SEG.repeat.start) {
+    const u = local(p, 'history') * 5
+    const era = Math.min(4, Math.floor(u))
+    return { era, t: u - era }
   }
-  return keys[keys.length - 1][1]
+  const u = local(p, 'repeat') * 4
+  const era = Math.min(3, Math.floor(u))
+  return { era: 5 + era, t: u - era }
 }
 
-/** "21:13" (or "21:13:04" with seconds) for a time in hours. */
-export function clockText(hours: number, seconds = false) {
-  const h = Math.floor(hours) % 24
-  const m = Math.floor((hours * 60) % 60)
-  const s = Math.floor((hours * 3600) % 60)
-  const two = (n: number) => String(n).padStart(2, '0')
-  return seconds ? `${two(h)}:${two(m)}:${two(s)}` : `${two(h)}:${two(m)}`
+/**
+ * The records in GÖZLEMCİ: five nights, one per fifth of `records`. Record k
+ * is iteration + k (k 0 glasses, 1 the cloth, 2 the finger over the button,
+ * 3 the catch, 4 the walk to the right door — see the screenplay).
+ */
+export function recordAt(p: number): { record: number; t: number } {
+  const u = local(p, 'records') * 5
+  const record = Math.min(4, Math.floor(u))
+  return { record, t: u - record }
 }

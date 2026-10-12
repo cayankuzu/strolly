@@ -1,11 +1,16 @@
 /**
- * Procedural PBR surfaces. Every material in STROLLY is generated, so the
- * build ships no images; a surface is three tileable maps made from seeded
- * noise on first use and shared by every story after that:
+ * PBR surfaces. A surface is three tileable maps shared by every story:
  *
  *   detail   albedo variation (sRGB, near-white; the material's color tints it)
- *   normal   tangent-space relief derived from a height field
- *   orm      packed cavity (R), roughness (G) and metalness (B)
+ *   normal   tangent-space relief (OpenGL convention)
+ *   orm      packed cavity/AO (R), roughness (G) and metalness (B)
+ *
+ * Where a real scanned set exists (Poly Haven, CC0 — see ASSET_MANIFEST.md),
+ * `preloadSurfaces` loads it before a story builds and every material of that
+ * kind uses the scan: its albedo is turned into a near-white detail map so the
+ * story's art-directed colour still decides the hue. Everything else — and
+ * every kind on the lowest quality tier, or when a file fails to load — is
+ * made procedurally from seeded noise on first use.
  *
  * Each surface also knows its real-world size (meters per tile). Geometry is
  * given metric UVs (`applyMetricUVs`) so wood grain, weave and brick keep
@@ -37,6 +42,10 @@ export type SurfaceKind =
   | 'skin'
   | 'hair'
   | 'laminate'
+  | 'rock'
+  | 'gravel'
+  | 'sand'
+  | 'tileWorn'
 
 type Maps = { detail: THREE.Texture; normal: THREE.Texture; orm: THREE.Texture }
 
@@ -64,7 +73,42 @@ const METERS: Record<SurfaceKind, number> = {
   skin: 0.06,
   hair: 0.05,
   laminate: 1.4,
+  rock: 2.7,
+  gravel: 2.25,
+  sand: 4,
+  tileWorn: 2,
 }
+
+/**
+ * Scanned sets in public/assets/textures (Poly Haven ids) and the meters one
+ * tile covers in the scan. `chroma` keeps a little of the scan's own colour
+ * in the detail map (0 = pure luminance).
+ */
+const REAL: Partial<Record<SurfaceKind, { id: string; meters: number; chroma?: number }>> = {
+  wood: { id: 'oak_veneer_01', meters: 1.83, chroma: 0.25 },
+  planks: { id: 'brown_planks_04', meters: 1.0, chroma: 0.2 },
+  laminate: { id: 'laminate_floor_02', meters: 1.7, chroma: 0.2 },
+  fabric: { id: 'rough_linen', meters: 0.27 },
+  knit: { id: 'knitted_fleece', meters: 0.27 },
+  denim: { id: 'denim_fabric', meters: 0.1 },
+  leather: { id: 'brown_leather', meters: 0.4 },
+  plaster: { id: 'plastered_wall_02', meters: 2.23 },
+  concrete: { id: 'concrete_floor_02', meters: 2.0 },
+  brick: { id: 'brick_wall_02', meters: 2.0, chroma: 0.35 },
+  asphalt: { id: 'asphalt_02', meters: 3.0 },
+  paving: { id: 'concrete_pavement', meters: 1.8 },
+  tile: { id: 'interior_tiles', meters: 1.9 },
+  carpet: { id: 'dirty_carpet', meters: 0.6 },
+  metal: { id: 'metal_plate', meters: 0.5 },
+  painted: { id: 'white_stucco', meters: 2.0 },
+  rock: { id: 'rock_face_03', meters: 2.7, chroma: 0.3 },
+  gravel: { id: 'gravel_floor', meters: 2.25, chroma: 0.3 },
+  sand: { id: 'coast_sand_01', meters: 4, chroma: 0.3 },
+  tileWorn: { id: 'worn_tile_floor', meters: 2.0, chroma: 0.25 },
+}
+
+/** Kinds whose scans every story preloads; the rest load when a story asks for them. */
+const COMMON: SurfaceKind[] = ['wood', 'planks', 'laminate', 'fabric', 'knit', 'denim', 'leather', 'plaster', 'concrete', 'brick', 'asphalt', 'paving', 'tile', 'carpet', 'metal', 'painted']
 
 // ——— Noise ———
 
@@ -330,6 +374,7 @@ function build(kind: SurfaceKind, size: number): Field {
       }
       return { height, albedo, rough, normalStrength: 0.55 }
     }
+    case 'rock':
     case 'concrete': {
       const low = fbm(size, 71, 3, 3, 6)
       const mid = fbm(size, 72, 16, 16, 3)
@@ -366,6 +411,7 @@ function build(kind: SurfaceKind, size: number): Field {
       }
       return { height, albedo, rough, normalStrength: 2.2 }
     }
+    case 'gravel':
     case 'asphalt': {
       const low = fbm(size, 91, 2, 2, 5)
       const crack = fbm(size, 92, 6, 6, 4)
@@ -381,6 +427,7 @@ function build(kind: SurfaceKind, size: number): Field {
       stamp(albedo, size, 94, size * 6, 0.4, 1.2, 0.25)
       return { height, albedo, rough, normalStrength: 2.4 }
     }
+    case 'sand':
     case 'paving': {
       // Square concrete pavers, 0.45 m, with sand joints.
       const n = 4
@@ -402,6 +449,7 @@ function build(kind: SurfaceKind, size: number): Field {
       stamp(height, size, 103, size * 3, 0.4, 1.0, -0.4)
       return { height, albedo, rough, normalStrength: 2 }
     }
+    case 'tileWorn':
     case 'tile': {
       // 0.3 m glazed tiles with grout.
       const n = 4
@@ -515,6 +563,87 @@ export function setSurfaceResolution(size: 256 | 512) {
   defaultSize = size
 }
 
+// ——— Scanned sets ———
+
+const real = new Map<SurfaceKind, Maps>()
+const realLoads = new Map<SurfaceKind, Promise<void>>()
+
+async function bitmap(url: string) {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`${r.status} ${url}`)
+  return createImageBitmap(await r.blob())
+}
+
+function texture(image: TexImageSource, srgb: boolean) {
+  const t = new THREE.Texture(image as HTMLImageElement)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.anisotropy = 8
+  t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace
+  t.needsUpdate = true
+  return t
+}
+
+/** The scan's albedo as a near-white detail map: its light and dark, a little of its colour. */
+function detailFrom(img: ImageBitmap, chroma: number) {
+  const c = document.createElement('canvas')
+  c.width = img.width
+  c.height = img.height
+  const ctx = c.getContext('2d', { willReadFrequently: true })!
+  ctx.drawImage(img, 0, 0)
+  const data = ctx.getImageData(0, 0, c.width, c.height)
+  const d = data.data
+  let sum = 0
+  for (let i = 0; i < d.length; i += 4) sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]
+  const mean = Math.max(1, sum / (d.length / 4))
+  // Mean 0.86: room above for highlights, and the material's colour stays the colour asked for.
+  const k = (0.86 * 255) / mean
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]
+    for (let j = 0; j < 3; j++) d[i + j] = Math.min(255, (l + (d[i + j] - l) * chroma) * k)
+  }
+  ctx.putImageData(data, 0, 0)
+  return c
+}
+
+function loadReal(kind: SurfaceKind) {
+  const spec = REAL[kind]
+  if (!spec) return Promise.resolve()
+  let p = realLoads.get(kind)
+  if (!p) {
+    const base = `/assets/textures/${spec.id}`
+    p = Promise.all([bitmap(`${base}/diff.webp`), bitmap(`${base}/nor.webp`), bitmap(`${base}/arm.webp`)])
+      .then(([diff, nor, arm]) => {
+        real.set(kind, { detail: texture(detailFrom(diff, spec.chroma ?? 0.12), true), normal: texture(nor, false), orm: texture(arm, false) })
+      })
+      .catch((e) => {
+        if (process.env.NODE_ENV !== 'production') console.warn(`[surfaces] scan for "${kind}" failed; using the procedural surface.`, e)
+      })
+    realLoads.set(kind, p)
+  }
+  return p
+}
+
+let scans = true
+/** The lowest quality tier keeps the light procedural maps only. */
+export function setScannedSurfaces(on: boolean) {
+  scans = on
+}
+
+/**
+ * Loads the scanned sets before a story builds its set (the common kinds,
+ * plus any extra a story names). Never rejects: a failed set stays procedural.
+ */
+export async function preloadSurfaces(extra: SurfaceKind[] = []) {
+  if (!scans || typeof document === 'undefined') return
+  await Promise.all([...COMMON, ...extra].map(loadReal))
+}
+
+/** The maps a material of this kind uses now: the scan if it is loaded, the procedural set otherwise. */
+export function mapsFor(kind: SurfaceKind) {
+  const r = scans ? real.get(kind) : undefined
+  return r ? { maps: r, meters: REAL[kind]!.meters, scanned: true } : { maps: surfaceMaps(kind, defaultSize), meters: METERS[kind], scanned: false }
+}
+
 export type PbrOptions = THREE.MeshStandardMaterialParameters & {
   /** Normal strength. */
   bump?: number
@@ -528,7 +657,7 @@ export type PbrOptions = THREE.MeshStandardMaterialParameters & {
  */
 export function pbr(kind: SurfaceKind, color: THREE.ColorRepresentation, opts: PbrOptions = {}) {
   const { bump = 1, scale = 1, ...params } = opts
-  const maps = surfaceMaps(kind, defaultSize)
+  const { maps, meters, scanned } = mapsFor(kind)
   const metal = kind === 'metal'
   const m = new THREE.MeshStandardMaterial({
     color,
@@ -538,13 +667,13 @@ export function pbr(kind: SurfaceKind, color: THREE.ColorRepresentation, opts: P
     roughnessMap: maps.orm,
     metalnessMap: metal ? maps.orm : null,
     aoMap: maps.orm,
-    aoMapIntensity: 0.6,
+    aoMapIntensity: scanned ? 0.85 : 0.6,
     roughness: 1,
     metalness: metal ? 1 : 0,
     ...params,
   })
   m.userData.surface = kind
-  m.userData.meters = METERS[kind] * scale
+  m.userData.meters = meters * scale
   return m
 }
 

@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three'
 import { mesh } from '../util'
-import { applyMetricUVs, pbr, skinMaterial, surfaceMaps, type SurfaceKind } from '../kit/surfaces'
+import { applyMetricUVs, mapsFor, pbr, skinMaterial, type SurfaceKind } from '../kit/surfaces'
 import { browGeometry, earGeometry, hairGeometry, handGeometry, headGeometry, headPoint, shoeGeometry, type FaceShape, type HairStyle } from './figureBody'
 import { BIND, bodyGeometry } from './skin'
 
@@ -125,14 +125,15 @@ const CLOTH_METERS: Partial<Record<SurfaceKind, number>> = { fabric: 0.12, knit:
 function clothe(mat: M, kind: SurfaceKind) {
   const m = mat as THREE.MeshStandardMaterial
   if (!m.isMeshStandardMaterial || m.transparent || m.map || m.userData.meters) return mat
-  const maps = surfaceMaps(kind)
+  // Scanned cloth is drawn at its own (larger) tile; the generated weaves are finer.
+  const { maps, scanned, meters } = mapsFor(kind)
   m.map = maps.detail
   m.normalMap = maps.normal
   m.roughnessMap = maps.orm
   m.aoMap = maps.orm
   m.aoMapIntensity = 0.5
   m.userData.surface = kind
-  m.userData.meters = CLOTH_METERS[kind] ?? 0.2
+  m.userData.meters = scanned ? meters * 0.6 : (CLOTH_METERS[kind] ?? 0.2)
   m.needsUpdate = true
   return mat
 }

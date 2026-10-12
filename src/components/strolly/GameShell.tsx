@@ -18,7 +18,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { STORIES, STORY_ORDER, isStoryId } from '@/stories/registry'
 import type { ChoiceGate, Discovery, StoryId, StoryTheme } from '@/stories/types'
 import { isDev } from '@/lib/env'
-import { settings, useSettings } from '@/lib/settings'
+import { settings, useSettings, type Lang } from '@/lib/settings'
+import { t as translate, useStories, useT } from '@/lib/i18n'
+import { storiesIn } from '@/stories/localize'
 import { saves, type StorySave } from '@/lib/save'
 import { selectorAudio } from '@/lib/audio/selector'
 import type { UiSound } from '@/lib/audio/core'
@@ -60,15 +62,18 @@ const write = (key: string, v: string) => {
 const TINT: Record<StoryTheme | 'menu', string> = {
   menu: '#d8cfc2',
   archival: '#b9d3c4',
-  memory: '#ffd29e',
   clinical: '#dbe8ee',
   temporal: '#ffbf7a',
-  uncertain: '#e9c9a0',
-  perception: '#a9c2ff',
+  cosmic: '#c4b8ff',
+  chalk: '#d8e6b0',
+  dread: '#d9a58a',
+  vertigo: '#ffc59a',
+  neural: '#a8e6dc',
+  state: '#c9d6e6',
 }
 
-const pageTitle = (screen: Screen, id: StoryId | null) =>
-  screen === 'story' && id ? `${STORIES[id].meta.title} — STROLLY` : screen === 'stories' ? 'Hikâyeler — STROLLY' : 'STROLLY'
+const pageTitle = (screen: Screen, id: StoryId | null, lang: Lang) =>
+  screen === 'story' && id ? translate(lang, 'page.story', { title: storiesIn(lang)[id].meta.title }) : screen === 'stories' ? translate(lang, 'page.stories') : 'STROLLY'
 
 const urlFor = (screen: Screen, id: StoryId | null) => (screen === 'story' && id ? `?story=${id}` : screen === 'stories' ? '?menu=hikayeler' : window.location.pathname)
 
@@ -89,6 +94,8 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
   const cursorRef = useRef<CursorHandle>(null)
   const runtimeRef = useRef<StoryRuntime | null>(null)
   const s = useSettings()
+  const t = useT()
+  const stories = useStories()
 
   const [screen, setScreen] = useState<Screen>(initialStory ? 'story' : initialScreen)
   const [storyId, setStoryId] = useState<StoryId | null>(initialStory)
@@ -114,7 +121,7 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
   const [journalData, setJournalData] = useState<{ entries: JournalEntry[]; seen: ReadonlySet<string> }>({ entries: [], seen: new Set() })
   const { messages, push, clear } = useHudMessages()
 
-  const story = storyId ? STORIES[storyId] : null
+  const story = storyId ? stories[storyId] : null
   const uiSound = useCallback((kind: UiSound) => runtimeRef.current?.audio.ui(kind), [])
 
   // ——— Navigation ———
@@ -125,9 +132,17 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
       if (how === 'push') history.pushState({ strolly: next }, '', url)
       else history.replaceState({ ...(history.state ?? {}), strolly: next }, '', url)
     }
-    document.title = pageTitle(next, id)
+    document.title = pageTitle(next, id, settings.get().lang)
     setScreen(next)
   }, [])
+
+  // A new language retitles the page (the first render keeps the title the server gave it).
+  const titledIn = useRef(s.lang)
+  useEffect(() => {
+    if (titledIn.current === s.lang) return
+    titledIn.current = s.lang
+    document.title = pageTitle(screen, screen === 'story' ? storyId : null, s.lang)
+  }, [s.lang, screen, storyId])
 
   const enter = useCallback(
     (id: StoryId, chapter?: number, how: 'push' | 'replace' | 'none' = 'push') => {
@@ -196,11 +211,11 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
         },
         saved: () => {
           rt.audio.ui('save')
-          push({ kind: 'saved', lines: ['İLERLEME KAYDEDİLDİ'] }, 2200)
+          push({ kind: 'saved', lines: [translate(settings.get().lang, 'story.saved')] }, 2200)
         },
         chapterComplete: (index, title, total) => {
           rt.audio.ui('transition')
-          push({ kind: 'chapter', lines: ['BÖLÜM TAMAMLANDI', title], sub: `${String(index).padStart(2, '0')} / ${String(total).padStart(2, '0')}` }, 3200)
+          push({ kind: 'chapter', lines: [translate(settings.get().lang, 'story.chapterDone'), title], sub: `${String(index).padStart(2, '0')} / ${String(total).padStart(2, '0')}` }, 3200)
         },
         caption: (text) => push({ kind: 'caption', lines: [text] }, 3400),
         prompt: setPrompt,
@@ -281,6 +296,12 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
             paused: rt.held !== null,
             segments: st ? st.timeline.SEGMENT_LIST.map((x) => x.id) : [],
             chapters: st ? st.timeline.CHAPTERS.map((c) => ({ index: c.index, start: c.start })) : [],
+            render: rt.renderStats,
+            assets: (() => {
+              // Published by src/three/kit/assets.ts in development, so the loaders stay out of this bundle.
+              const log = (globalThis as { __strollyAssets?: { loaded: string[]; failed: string[] } }).__strollyAssets
+              return log ? { loaded: log.loaded.length, failed: [...log.failed] } : null
+            })(),
           }
         },
         jump: (p) => rt.jump(p),
@@ -310,13 +331,14 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
 
   // ——— Pause ———
 
-  const [pausedAt, setPausedAt] = useState<{ index: number; title: string } | null>(null)
+  // The chapter the story was paused in (its title is read in the current language).
+  const [pausedAt, setPausedAt] = useState<number | null>(null)
   const pause = useCallback((on: boolean) => {
     const rt = runtimeRef.current
     if (!rt || !rt.current) return
     rt.setPaused(on)
     setPaused(on)
-    if (on) setPausedAt(rt.chapter)
+    if (on) setPausedAt(rt.chapter?.index ?? null)
     else setSettingsOpen(false)
   }, [])
 
@@ -415,10 +437,10 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
     const id = lastStory && saveData[lastStory] ? lastStory : null
     if (!id) return null
     const sv = saveData[id]!
-    const st = STORIES[id]
+    const st = stories[id]
     const c = st.timeline.CHAPTERS[Math.max(0, sv.chapter - 1)]
     return { title: st.meta.title, chapter: sv.chapter, chapterTitle: c?.title ?? '', percent: Math.round((sv.completed ? 1 : sv.progress) * 100) }
-  }, [lastStory, saveData])
+  }, [lastStory, saveData, stories])
 
   const onContinue = () => {
     if (!lastStory) return
@@ -444,15 +466,16 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
     setJournalTab(tab)
   }
 
-  const theme: StoryTheme | 'menu' = screen === 'story' && story ? story.meta.theme : screen === 'stories' && focusStory ? STORIES[focusStory].meta.theme : 'menu'
+  const theme: StoryTheme | 'menu' = screen === 'story' && story ? story.meta.theme : screen === 'stories' && focusStory ? stories[focusStory].meta.theme : 'menu'
   const reducedText = s.reducedMotion || !s.motion
+  const pausedChapter = story && pausedAt ? story.timeline.CHAPTERS[pausedAt - 1] : null
 
   return (
     <UiSoundContext.Provider value={uiSound}>
       <div className="strolly" data-screen={screen} data-phase={phase} data-mode={mode} data-story={storyId ?? 'none'} data-theme={theme} data-paused={paused}>
         <MenuBackdrop active={screen !== 'story'} tint={TINT[theme]} />
         <div ref={backdropRef} className="backdrop" data-chapter="1" aria-hidden="true" />
-        <canvas ref={canvasRef} className="stage" aria-label={story ? `${story.meta.title}: sahne. Sürükleyerek etrafına bak.` : undefined} role={story ? 'img' : undefined} />
+        <canvas ref={canvasRef} className="stage" aria-label={story ? t('story.scene', { title: story.meta.title }) : undefined} role={story ? 'img' : undefined} />
         <div ref={labelsRef} className="labels" aria-hidden="true" />
 
         {story && <NarrativeLayer key={`narrative-${story.meta.id}`} ref={narrativeRef} story={story} iteration={iteration} fallback={mode === 'fallback'} reduced={reducedText} flags={flags} />}
@@ -508,21 +531,21 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
 
         <BrandMark visible={screen !== 'story' || paused} />
         {screen !== 'story' && (
-          <button type="button" className="menu-sound" aria-pressed={soundOn} aria-label={soundOn ? 'Sesi kapat' : 'Sesi aç'} onClick={toggleSound}>
+          <button type="button" className="menu-sound" aria-pressed={soundOn} aria-label={soundOn ? t('common.soundOff') : t('common.soundOn')} onClick={toggleSound}>
             <span className="hud-sound-icon" data-on={soundOn} aria-hidden="true">
               <i />
               <i />
               <i />
               <i />
             </span>
-            SES
+            {t('common.sound')}
           </button>
         )}
 
         <PauseMenu
           open={paused && !settingsOpen && !journal && screen === 'story'}
           title={story?.meta.title ?? ''}
-          chapter={pausedAt ? `BÖLÜM ${String(pausedAt.index).padStart(2, '0')} ${pausedAt.title}` : ''}
+          chapter={pausedChapter ? `${t('common.chapter', { n: String(pausedChapter.index).padStart(2, '0') })} ${pausedChapter.title}` : ''}
           onResume={() => pause(false)}
           onRestartChapter={() => {
             runtimeRef.current?.restartChapter()
@@ -547,9 +570,9 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
         <SettingsMenu open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         <ConfirmDialog
           open={confirmNew}
-          title="YENİ OYUN"
-          body="Bütün hikâyelerdeki ilerleme ve keşifler silinecek. Ayarların korunur."
-          confirm="SİL VE BAŞLA"
+          title={t('title.newGame')}
+          body={t('newGame.body')}
+          confirm={t('newGame.confirm')}
           onCancel={() => setConfirmNew(false)}
           onConfirm={() => {
             saves.clearAll()
@@ -574,7 +597,7 @@ export default function GameShell({ initialStory, initialScreen }: { initialStor
               <span className="loading-title">{story.meta.title}</span>
               <span className="loading-chapter">{story.meta.mood}</span>
               <span className="loading-line" aria-hidden="true" />
-              <span className="sr-only">yükleniyor</span>
+              <span className="sr-only">{t('common.loading')}</span>
             </>
           )}
         </div>

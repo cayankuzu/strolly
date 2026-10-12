@@ -2,6 +2,7 @@
 
 /** PAUSED: the story holds still behind blurred glass until the reader returns. */
 import { useRef } from 'react'
+import { useT } from '@/lib/i18n'
 import { MenuButton, useMenuKeys } from './ui'
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
 
 export default function PauseMenu({ open, title, chapter, onResume, onRestartChapter, onStories, onSettings, onJournal, onMainMenu }: Props) {
   const menu = useRef<HTMLElement>(null)
+  const t = useT()
   useMenuKeys(menu, open)
   if (!open) return null
   return (
@@ -27,31 +29,31 @@ export default function PauseMenu({ open, title, chapter, onResume, onRestartCha
           {title} <i>·</i> {chapter}
         </p>
         <h2 id="pause-title" className="pause-title">
-          DURAKLATILDI
+          {t('pause.title')}
         </h2>
-        <nav ref={menu} className="pause-menu" aria-label="Duraklatma menüsü">
+        <nav ref={menu} className="pause-menu" aria-label={t('pause.menu')}>
           <MenuButton tier="primary" sound="close" onClick={onResume} data-autofocus="">
-            DEVAM ET
+            {t('pause.resume')}
           </MenuButton>
-          <MenuButton onClick={onRestartChapter}>BÖLÜMÜ YENİDEN BAŞLAT</MenuButton>
+          <MenuButton onClick={onRestartChapter}>{t('pause.restart')}</MenuButton>
           <MenuButton onClick={() => onJournal('journal')} sound="open">
-            GÜNLÜK
+            {t('common.journal')}
           </MenuButton>
           <MenuButton onClick={() => onJournal('discoveries')} sound="open">
-            KEŞİFLER
+            {t('common.discoveries')}
           </MenuButton>
           <MenuButton onClick={onStories} sound="transition">
-            HİKÂYE SEÇ
+            {t('pause.choose')}
           </MenuButton>
           <MenuButton tier="utility" onClick={onSettings} sound="open">
-            AYARLAR
+            {t('common.settings')}
           </MenuButton>
           <MenuButton tier="utility" onClick={onMainMenu} sound="transition">
-            ANA MENÜ
+            {t('common.mainMenu')}
           </MenuButton>
         </nav>
         <p className="pause-hint" aria-hidden="true">
-          ESC · DEVAM
+          {t('pause.hint')}
         </p>
       </div>
     </div>

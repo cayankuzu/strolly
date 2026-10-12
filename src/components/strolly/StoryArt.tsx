@@ -99,61 +99,6 @@ function TekerrurArt() {
   )
 }
 
-function EmanetArt() {
-  return (
-    <svg viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice" className="art art--emanet">
-      <defs>
-        <linearGradient id="em-wall" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#3a3029" />
-          <stop offset="1" stopColor="#6d5a49" />
-        </linearGradient>
-        <linearGradient id="em-window" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fbe6c6" />
-          <stop offset="1" stopColor="#e9b984" />
-        </linearGradient>
-        <linearGradient id="em-beam" x1="1" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffd9a3" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#ffd9a3" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="em-haze" cx="0.75" cy="0.4" r="0.7">
-          <stop offset="0" stopColor="#ffe4bd" stopOpacity="0.4" />
-          <stop offset="1" stopColor="#ffe4bd" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="400" height="250" fill="url(#em-wall)" />
-      {/* Floor */}
-      <rect y="186" width="400" height="64" fill="#4a372a" />
-      <rect y="186" width="400" height="2" fill="#2c211a" />
-      {/* Window with sheer curtains */}
-      <rect x="262" y="28" width="104" height="150" fill="url(#em-window)" />
-      <g stroke="#cfa77a" strokeWidth="3">
-        <line x1="314" y1="28" x2="314" y2="178" />
-        <line x1="262" y1="104" x2="366" y2="104" />
-      </g>
-      <path className="art-curtain" d="M256 22 q8 40 0 80 t2 80 h18 q-6 -40 2 -80 t-2 -80 z" fill="#f6efe2" opacity="0.7" />
-      <path className="art-curtain art-curtain--b" d="M372 22 q-8 40 0 80 t-2 80 h-18 q6 -40 -2 -80 t2 -80 z" fill="#f6efe2" opacity="0.7" />
-      {/* Light falling across the room */}
-      <polygon points="262,178 366,178 250,250 60,250" fill="url(#em-beam)" />
-      {/* Table, two chairs, one cup */}
-      <rect x="92" y="148" width="132" height="6" fill="#a9845f" />
-      <rect x="100" y="154" width="4" height="34" fill="#7a5e44" />
-      <rect x="212" y="154" width="4" height="34" fill="#7a5e44" />
-      <path d="M74 120 v68 M74 158 h22 v30" stroke="#5a4433" strokeWidth="4" fill="none" />
-      <path d="M244 120 v68 M244 158 h-22 v30" stroke="#5a4433" strokeWidth="4" fill="none" />
-      <rect x="168" y="138" width="10" height="10" rx="1.5" fill="#8aa0b3" />
-      <ellipse cx="173" cy="148.5" rx="9" ry="1.6" fill="#5a3e2a" opacity="0.5" />
-      {/* A figure by the window, softer than everything else */}
-      <g className="art-figure" opacity="0.55" filter="blur(1.4px)">
-        <circle cx="300" cy="118" r="8" fill="#2b221c" />
-        <path d="M290 130 q10 -6 20 0 l3 56 h-26 z" fill="#2b221c" />
-      </g>
-      {/* The capsule's amber point */}
-      <circle cx="58" cy="146" r="2.2" fill="#ffb060" />
-      <circle cx="58" cy="146" r="7" fill="#ffb060" opacity="0.18" />
-      <rect width="400" height="250" fill="url(#em-haze)" />
-    </svg>
-  )
-}
 
 
 function OfkeArt() {
@@ -243,107 +188,24 @@ function YasamakArt() {
   )
 }
 
-function KalanArt() {
-  return (
-    <svg viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice" className="art art--kalan">
-      <defs>
-        <radialGradient id="ka-lamp" cx="0.36" cy="0.55" r="0.45">
-          <stop offset="0" stopColor="#ffcf96" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#ffcf96" stopOpacity="0" />
-        </radialGradient>
-        <linearGradient id="ka-under" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#fff1d6" stopOpacity="0.9" />
-          <stop offset="1" stopColor="#fff1d6" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <rect width="400" height="250" fill="#17130f" />
-      <rect y="178" width="400" height="72" fill="#211a14" />
-      {/* The door, and its other version slightly out of place */}
-      <rect x="276" y="52" width="72" height="126" fill="#2b221b" stroke="#3a2f25" strokeWidth="2" />
-      <rect x="283" y="47" width="72" height="126" fill="none" stroke="#c9b28f" strokeWidth="0.8" opacity="0.25" />
-      <circle cx="338" cy="118" r="2.4" fill="#b48f58" />
-      <rect x="276" y="176" width="72" height="16" fill="url(#ka-under)" />
-      {/* A photograph, tilted */}
-      <g transform="rotate(-4 120 70)">
-        <rect x="96" y="48" width="48" height="36" fill="#3a2f26" />
-        <rect x="100" y="52" width="40" height="28" fill="#8c7a63" opacity="0.7" />
-        <circle cx="113" cy="62" r="4" fill="#3a2f26" />
-        <circle cx="128" cy="62" r="4" fill="#3a2f26" opacity="0.35" />
-      </g>
-      {/* Table, lamp, the recorder */}
-      <rect x="92" y="150" width="120" height="6" fill="#4a3a2c" />
-      <rect x="100" y="156" width="4" height="30" fill="#3a2d22" />
-      <rect x="200" y="156" width="4" height="30" fill="#3a2d22" />
-      <path d="M120 112 l14 -22 h16 l14 22 z" fill="#d9b88a" opacity="0.85" />
-      <rect x="140" y="112" width="2" height="38" fill="#2c231b" />
-      <rect x="160" y="136" width="34" height="14" rx="2" fill="#2a2522" stroke="#5a4c3e" strokeWidth="0.8" />
-      <circle cx="170" cy="143" r="3.2" fill="#14110f" stroke="#7a6a58" strokeWidth="0.6" />
-      <circle cx="184" cy="143" r="3.2" fill="#14110f" stroke="#7a6a58" strokeWidth="0.6" />
-      <circle cx="190" cy="138.5" r="0.9" fill="#ff5a3c" />
-      <rect width="400" height="250" fill="url(#ka-lamp)" />
-    </svg>
-  )
-}
 
-function EsikArt() {
-  const people: Array<[number, number]> = [
-    [96, 198],
-    [126, 192],
-    [306, 200],
-    [330, 206],
-  ]
+
+function PendingArt() {
   return (
-    <svg viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice" className="art art--esik">
-      <defs>
-        <linearGradient id="es-sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#05070c" />
-          <stop offset="1" stopColor="#141b2a" />
-        </linearGradient>
-        <radialGradient id="es-lamp" cx="0.69" cy="0.28" r="0.32">
-          <stop offset="0" stopColor="#ffe2b0" stopOpacity="0.4" />
-          <stop offset="1" stopColor="#ffe2b0" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect width="400" height="250" fill="url(#es-sky)" />
-      {/* Buildings receding along a street */}
-      <polygon points="0,20 150,90 150,190 0,250" fill="#10141c" />
-      <polygon points="400,10 250,90 250,190 400,250" fill="#0d1118" />
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <g key={i} fill="#ffcf8a" opacity={0.25 + (i % 3) * 0.15}>
-          <rect x={18 + i * 20} y={60 + i * 8} width="6" height="8" />
-          <rect x={372 - i * 20} y={52 + i * 9} width="6" height="8" />
-        </g>
-      ))}
-      <polygon points="150,190 250,190 400,250 0,250" fill="#0a0d12" />
-      {/* The door at the end of the street */}
-      <rect x="190" y="118" width="20" height="40" fill="#f2e6cf" opacity="0.85" />
-      <rect x="190" y="112" width="20" height="4" fill="#20242c" />
-      {/* Streetlight */}
-      <rect x="276" y="70" width="2" height="130" fill="#20242c" />
-      <rect x="262" y="68" width="18" height="3" fill="#20242c" />
-      <rect width="400" height="250" fill="url(#es-lamp)" />
-      {/* People, every face lit by a phone */}
-      {people.map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y - 18} r="4" fill="#0c0f15" />
-          <path d={`M${x - 6} ${y - 12} q6 -4 12 0 l2 22 h-16 z`} fill="#0c0f15" />
-          <rect x={x - 2} y={y - 16} width="4" height="2.4" fill="#8fb8ff" opacity="0.8" />
-        </g>
-      ))}
-      {/* Mira, walking toward the door */}
-      <g opacity="0.95">
-        <circle cx="206" cy="176" r="3.6" fill="#d9cdb8" />
-        <path d="M201 181 q5 -3 10 0 l1 16 h-12 z" fill="#d9cdb8" />
-      </g>
+    <svg viewBox="0 0 400 250" preserveAspectRatio="xMidYMid slice" className="art">
+      <rect width="400" height="250" fill="#07080a" />
     </svg>
   )
 }
 
 export const STORY_ART: Record<StoryId, () => React.JSX.Element> = {
-  tekerrur: TekerrurArt,
-  emanet: EmanetArt,
-  ofke: OfkeArt,
   yasamak: YasamakArt,
-  kalan: KalanArt,
-  esik: EsikArt,
+  ote: PendingArt,
+  tekayak: PendingArt,
+  ofke: OfkeArt,
+  takinti: PendingArt,
+  paralel: PendingArt,
+  tekerrur: PendingArt,
+  beyinkoku: PendingArt,
+  durum: TekerrurArt,
 }

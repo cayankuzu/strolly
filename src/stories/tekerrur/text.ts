@@ -1,560 +1,459 @@
 /**
- * TEKERRÜR — "Her Şeyin Durumu". Every word the reader sees.
+ * TEKERRÜR — every word the reader sees, anchored to the screenplay
+ * (docs/stories/tekerrur.md). The first version, told in full.
  *
- * DURUM is a model of the state of everything, built to compute what comes
- * next. Arif asks it small things, then a thing about himself. The story never
- * explains determinism, chaos or measurement; it lets them happen to a cup, a
- * pen, a colleague's tea glass, a phone that is not answered — and to the
- * reader, who is asked the last question.
+ * Arif sleeps at his desk in a square room whose walls are a forest. He wakes,
+ * cleans, goes through the right door and comes back forty minutes later with
+ * three robots; the third carries nothing, because its lens is always on him.
+ * He opens the archive behind the left door, pulls a switch, and the machine
+ * begins to read the whole of history: one square across the years, a
+ * network, a spiral whose every turn sits on the same circle. Above today
+ * there is one more record — tomorrow, 05:12, a man asleep at this desk. He
+ * presses the button anyway. One word. Then the records of every night, none
+ * of them the first, and a room that starts over — until something watching
+ * it is noticed.
  *
- * Voices: ARİF (tired, curious, human), DURUM (calm, literal, bureaucratically
- * exact; never a villain), SELİN (the night technician; practical, dry).
+ * Narration: past tense, the author's sentences wherever he wrote one; the
+ * generic "siz" of the first version ("yaparsınız", "bakarsanız") is kept for
+ * its aphorisms. The machine speaks English on its screens (ANOMALY, SUBJECT,
+ * ITERATION, OBSERVER DETECTED…), as in the author's first brief.
+ *
+ * Tokens (resolved per pass, because the story loops):
+ *   {IT0}…{IT4} → iteration numbers, {TODAY} → this pass's date,
+ *   {NEXT} → the next pass's date. Tokens resolve only in TEXT (not in
+ *   discoveries or the transcript), so those never name a date or number.
  */
-import type { CaptionCue, ChoiceGate, Discovery, TextSegment, When } from '../types'
-import { at, type SegmentId } from './timeline'
+import type { CaptionCue, ChoiceGate, Discovery, TextSegment } from '../types'
+import { BASE_ITERATION, ERAS, SEG, at, type SegmentId } from './timeline'
 
 type T = TextSegment<SegmentId>
-type Line = readonly [speaker: string | null, text: string]
 
-const NEW: When = { none: ['mem:asked'] }
-const AGAIN: When = { all: ['mem:asked'] }
-
-/**
- * A run of lines inside [from, to] of a segment, one after another on the
- * rail (speaker in the caption above). DURUM speaks in the machine's voice.
- */
-function talk(id: string, seg: SegmentId, from0: number, to0: number, lines: Line[], when?: When): T[] {
-  // Lines stay inside their segment, so neighbouring scenes never collide.
-  const from = Math.max(0.01, from0)
-  const to = Math.min(0.99, to0)
-  const span = (to - from) / lines.length
-  return lines.flatMap(([who, text], i): T[] => {
-    const a = from + i * span
-    const b = a + span - Math.min(0.03, span * 0.12)
-    const line: T = { id: `${id}-${i}`, seg, from: a, to: b, slot: 'rail', kind: who === 'DURUM' ? 'machine' : who ? 'dialogue' : 'narration', purpose: who ? 'dialogue' : 'context', lines: [text], fade: 0.22, when }
-    return who ? [{ id: `${id}-${i}-who`, seg, from: a, to: b, slot: 'caption', kind: 'system', purpose: 'dialogue', lines: [who], fade: 0.22, when }, line] : [line]
-  })
-}
-
-/** Narration: one item whose lines arrive one after another. */
+/** Narration on the rail; two lines arrive one after another. */
 const tell = (id: string, seg: SegmentId, from: number, to: number, lines: string[], extra: Partial<T> = {}): T => ({
   id,
   seg,
-  from: Math.max(0.01, from),
-  to: Math.min(0.99, to),
+  from,
+  to,
   slot: 'rail',
   kind: 'narration',
   purpose: 'context',
   lines,
-  stagger: lines.length > 1 ? 0.75 / lines.length : undefined,
+  stagger: lines.length > 1 ? 0.42 : undefined,
   ...extra,
 })
 
-const A = 'ARİF'
-const D = 'DURUM'
-const S = 'SELİN'
+/** A spoken line: the speaker in the caption, the words on the rail. */
+const say = (id: string, seg: SegmentId, from: number, to: number, speaker: string, line: string): T[] => [
+  { id: `${id}-who`, seg, from, to, slot: 'caption', kind: 'system', purpose: 'dialogue', lines: [speaker], fade: 0.22 },
+  { id, seg, from, to, slot: 'rail', kind: 'dialogue', purpose: 'dialogue', lines: [line], fade: 0.22 },
+]
+
+/** A big line alone in the middle of the frame. */
+const center = (id: string, seg: SegmentId, from: number, to: number, lines: string[], extra: Partial<T> = {}): T => ({
+  id,
+  seg,
+  from,
+  to,
+  slot: 'center',
+  kind: 'reveal',
+  purpose: 'reveal',
+  lines,
+  ...extra,
+})
+
+/** The square's years, in the caption slot: five over `history`, four over `repeat`. */
+const years: T[] = ERAS.map(({ year, word }, i) => {
+  const first = i < 5
+  const n = first ? 5 : 4
+  const k = first ? i : i - 5
+  return {
+    id: `year-${year}`,
+    seg: first ? 'history' : 'repeat',
+    from: k / n + 0.02,
+    to: (k + 1) / n - 0.01,
+    slot: 'caption',
+    kind: 'year',
+    purpose: 'context',
+    lines: [year],
+    sub: word || undefined,
+    fade: 0.2,
+  }
+})
+
+/** The five records that open in GÖZLEMCİ, one per fifth of the segment. */
+const iterations: T[] = [0, 1, 2, 3, 4].map((k) => ({
+  id: `it${k}`,
+  seg: 'records',
+  from: k * 0.2 + (k === 0 ? 0.01 : 0),
+  to: k * 0.2 + 0.19,
+  slot: 'top',
+  kind: 'iteration',
+  purpose: 'system',
+  lines: [`ITERATION {IT${k}}`],
+  fade: 0.08,
+}))
 
 export const TEXT: T[] = [
-  // 01 — DURUM
-  { id: 'night', seg: 'open', from: -1, to: 0.95, slot: 'center', kind: 'reveal', purpose: 'mood', lines: ['Perşembe. 20.58.'], sub: 'SCROLL', when: NEW },
-  { id: 'night-again', seg: 'open', from: -1, to: 0.95, slot: 'center', kind: 'reveal', purpose: 'mood', lines: ['Perşembe. 20.59.'], sub: 'SCROLL', when: AGAIN },
-  tell('lights', 'office', 0.18, 1.0, ['Gözlemevinde ışıkların çoğu sönmüştü.', 'Arif’in masasındaki lamba hariç.']),
-  { id: 'state-label', seg: 'office', from: 0.1, to: 1.0, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['DURUM · KÜRESEL DURUM MODELİ'] },
-  ...talk('coffee', 'coffee', 0.08, 1.0, [
-    [A, '— Bugün de mi çalışmadın?'],
-    [D, '— Çalışıyorum.'],
-    [A, '— Yok. Kahveyi diyorum.'],
-  ]),
-  ...talk('machine', 'coffee2', 0.12, 0.98, [
-    [D, '— Kahve makinesi çalışıyor.'],
-    [A, '— Tamam.'],
-  ], NEW),
-  ...talk('machine-again', 'coffee2', 0.12, 0.98, [
-    [D, '— Kahveyi ben yaptım.'],
-    [A, '— Ne zamandan beri?'],
-    [D, '— Bu akşamdan beri.'],
-  ], AGAIN),
-  tell('built', 'desk', 0.06, 1.04, ['DURUM, evrenin şu anki hâlini olabildiğince eksiksiz tutmak için kurulmuştu.', 'Nerede ne var, ne hızla gidiyor, ne kadar sıcak.', 'Ve bütün bunlardan sonra ne olacak.']),
-  tell('small-thing', 'query1', 0.04, 0.24, ['Arif bir şey sordu. Her akşam yaptığı gibi, önemsiz bir şey.']),
-  tell('answers', 'query1', 0.42, 1.02, ['Cevaplar hep böyleydi: kısa, kesin, biraz fazla.']),
+  // 01 — UYANIŞ
+  center('opening', 'black', -1, 0.92, ['Arif’in odasında gün, doğadan önce başlıyordu.'], { purpose: 'mood', sub: 'SCROLL', fade: 0.4 }),
+  tell('paranoid', 'asleep', 0.03, 0.58, ['Paranoyak bir şekilde uyuyordu.', 'Başı dokunmatik çalışma masasının üstündeydi; kolları iki yandan sarkıyordu.'], { purpose: 'mood' }),
+  tell('drool', 'asleep', 0.62, 1.0, ['Ağzından akan salya masanın yüzeyine değmişti.']),
+  tell('screens', 'desk', 0.04, 0.6, ['Önündeki dev ekran kapalıydı; sağında ve solunda iki dev ekran daha duruyordu.', 'Masa kocaman bir bilgisayar odasını andırıyordu.']),
+  tell('working', 'desk', 0.64, 1.03, ['Uyurken bile çalışıyordu.'], { purpose: 'foreshadow' }),
+  tell('walls', 'walls', 0.04, 0.56, ['Odanın bütün duvarları ekranlarla kaplıydı.', 'Görüntüler sayesinde insan kendini içeride değil, ormanın içinde, bir akarsuyun kenarında sanıyordu.']),
+  tell('real', 'walls', 0.6, 1.03, ['Akarsuyun sesi, üç yüz altmış derecelik görüntü…', 'Hepsi son derece gerçekçiydi.'], { purpose: 'mood' }),
+  tell('not-real', 'stream', 0.06, 1.02, ['Dışarıdaki dünya gerçek değildi.', 'Ama yeterince uzun bakarsanız, gerçeğinden ayırmak da mümkün değildi.'], { purpose: 'foreshadow', stagger: 0.38 }),
+  tell('square', 'doors', 0.04, 0.46, ['Oda kare biçimindeydi. İki yan duvarın tam ortasında, karşı karşıya iki kapı vardı.']),
+  tell('brutal', 'doors', 0.5, 1.02, ['Kapılar da ekranla kaplıydı, ama ağır, brütalist çerçeveleri onları duvarlardan ayırıyordu.', 'Kapı oldukları belliydi.']),
+  tell('sky', 'ceiling', 0.03, 0.42, ['Tavanı bulutlar ve hafif bir güneş ışığı süslüyordu.'], { purpose: 'mood' }),
+  tell('season', 'ceiling', 0.46, 1.02, ['Gün akışı tavana yansıyor, saat ilerledikçe döngü tamamlanıyordu.', 'Yaz sonuyla ilkbahar başı arasında bir mevsim yaşatıyordu; burası adeta mevsimsel bir deneyim odasıydı.'], { purpose: 'mood' }),
+  tell('glasses', 'wake', 0.03, 0.5, ['Burnunun üstünde yamuk duran gözlüğünü, masadan sarkan sağ koluyla düzeltti.']),
+  tell('eyes', 'wake', 0.54, 1.02, ['Ağır ağır gözlerini açtı. Doğruldu; kendine gelmek için ellerini yüzüne götürüp ovuşturdu.']),
+  tell('cheek', 'wipe', 0.03, 0.47, ['Uyurken yanağında biriken salyayı elinin tersiyle sildi.']),
+  tell('cloth', 'wipe', 0.51, 1.02, ['Koltuğunun altından bir bez çıkardı ve masadaki salyayı temizledi.']),
+  tell('throw', 'throw', 0.03, 0.5, ['Sonra bezi, bakmadan, odanın ön köşesindeki kutuya basket atar gibi fırlattı.']),
+  tell('placed', 'throw', 0.55, 1.02, ['Bu odadaki hiçbir şey tesadüfen yerleştirilmemişti.'], { purpose: 'foreshadow' }),
 
-  // 02 — TAHMİN
-  tell('yesterday', 'log', 0.08, 1.0, ['Dün de sormuştu.', 'Bugün saat 14.17’de Kızılay köşesinden kaç araba geçeceğini.']),
-  { id: 'log-screen', seg: 'log', from: 0.2, to: 1.0, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['TAHMİN · 14.17 · KIZILAY · 212'] },
-  tell('counted', 'test', 0.06, 0.48, ['Kamera kaydını açtı. Saydı. Bir daha saydı.']),
-  tell('212', 'test', 0.52, 1.02, ['İki yüz on iki.'], { strong: true, purpose: 'turn' }),
-  tell('small', 'small', 0.1, 1.02, ['Büyük şeyler sormayı çoktan bırakmıştı.', 'Küçük şeyler daha iyi sınardı.']),
-  tell('edge', 'pen', 0.04, 0.26, ['Arif kalemi masanın kenarından tuttu.']),
-  tell('fell', 'drop', 0.12, 0.4, ['Kalem düştü.']),
-  tell('there', 'drop', 0.44, 0.72, ['Tam orada durdu.'], { strong: true, purpose: 'turn' }),
-  tell('left-it', 'drop', 0.76, 1.04, ['Arif bir süre kaleme baktı. Almadı.']),
-  tell('evenings', 'routine', 0.2, 1.02, ['Böyle akşamlar böyle başlardı.'], { purpose: 'mood' }),
+  // 02 — DIŞARISI
+  tell('stood', 'rise', 0.05, 0.98, ['Ayağa kalktı.', 'Çalışma masası odanın tam ortasındaydı.']),
+  tell('heavy', 'walk', 0.03, 0.4, ['Sağındaki kapıya doğru ağır adımlarla ilerledi.']),
+  tell('dusk', 'walk', 0.44, 1.02, ['Hava kararmaya yakındı ve serinlemişti. Belki gece yağmur da çiseleyebilirdi.', 'Arif’in sabahları hep akşamla birlikte başlardı.'], { purpose: 'mood' }),
+  tell('treehouse', 'floor', 0.05, 1.0, ['Odanın zemini tahtadandı; sanki bir ağaç ev yapılmış da duvarları ve tavanı hiç bırakılmamış gibiydi.'], { purpose: 'mood' }),
+  tell('handle', 'rightDoor', 0.03, 0.5, ['Yavaşça kapı koluna uzandı ve kapıyı açtı.', 'Kapının ardında orman sürüp gidiyordu; su, tahtaların altından akıyordu.'], { stagger: 0.45 }),
+  tell('same-stream', 'rightDoor', 0.55, 1.1, ['Her sabah aynı akarsuyu dinliyordu.', 'İçeri girdi ve kapıyı kapattı.'], { purpose: 'foreshadow', stagger: 0.55 }),
+  tell('nobody', 'forty', 0.1, 0.37, ['Oda, ormanı kimse için oynatmayı sürdürdü.'], { purpose: 'foreshadow' }),
+  tell('drizzle', 'forty', 0.41, 0.69, ['Yağmur geceyi beklemeden çiselemeye başladı.'], { purpose: 'mood' }),
+  tell('different', 'forty', 0.73, 1.02, ['Her sabah biraz farklı görünüyordu.'], { purpose: 'foreshadow', strong: true }),
 
-  // 03 — İNSAN
-  ...talk('people', 'ask', 0.06, 1.02, [
-    [A, '— İnsanları da biliyor musun?'],
-    [D, '— Evet.'],
-    [A, '— Beş dakika sonra ne yapacaklarını?'],
-    [D, '— Evet.'],
-  ]),
-  ...talk('me', 'me', 0.12, 1.02, [
-    [A, '— Benim?'],
-    [D, '— Evet.'],
-  ]),
-  ...talk('cup', 'cup', 0.06, 0.62, [[D, '— Dokuz dakika sonra, 21.13.04’te, masanızdaki bardağı yere bırakacaksınız.']]),
-  tell('the-cup', 'cup', 0.66, 1.04, ['Bardak oradaydı. Yarısı dolu, çoktan soğumuş.']),
-  tell('nine', 'cupChoice', 0.04, 0.26, ['Dokuz dakika vardı.'], { purpose: 'turn' }),
-  tell('act-kitchen', 'act', 0.06, 1.02, ['Bardağı alıp koridora çıktı. Mutfakta yıkadı, kuruladı, dolaba koydu.', 'Dolabın kapağını kapattığında saat 21.11’di.'], { when: { all: ['cup:kitchen'] } }),
-  tell('act-drawer', 'act', 0.06, 1.02, ['Bardağı alt çekmeceye koydu. Anahtarı çevirip cebine attı.', 'Sonra ellerini dizlerine koydu.'], { when: { all: ['cup:drawer'] } }),
-  tell('act-wait', 'act', 0.06, 1.02, ['Ellerini masadan çekti. Bardağa dokunmayacaktı.', 'Dokunmamak da bir şeydi.'], { when: { all: ['cup:wait'] } }),
-  { id: 'clock-1313', seg: 'wait13', from: 0.1, to: 0.95, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['21:13:00'] },
-  tell('safe-kitchen', 'wait13', 0.64, 0.86, ['Bardak dolaptaydı.'], { when: { all: ['cup:kitchen'] } }),
-  tell('safe-drawer', 'wait13', 0.64, 0.86, ['Çekmece kilitliydi.'], { when: { all: ['cup:drawer'] } }),
-  tell('safe-wait', 'wait13', 0.64, 0.86, ['Bardak yerinde duruyordu.'], { when: { all: ['cup:wait'] } }),
-  ...talk('did-it', 'wait13', 0.88, 1.06, [[A, '— Oldu işte.']]),
+  // 03 — RUTİN
+  tell('forty-min', 'reopen', 0.03, 0.47, ['Yaklaşık kırk dakika sonra kapı yeniden açıldı.']),
+  tell('changed', 'reopen', 0.51, 1.02, ['Kıyafetlerini değiştirmişti; saçları hâlâ ıslaktı.', 'Onu üç robot takip ediyordu.']),
+  tell('trays', 'robots', 0.03, 0.5, ['Robotlardan birinde kahve takımı, ötekinde atıştırmalıklar vardı.']),
+  tell('third', 'robots', 0.54, 1.02, ['Üçüncüsünde ise görünürde hiçbir şey yoktu.'], { purpose: 'foreshadow' }),
+  tell('sat', 'sits', 0.05, 1.0, ['Arif yeniden masasına oturdu.', 'Üçüncü robot biraz uzakta durdu. Merceği ona dönüktü.'], { purpose: 'foreshadow' }),
+  tell('hand', 'reach', 0.03, 0.5, ['Elini sağındaki boşluğa uzattı; robot hemen oraya ilerleyip kahveyi eline itti.']),
+  tell('not-looking', 'reach', 0.55, 1.02, ['Robota bakmadı bile; gözleri kapalı ekrandaydı.']),
+  tell('sip', 'sip', 0.03, 0.5, ['Bir yudum aldı, ardından bardağı aynı yere doğru uzatıp bıraktı.']),
+  tell('caught', 'sip', 0.54, 1.02, ['Neyse ki robot yakalamıştı; zaten hiç kaçırdığı olmamıştı.']),
+  tell('thousands', 'thousands', 0.04, 1.02, ['Bazı hareketleri düşünmeden yaparsınız.', 'Çünkü onları daha önce binlerce kez yapmışsınızdır.'], { purpose: 'foreshadow', strong: true, stagger: 0.5 }),
 
-  // 04 — SAPMA
-  tell('crash-kitchen', 'crash', 0.08, 1.02, ['Mutfaktan dönerken kapıda Selin’le karşılaştı. Biri sağa kaçtı, öbürü de sağa.', 'Selin’in elindeki çay bardağı yere düştü.'], { when: { all: ['cup:kitchen'] }, purpose: 'turn' }),
-  tell('crash-drawer', 'crash', 0.08, 1.02, ['Selin içeri girmişti; sunucu yükünü sormaya gelmişti. Saat 21.13’ü gösterdiğinde Arif yerinden fırladı.', 'Dirseği Selin’in elindeki çay bardağına çarptı.'], { when: { all: ['cup:drawer'] }, purpose: 'turn' }),
-  tell('crash-wait', 'crash', 0.08, 1.02, ['Selin içeri girmiş, çay bardağını Arif’in masasının kenarına bırakıp ekrana eğilmişti.', 'Masaya yaslandığı an bardak kaydı.'], { when: { all: ['cup:wait'] }, purpose: 'turn' }),
-  ...talk('complete', 'done', 0.04, 1.04, [
-    [D, '— Tahmin tamamlandı.'],
-    [A, '— Ben onu kırmadım.'],
-    [D, '— Sorunuz bardağın kırılıp kırılmayacağı değildi.'],
-    [A, '— Ne?'],
-    [D, '— Davranışınızın sonucuydu.'],
-  ]),
-  ...talk('selin', 'selin', 0.04, 1.04, [
-    [S, '— Gecenin onunda dokuz dakikalık davranış modeli. Soğutma ünitesi ağlıyor.'],
-    [S, '— Kimin davranışı?'],
-    [A, '— Benim.'],
-    [S, '— Bir dahaki sefere bana da söyle. Çayımı ona göre içerim.'],
-  ]),
-  tell('one-more', 'selinQuery', 0.04, 0.23, ['Selin süpürgeyi almaya gittiğinde Arif bir soru daha yazdı.']),
-  ...talk('read-aloud', 'selinQuery', 0.46, 1.02, [
-    [A, '— Yirmi iki kırkta çıkacakmışsın. Yüzde doksan dokuz virgül sekiz.'],
-    [S, '— Öyle mi?'],
-  ]),
-  { id: 'clock-2240', seg: 'late', from: 0.05, to: 0.9, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['22:40'] },
-  tell('still-here', 'late', 0.08, 0.7, ['Saat 22.40’ta Selin hâlâ oradaydı.', 'Yan masada simit yiyor, kızının fen ödevini anlatıyordu.']),
-  ...talk('homework', 'late', 0.72, 1.06, [[S, '— Mıknatısla çivi. Yarın teslim. Ben de bilmiyorum nasıl yapılır.']]),
-  ...talk('wrong', 'wrong', 0.04, 1.04, [
-    [A, '— Yanıldın.'],
-    [D, '— Evet.'],
-    [A, '— Niye?'],
-    [D, '— Modeldeki belirsizliği eksik hesapladım.'],
-    [A, '— Sen hata da mı yapıyorsun?'],
-    [D, '— Evet.'],
-  ]),
-  tell('relief', 'calc', 0.04, 0.46, ['Arif gülümsedi. İlk kez rahatlamıştı.']),
-  ...talk('calc', 'calc', 0.5, 1.04, [[D, '— Bu da hesaplanmıştı.']]),
+  // 04 — ARŞİV
+  tell('button', 'hover', 0.03, 0.5, ['Önündeki dev monitörün altındaki büyük siyah düğmeye basacaktı.']),
+  tell('stopped', 'hover', 0.54, 1.02, ['Durdu. Ayağa kalktı ve sol kapıya yöneldi.'], { purpose: 'turn' }),
+  tell('fear', 'toLeft', 0.05, 1.02, ['Bilmediği şeylerden çok, hatırlamadığı şeylerden korkuyordu.'], { purpose: 'foreshadow' }),
+  tell('slowly', 'leftDoor', 0.03, 0.49, ['Kapıyı yavaşça açtı.']),
+  tell('forgets', 'leftDoor', 0.53, 1.03, ['İnsan unuturdu.']),
+  tell('machine', 'deep', 0.04, 0.48, ['Makine unutmazdı.'], { strong: true }),
+  tell('believed', 'deep', 0.53, 1.02, ['En azından Arif buna inanıyordu.'], { purpose: 'foreshadow' }),
+  tell('vast', 'aisles', 0.03, 0.5, ['İçeride göz alabildiğine uzanan, derin ve geniş bir oda vardı.', 'Koridorlar kitap raflarını andırıyordu; ama raflarda kitaplar değil, dijital bilgi taşıyıcıları diziliydi.']),
+  tell('categories', 'aisles', 0.54, 1.01, ['Tüm dünya tarihi; kitaplar, filmler, biyografiler, olaylar…', 'Hepsi kategorilere ayrılmış, ilgili koridorların belleklerinde saklanıyordu.']),
+  tell('brain', 'core', 0.03, 0.5, ['Bilgisayarın beyni de buradaydı.', 'Arif’in aksine, hiç uyumuyordu.']),
+  tell('all-history', 'core', 0.55, 1.02, ['Dünyanın tüm tarihi burada bulunabilirdi.'], { strong: true }),
+  tell('switch', 'lever', 0.03, 0.44, ['Kapıdan içeri girdi, sağ taraftaki şalteri indirdi.']),
+  tell('duty', 'lever', 0.48, 1.02, ['Unutmamak, onun için bir meziyet değildi.', 'Bir zorunluluktu.']),
+  tell('whistle', 'whistle', 0.04, 1.02, ['Hafif bir ıslıkla ritim tutarak odasına döndü ve masasına oturdu.', 'Arşivin kapısını açık bıraktı.'], { purpose: 'mood', stagger: 0.5 }),
 
-  // 05 — OLASILIK
-  tell('one-particle', 'particle', 0.04, 0.3, ['Gece yarısına doğru Arif büyük ekrana tek bir parçacık çağırdı.']),
-  ...talk('particle', 'particle', 0.32, 1.04, [
-    [A, '— Her şeyi biliyorsan bunun bir saniye sonra nerede olacağını neden kesin söyleyemiyorsun?'],
-    [D, '— Çünkü sorunuz yanlış kurulmuş olabilir.'],
-    [A, '— Nasıl yani?'],
-  ]),
-  ...talk('cloud', 'cloud', 0.03, 1.06, [
-    [D, '— Tek bir gelecek istemekle, olabilecek geleceklerin hepsini istemek aynı şey değil.'],
-    [A, '— Hangisi gerçek?'],
-    [D, '— Gözlemlediğiniz sonuç.'],
-    [A, '— Diğerleri?'],
-    [D, '— Gerçekleşmedi.'],
-    [A, '— Ama mümkündü.'],
-    [D, '— Evet.'],
-  ]),
-  ...talk('change', 'chaosQuery', 0.04, 0.27, [[A, '— Başta çok küçük bir şeyi değiştirirsem?']]),
-  tell('chain', 'chain', 0.05, 1.06, ['Önce hiçbir şey değişmedi.', 'Üçüncü günün öğleden sonrasında bir trafo fazla ısındı.', 'Bir mahallede ışıklar kırk dakika geç yandı.', 'Bir kadın o akşam bir telefonu açmadı.']),
-  ...talk('some', 'some', 0.06, 1.04, [
-    [D, '— Bazı sistemlerde sonuç çok az değişir.'],
-    [A, '— Bazılarında?'],
-    [D, '— Çok fazla.'],
-  ]),
-  ...talk('knowing', 'knowing', 0.04, 1.06, [
-    [A, '— O zaman determinizm yanlış.'],
-    [D, '— Bunu söylemek için yeterli bilgi yok.'],
-    [A, '— Az önce geleceği bildiğini söyledin.'],
-    [D, '— “Bilmek” derken sizin kastettiğinizle benim kastettiğim aynı değil.'],
-  ]),
+  // 05 — TARİH
+  tell('red', 'red', 0.03, 0.48, ['Siyah düğme artık kırmızı yanıyordu.'], { purpose: 'turn' }),
+  tell('sorting', 'red', 0.53, 1.04, ['Sistem, şu ana kadar olan bütün tarihi, olayları, haberleri kategorilere ayırarak inceliyordu.']),
+  ...years,
+  tell('by-heart', 'history', 0.02, 0.195, ['Arif bu meydanı ezbere biliyordu: saat kulesini, çeşmeyi, köşedeki fırını.']),
+  tell('same-place', 'history', 0.215, 0.395, ['Makine meydana hep aynı yerden bakıyordu; değişen her şey görünsün diye.']),
+  tell('fear-names', 'history', 0.415, 0.595, ['Aynı korku, farklı yıllarda başka isimlerle ortaya çıkıyordu.'], { purpose: 'turn' }),
+  tell('clock', 'history', 0.615, 0.795, ['Kule yıkıldı; saati, yıkıldığı dakikada durdu.']),
+  tell('first-time', 'history', 0.815, 1.02, ['Sonra herkes yeniden başladı; her seferinde ilk kez başladığını sanarak.'], { purpose: 'foreshadow' }),
 
-  // 06 — GÖZLEMCİ
-  ...talk('asking', 'asking', 0.04, 1.06, [
-    [A, '— Benim sana bunu sormam da hesapta mı?'],
-    [D, '— Evet.'],
-    [A, '— Bir sonraki sorumu da biliyor musun?'],
-    [D, '— Sormadan önceki hâlinizi mi, sorduktan sonraki hâlinizi mi?'],
-  ]),
-  tell('silent', 'before', 0.3, 0.95, ['Arif sustu.'], { purpose: 'mood' }),
-  ...talk('selfref', 'selfref', 0.03, 1.07, [
-    [A, '— Şimdi sana bir soru soracağım.'],
-    [D, '— Biliyorum.'],
-    [A, '— Söyle o zaman.'],
-    [D, '— Hayır.'],
-    [A, '— Niye?'],
-    [D, '— Söylersem sorunun oluşacağı koşullar değişir.'],
-    [A, '— Ama biliyorsun.'],
-    [D, '— Bilmek ile söylemek aynı olay değil.'],
-  ]),
-  ...talk('because', 'because', 0.04, 0.42, [[D, '— Yanılmamın sebebi, beni gördükten sonra sizin de beni hesaba katmanız.']]),
-  tell('heard', 'because', 0.46, 1.04, ['Selin 22.40’ta çıkmamıştı.', 'Tahmini duymuştu.'], { purpose: 'reveal' }),
+  // 06 — ÖRÜNTÜ
+  tell('buildings', 'repeat', 0.05, 0.3, ['Binalar değişiyordu.'], { purpose: 'turn' }),
+  tell('people', 'repeat', 0.35, 0.6, ['İnsanlar değişiyordu.'], { purpose: 'turn' }),
+  tell('story', 'repeat', 0.66, 1.02, ['Hikâye değişmiyordu.'], { purpose: 'turn', strong: true }),
+  tell('network', 'network', 0.03, 0.5, ['Makine, olaylardan çok boyutlu bir ağ örüyordu.', 'Adeta bir insan beyni gibi, gelişmiş modellerle her şeyi birbirine bağlıyordu.']),
+  tell('deleted', 'network', 0.54, 1.02, ['İnsandan farklı olarak, bu makinede unutmak diye bir şey yoktu;', 'yalnızca ilgili veri silinirse unutuluyordu.'], { purpose: 'foreshadow' }),
+  tell('purpose', 'spiral', 0.03, 0.44, ['Amacı, geçmişe bakarak gelecekte olacakları önceden tahmin etmekti.']),
+  tell('periods', 'spiral', 0.49, 1.02, ['Tarih belli aralıklarla kendini tekrar ediyordu.', 'Toplumlar, devletler hep aynı davranışlara dönüyordu: savaşlar, krizler…']),
+  tell('loop', 'above', 0.03, 0.44, ['Dünya sanki kendi içinde bir döngüye girmiş gibiydi.'], { purpose: 'turn' }),
+  tell('order', 'above', 0.48, 1.02, ['Karmaşanın içinde gizli bir düzen vardı.', 'Arif de o düzeni çözmek için bu makineyi kullanıyordu.'], { purpose: 'reveal', strong: true }),
 
-  // 07 — KENDİSİ
-  tell('inside', 'hall', 0.05, 1.04, ['DURUM’un kendisi de evrenin içindeydi.', 'Bu salondaki her fan, ısınan her kablo, her bit.', 'Evreni eksiksiz bilmesi için kendini de bilmesi gerekiyordu.']),
-  tell('itself', 'inside', 0.06, 0.6, ['Kendini bilmek için de, kendini bileni.'], { purpose: 'reveal' }),
-  ...talk('warm', 'inside', 0.64, 1.02, [[A, '— Sıcakmış burası.']]),
-  ...talk('future', 'future', 0.1, 0.45, [[A, '— Peki benim geleceğim?']]),
-  { id: 'calculating', seg: 'future', from: 0.5, to: 1.0, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['CALCULATING'] },
-  { id: 'depth-label', seg: 'depth', from: 0.0, to: 0.95, slot: 'top', kind: 'alert', purpose: 'system', world: true, lines: ['MODEL SELF-REFERENCE DEPTH EXCEEDED'] },
-  ...talk('change-q', 'depth', 0.38, 1.06, [
-    [D, '— Soruyu değiştirebiliriz.'],
-    [A, '— Niye?'],
-    [D, '— Çünkü cevap artık yalnızca sizin geleceğinize bağlı değil.'],
-  ]),
-  ...talk('on-what', 'you', 0.04, 0.3, [[A, '— Neye bağlı?']]),
-  ...talk('on-you', 'you', 0.6, 1.06, [[D, '— Size.']]),
-  ...talk('0312', 't0312', 0.03, 1.08, [
-    [D, '— Yarın saat 03.12’de burada olmayacaksınız.'],
-    [A, '— Nereye gideceğim?'],
-    [A, '— Neden söylemiyorsun?'],
-    [D, '— Bu bilgiyi vermek hesaplanan sonucu etkiliyor.'],
-    [A, '— O zaman bilmek diye bir şey yok.'],
-    [D, '— Hayır.'],
-    [A, '— Ne var o zaman?'],
-    [D, '— Koşullara bağlı sonuçlar.'],
-  ]),
+  // 07 — ANOMALİ
+  tell('today', 'beyond', 0.05, 0.98, ['Sarmal bugünde bitiyordu.', 'En üstteki düğüm bu akşamdı: bir uyanış, bir kahve, bir şalter.'], { purpose: 'turn' }),
+  { id: 'anomaly', seg: 'anomaly', from: 0.1, to: 1.0, slot: 'top', kind: 'alert', purpose: 'system', lines: ['ANOMALY'] },
+  tell('one-more', 'anomaly', 0.03, 0.48, ['Ama bir kayıt daha vardı: bugünden sonra.'], { purpose: 'turn' }),
+  tell('error', 'anomaly', 0.53, 1.02, ['Arif önce bunu bir hata sandı.'], { purpose: 'turn' }),
+  { id: 'dates', seg: 'checked', from: 0.08, to: 1.0, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['TODAY {TODAY}', 'RECORD {NEXT} · 05:12'] },
+  tell('checked', 'checked', 0.03, 0.54, ['Sonra tarihi kontrol etti.', 'Kayıt yarın sabaha aitti. Saat 05.12.'], { purpose: 'turn' }),
+  ...say('impossible', 'checked', 0.58, 1.02, 'ARİF', '— Bu imkânsız.'),
+  tell('details', 'feed', 0.03, 0.46, ['Odanın bütün ayrıntılarını biliyordu: köşedeki kutuyu, masanın arkasında bekleyen robotları.'], { purpose: 'turn' }),
+  tell('sleeper', 'feed', 0.51, 1.02, ['Masada bir adam uyuyordu.', 'Başı masanın üstünde, kolları iki yandan sarkıyordu.'], { purpose: 'reveal' }),
+  { id: 'subject', seg: 'feed', from: 0.32, to: 1.42, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['SUBJECT · {NEXT} · 05:12'] },
+  tell('unlived', 'feedWide', 0.04, 0.5, ['Ama bu kayıt henüz yaşanmamıştı.'], { purpose: 'reveal', strong: true }),
+  tell('lens', 'feedWide', 0.54, 1.02, ['Arif başını çevirdi. Üçüncü robot, kaydın çekildiği yerde duruyordu.', 'Merceği yine ona dönüktü.'], { purpose: 'foreshadow' }),
 
-  // 08 — SEÇİM
-  tell('missed', 'phone', 0.04, 0.74, ['Masasına döndüğünde telefonda bir cevapsız arama vardı. 22.51, Defne.', 'Bir de mesaj.']),
-  { id: 'message', seg: 'phone', from: 0.4, to: 1.0, slot: 'top', kind: 'system', purpose: 'reveal', world: true, lines: ['Yemek fırında. Yine sabah mı? Sorun değil, sadece bil istedim.'] },
-  tell('turned', 'phone', 0.78, 1.04, ['Arif telefonu ters çevirdi. Sonra düz.']),
-  tell('typed', 'homeQuery', 0.06, 0.26, ['Arif ekrana yazdı.']),
-  ...talk('want', 'wantKnow', 0.04, 1.06, [
-    [D, '— Geleceğinizi bilmek istiyor musunuz?'],
-    [A, '— Bilmiyorum.'],
-    [D, '— Bu cevap tahmin edilebilirdi.'],
-    [A, '— Ne?'],
-    [D, '— Bilmemeniz.'],
-  ]),
+  // 08 — TEKERRÜR
+  tell('still-red', 'back', 0.05, 0.98, ['Düğme hâlâ kırmızı yanıyordu.', 'Sabah 05.12’ye daha saatler vardı.'], { purpose: 'mood' }),
+  tell('no-stop', 'press', 0.04, 0.75, ['Bu kez durmadı.', 'Düğmeye bastı.'], { purpose: 'turn', strong: true, stagger: 0.4 }),
+  tell('one-word', 'dark', 0.25, 1.02, ['Bir süre sonra ekranlarda tek bir kelime belirdi.'], { purpose: 'turn', fade: 0.3 }),
+  center('word', 'word', 0.08, 0.58, ['TEKERRÜR'], { kind: 'word', fade: 0.5 }),
+  tell('booted', 'word', 0.62, 1.04, ['Sistem açılmıştı…'], { purpose: 'reveal' }),
+  center('not-seeing', 'law', 0.04, 0.46, ['Makine geleceği görmüyordu.']),
+  center('resemblance', 'law', 0.52, 1.02, ['Geleceğin, geçmişe ne kadar benzediğini hesaplıyordu.'], { strong: true }),
 
-  // 09 — TEKERRÜR
-  tell('archive', 'archive', 0.05, 1.04, ['Saat ikiyi geçerken Arif sorgu arşivini açtı.', 'Yıllar boyunca DURUM’a sorulmuş her şey buradaydı.', 'Yağmurlar, trafikler, maç skorları, kurlar.']),
-  tell('oldest', 'record', 0.04, 0.3, ['En eski kayıt en üstteydi. Oluşturulma tarihi: 14 Mart 2031.'], { purpose: 'reveal' }),
-  ...talk('record', 'record', 0.32, 1.04, [
-    [A, '— Bu ne?'],
-    [D, '— Kayıt.'],
-    [A, '— Bu tarih daha gelmedi.'],
-    [D, '— Doğru.'],
-  ]),
-  ...talk('record2', 'record2', 0.04, 1.04, [
-    [A, '— Kim oluşturdu bunu?'],
-    [D, '— Siz.'],
-    [A, '— Ne zaman?'],
-    [D, '— Soruyu sorduktan sonra.'],
-    [A, '— Hangi soruyu?'],
-  ]),
-  { id: 'pending', seg: 'pending', from: 0.1, to: 1.0, slot: 'center', kind: 'word', purpose: 'reveal', world: true, lines: ['QUERY PENDING', 'Bunu zaten biliyor muydun?'] },
-  tell('scrolled', 'count', 0.04, 0.6, ['Arif listeyi aşağı kaydırdı.', 'Aynı soru tekrar tekrar geçiyordu. Başka yıllarda, başka masalardan.']),
-  ...talk('count', 'count', 0.62, 1.06, [[D, '— Bu soru bu yıl 41.207 kez soruldu. Siz 41.208’incisiniz.']], NEW),
-  ...talk('count-again', 'count', 0.62, 1.06, [[D, '— Bu soru bu yıl 41.208 kez soruldu. Siz 41.209’uncusunuz.']], AGAIN),
-  ...talk('questions', 'questions', 0.04, 1.06, [
-    [A, '— Sen tam olarak neyi tahmin ediyorsun?'],
-    [D, '— Sorulacak soruları.'],
-    [D, '— Elimdeki en kararlı veri onlar.'],
-  ]),
-
-  // 10 — SORU
-  tell('coat-go', 'leaving', 0.04, 0.6, ['Saat üçe geliyordu. Arif ceketini aldı.', 'Eve gidecekti. Bunu kimseye sormamıştı; sormuştu ama cevabı okumamıştı.'], { when: { all: ['home:go'] } }),
-  tell('coat-stay', 'leaving', 0.04, 0.6, ['Saat üçe geliyordu. Arif ceketini aldı.', 'Kalacağını yazmıştı. Yine de kapıya yürüdü.'], { when: { all: ['home:stay'] } }),
-  tell('coat-silent', 'leaving', 0.04, 0.6, ['Saat üçe geliyordu.', 'Arif hiçbir şey sormadan ceketini aldı.'], { when: { all: ['home:silent'] } }),
-  ...talk('door', 'leaving', 0.62, 1.06, [
-    [S, '— Gidiyor musun?'],
-    [A, '— Bilmiyorum. Sanırım.'],
-  ]),
-  tell('empty', 'empty', 0.55, 1.04, ['03.12. Oda boştu.', 'DURUM çalışmaya devam ediyordu.'], { purpose: 'mood' }),
-  { id: 'observer-01', seg: 'empty', from: 0.2, to: 1.0, slot: 'top', kind: 'system', purpose: 'system', world: true, lines: ['OBSERVER: 01'] },
-  { id: 'observer-02', seg: 'observer2', from: 0.05, to: 1.0, slot: 'top', kind: 'system', purpose: 'reveal', world: true, lines: ['OBSERVER: 02'] },
-  { id: 'waiting', seg: 'observer2', from: 0.4, to: 1.0, slot: 'center', kind: 'word', purpose: 'reveal', lines: ['Soru bekleniyor.'] },
-  { id: 'asked-before', seg: 'accepted', from: 0.15, to: 1.0, slot: 'center', kind: 'reveal', purpose: 'reveal', lines: ['Bu soru daha önce de soruldu.'] },
-  { id: 'end', seg: 'end', from: 0.25, to: 5, slot: 'center', kind: 'final', purpose: 'title', lines: ['TEKERRÜR'], sub: 'PERŞEMBE · 20.58', fade: 0.4, when: NEW },
-  { id: 'end-again', seg: 'end', from: 0.25, to: 5, slot: 'center', kind: 'final', purpose: 'title', lines: ['TEKERRÜR'], sub: 'PERŞEMBE · 20.59', fade: 0.4, when: AGAIN },
+  // 09 — GÖZLEMCİ
+  ...iterations,
+  tell('opened', 'records', 0.02, 0.19, ['Kayıtlar birbiri ardına açıldı; hepsi aynı alçak açıdan çekilmişti.'], { purpose: 'turn' }),
+  tell('wrong', 'records', 0.22, 0.39, ['Fakat bir şey yanlıştı.'], { purpose: 'turn' }),
+  tell('not-first', 'records', 0.42, 0.59, ['Bu kayıtların hiçbiri ilk kayıt değildi.'], { purpose: 'reveal', strong: true }),
+  tell('same-room', 'records', 0.62, 0.79, ['Aynı oda. Aynı robot.'], { purpose: 'turn' }),
+  tell('same-motion', 'records', 0.82, 0.99, ['Aynı kapı. Aynı hareket.'], { purpose: 'turn' }),
+  center('engine', 'engine', 0.03, 0.6, ['PAST', 'PATTERN', 'SIMULATION', 'OBSERVATION', 'CORRECTION', 'REPEAT'], { kind: 'engine', stagger: 0.12 }),
+  tell('believed-again', 'engine', 0.64, 1.02, ['Arif, o düzeni çözmek için makineyi kullandığına inanıyordu.'], { purpose: 'turn' }),
+  tell('asleep-again', 'again', 0.03, 0.47, ['Saat 05.12’de masada uyuyordu. Kayıttaki gibi.'], { purpose: 'reveal' }),
+  tell('again', 'again', 0.51, 1.02, ['Gözlüğü yine yamuktu. Bez yine kutuya düştü.'], { purpose: 'turn' }),
+  tell('walked', 'halt', 0.03, 0.5, ['Sağındaki kapıya doğru yürüdü; aynı ağır adımlarla.']),
+  tell('not-recorded', 'halt', 0.54, 1.02, ['Yarı yolda durdu. Bu, hiçbir kayıtta yoktu.'], { purpose: 'turn', strong: true }),
+  tell('turned', 'turn', 0.05, 1.02, ['Masaya döndü.', 'Üçüncü robotun merceği, ilk kez ondan başka bir yere çevrildi.'], { purpose: 'reveal' }),
+  { id: 'detected', seg: 'observer', from: 0.08, to: 1.0, slot: 'top', kind: 'system', purpose: 'reveal', world: true, lines: ['OBSERVER DETECTED', 'SCROLL INPUT'], stagger: 0.45 },
+  tell('looked', 'observer', 0.48, 1.02, ['Arif ekrana baktı. Sonra, ekranın baktığı yere.'], { purpose: 'reveal' }),
+  center('future', 'maybe', 0.04, 0.47, ['Belki de gelecek, henüz yaşanmamış bir şey değildi.'], { purpose: 'question' }),
+  center('remember', 'maybe', 0.53, 1.02, ['Belki yalnızca henüz hatırlamadığımız bir şeydi.'], { purpose: 'question', strong: true }),
+  center('final', 'end', 0.3, 5, ['TEKERRÜR'], { kind: 'final', purpose: 'title', sub: 'SCROLL TO REPEAT', fade: 0.4 }),
 ]
 
-/** The questions and decisions. Answers become flags the text and the set read. */
-export const CHOICES: ChoiceGate<SegmentId>[] = [
-  {
-    id: 'query1',
-    seg: 'query1',
-    at: 0.3,
-    style: 'query',
-    title: 'DURUM · SORGU',
-    prompt: 'Önemsiz bir şey sor.',
-    options: [
-      { id: 'rain', tag: 'DÜNYA', label: 'Yarın Ankara’ya yağmur yağacak mı?', speaker: D, reply: ['Yüzde doksan dokuz virgül üç.', 'ARİF: Bu kadar mı?', 'Sorunuz yağmurun yağıp yağmayacağıydı.'], sets: ['q:rain'] },
-      { id: 'temp', tag: 'ODA', label: 'Bu odanın sıcaklığı kaç?', speaker: D, reply: ['21,4 derece. Masanızın yanında 22,1. Kahve makinesinin üstünde 31,8.', 'ARİF: Kahveyi sormadım.', 'Biliyorum.'], sets: ['q:temp'] },
-      { id: 'traffic', tag: 'ŞEHİR', label: 'Yarın 14.17’de Kızılay köşesinden kaç araba geçecek?', speaker: D, reply: ['İki yüz on iki.', 'Altısı beyaz. Biri park etmeye çalışacak.'], sets: ['q:traffic'] },
-    ],
-  },
-  {
-    id: 'pen',
-    seg: 'pen',
-    at: 0.3,
-    style: 'query',
-    title: 'DURUM · SORGU',
-    options: [
-      { id: 'where', tag: 'FİZİK', label: 'Bırakırsam nereye düşer?', speaker: D, reply: ['Halıya. Sağ ayağınızın yirmi iki santim önüne.', 'Ucu kapıya bakacak.'], sets: ['pen:where'] },
-      { id: 'bounce', tag: 'FİZİK', label: 'Kaç kere zıplar?', speaker: D, reply: ['İki kere.', 'İkincisini duymayacaksınız.'], sets: ['pen:bounce'] },
-    ],
-  },
-  {
-    id: 'cup',
-    seg: 'cupChoice',
-    at: 0.3,
-    style: 'choice',
-    title: '21.04 · BARDAK',
-    prompt: 'Bardağı ne yapacaksın?',
-    options: [
-      { id: 'kitchen', label: 'Mutfağa götür, yıka, dolaba koy.', reply: ['Bardak elinde, kapıya yürüdün.'], sets: ['cup:kitchen'] },
-      { id: 'drawer', label: 'Çekmeceye koy, çekmeceyi kilitle.', reply: ['Anahtar iki kez döndü.'], sets: ['cup:drawer'] },
-      { id: 'wait', label: 'Hiç dokunma. Bekle.', reply: ['Ellerin dizlerinde, bekledin.'], sets: ['cup:wait'] },
-    ],
-  },
-  {
-    id: 'selin',
-    seg: 'selinQuery',
-    at: 0.25,
-    style: 'query',
-    title: 'DURUM · SORGU',
-    options: [
-      { id: 'when', tag: 'KİŞİLER', label: 'Selin bu gece kaçta çıkacak?', speaker: D, reply: ['22.40’ta.', 'Yüzde doksan dokuz virgül sekiz.'], sets: ['selin:asked'] },
-      { id: 'thinks', tag: 'KİŞİLER', label: 'Selin şu an ne düşünüyor?', speaker: D, reply: ['Düşünceleri modellemiyorum. Davranışları modelliyorum.', 'Kapıdan 22.40’ta çıkacak. Yüzde doksan dokuz virgül sekiz.'], sets: ['selin:asked'] },
-    ],
-  },
-  {
-    id: 'chaos',
-    seg: 'chaosQuery',
-    at: 0.3,
-    style: 'query',
-    title: 'DURUM · KARŞI-OLGU',
-    options: [
-      { id: 'air', tag: 'KARŞI-OLGU', label: 'Kızılay’ın üstündeki bir hava parseli binde bir derece daha sıcak olsaydı?', speaker: D, reply: ['İki yol açıyorum.', 'Şimdiki yol. Karşı-olgu yol.'], sets: ['chaos:air'] },
-      { id: 'bus', tag: 'KARŞI-OLGU', label: 'Bu sabah 413 numaralı otobüs kırk saniye geç kalsaydı?', speaker: D, reply: ['İki yol açıyorum.', 'Şimdiki yol. Karşı-olgu yol.'], sets: ['chaos:bus'] },
-    ],
-  },
-  {
-    id: 'home',
-    seg: 'homeQuery',
-    at: 0.3,
-    style: 'query',
-    title: '01.24 · SORGU',
-    options: [
-      { id: 'go', tag: 'BEN', label: 'Şimdi kalkıp eve gitsem ne olur?', speaker: D, reply: ['Bu sorunun iki cevabı var.', 'Birini söylersem öbürü gerçekleşir.'], sets: ['home:go'] },
-      { id: 'stay', tag: 'BEN', label: 'Kalırsam ne olur?', speaker: D, reply: ['Kalırsanız sabah bu soruyu yeniden sorarsınız.'], sets: ['home:stay'] },
-      { id: 'silent', tag: '—', label: 'Hiçbir şey sorma.', reply: ['İmleç yanıp söndü.'], sets: ['home:silent'] },
-    ],
-  },
-  {
-    id: 'final',
-    seg: 'finalQuery',
-    at: 0.3,
-    style: 'query',
-    title: 'QUERY INPUT',
-    prompt: 'GELECEĞİ BİLMEK İSTER MİSİN?',
-    options: [
-      { id: 'yes', tag: 'YANIT', label: 'Evet.', speaker: D, reply: ['QUERY ACCEPTED', 'Bu soru daha önce de soruldu.'], sets: ['final:yes', 'mem:asked'] },
-      { id: 'no', tag: 'YANIT', label: 'Hayır.', speaker: D, reply: ['QUERY ACCEPTED', 'Bu soru daha önce de soruldu.'], sets: ['final:no', 'mem:asked'] },
-    ],
-  },
-]
-
+/** The story in plain prose, chapter by chapter (screen readers, the no-WebGL path). */
 export const TRANSCRIPT: Record<string, string> = {
-  state:
-    'Perşembe gecesi, saat 20.58. DURUM gözlemevinde ışıkların çoğu sönmüş; Arif’in masasındaki lamba yanıyor. Arif makineye “Bugün de mi çalışmadın?” diye sorar, makine “Çalışıyorum” der; Arif kahveyi kastettiğini söyler. DURUM, evrenin şu anki hâlini olabildiğince eksiksiz tutmak ve bundan sonra ne olacağını hesaplamak için kurulmuş bir modeldir. Arif ona her akşam olduğu gibi önemsiz bir şey sorar.',
-  prediction:
-    'Arif bir gün önce, bugün 14.17’de Kızılay köşesinden kaç araba geçeceğini sormuştu: iki yüz on iki. Kamera kaydını açar, sayar: iki yüz on iki. Büyük sorular sormayı çoktan bırakmıştır; küçük şeyler daha iyi sınar. Kalemi masanın kenarından bırakmadan önce nereye düşeceğini sorar. Kalem tam söylenen yere düşer.',
-  human:
-    'Arif sorar: İnsanları da biliyor musun? Beş dakika sonra ne yapacaklarını? Benim? Hepsine cevap evettir. DURUM, dokuz dakika sonra, 21.13.04’te, Arif’in masasındaki bardağı yere bırakacağını söyler. Okur, Arif’in ne yapacağını seçer: bardağı mutfağa götürmek, çekmeceye kilitlemek ya da hiç dokunmamak. 21.13.04 gelir; Arif’in bardağına bir şey olmaz.',
-  deviation:
-    'Birkaç saniye sonra gece teknisyeni Selin’in çay bardağı yere düşüp kırılır; hangi seçim yapılmış olursa olsun, oraya başka bir yoldan varılır. Selin, dokuz dakikalık davranış modelinin soğutma ünitelerini zorladığını söylemeye gelmiştir. DURUM: “Tahmin tamamlandı. Sorunuz bardağın kırılıp kırılmayacağı değildi.” Arif, Selin’in 22.40’ta çıkacağını sorar ve tahmini yüksek sesle okur. 22.40’ta Selin hâlâ oradadır. DURUM yanıldığını kabul eder; Arif rahatlar. Sonra: “Bu da hesaplanmıştı.”',
-  probability:
-    'Gece yarısı Arif büyük ekrana tek bir parçacık çağırır ve bir saniye sonra nerede olacağını sorar. DURUM tek bir gelecekle olabilecek geleceklerin hepsinin aynı şey olmadığını söyler; ekranda olasılıklar belirir, ölçümle biri kalır. Arif başta çok küçük bir şeyi değiştirmeyi dener: binde bir derece, kırk saniye. İki yol yan yana açılır; üç gün sonra bir trafo, bir mahallenin ışıkları, açılmayan bir telefon. Bazı sistemlerde sonuç çok az değişir, bazılarında çok fazla. “Bilmek” derken ikisi aynı şeyi kastetmez.',
+  awakening:
+    'Önce karanlık vardı. Sonra duvar panelleri birer birer aydınlandı ve üzerlerine, sudan başlayarak, bir orman çizildi: Arif’in odasında gün, doğadan önce başlıyordu. Arif paranoyak bir şekilde uyuyordu. Başı dokunmatik çalışma masasının üstündeydi, kolları iki yandan sarkıyordu; ağzından akan salya masanın yüzeyine değmişti. Odanın sol yanında küçük bir robot kıpırdamadan duruyordu; tek merceği uyuyan adama dönüktü. Önündeki dev ekran kapalıydı; sağında ve solunda iki dev ekran daha duruyordu. Masa kocaman bir bilgisayar odasını andırıyordu. Yanağının altındaki cam her nefeste küçük bir pencere açıp kapatıyordu: uyurken bile çalışıyordu. Odanın bütün duvarları ekranlarla kaplıydı. Görüntüler sayesinde insan kendini içeride değil, ormanın içinde, bir akarsuyun kenarında sanıyordu. Akarsuyun sesi, üç yüz altmış derecelik görüntü… Hepsi son derece gerçekçiydi. Dışarıdaki dünya gerçek değildi. Ama yeterince uzun bakarsanız, gerçeğinden ayırmak da mümkün değildi; yalnızca iki panelin birleştiği yerde su, bir piksel kayarak akıyordu. Oda kare biçimindeydi. İki yan duvarın tam ortasında, karşı karşıya iki kapı vardı. Kapılar da ekranla kaplıydı, ama ağır, brütalist çerçeveleri onları duvarlardan ayırıyordu; kapı oldukları belliydi. Tavanı bulutlar ve hafif bir güneş ışığı süslüyordu. Gün akışı tavana yansıyor, saat ilerledikçe döngü tamamlanıyordu. Yaz sonuyla ilkbahar başı arasında bir mevsimdi bu; burası adeta mevsimsel bir deneyim odasıydı. Arif, burnunun üstünde yamuk duran gözlüğünü masadan sarkan sağ koluyla düzeltti. Ağır ağır gözlerini açtı, doğruldu, kendine gelmek için ellerini yüzüne götürüp ovuşturdu. Uyurken yanağında biriken salyayı elinin tersiyle sildi. Koltuğunun altından bir bez çıkarıp masadaki salyayı temizledi; sonra bezi, bakmadan, odanın ön köşesindeki kutuya basket atar gibi fırlattı. Bez kutuya düştü. Bu odadaki hiçbir şey tesadüfen yerleştirilmemişti.',
+  outside:
+    'Ayağa kalktı. Çalışma masası odanın tam ortasındaydı. Sağındaki kapıya doğru ağır adımlarla ilerledi; küçük robot birkaç adım geriden onu izledi. Hava kararmaya yakındı ve serinlemişti. Belki gece yağmur da çiseleyebilirdi. Arif’in sabahları hep akşamla birlikte başlardı. Odanın zemini tahtadandı; sanki bir ağaç ev yapılmış da duvarları ve tavanı hiç bırakılmamış gibiydi. Yavaşça kapı koluna uzandı ve kapıyı açtı. Kapının ardında orman sürüp gidiyordu: dar bir tahta geçit, el uzatsan dokunacağın eğrelti otları, tahtaların altından akan su; nişlerinde bekleyen iki robot ve boş bir niş. Arif eşikte bir an durup dinledi. Her sabah aynı akarsuyu dinliyordu. İçeri girdi; mercekli robot da peşinden süzüldü. Kapıyı kapattı. Oda, ormanı kimse için oynatmayı sürdürdü. Tavanda akşam geceye döndü. Yağmur geceyi beklemeden çiselemeye başladı. Sonra ince, parlak bir çizgi duvarların üstünden geçti ve ardında orman biraz farklı yeniden çizildi: bir dal yer değiştirmiş, bir taş kaymış, eğrelti otları sıklaşmıştı. Her sabah biraz farklı görünüyordu.',
+  routine:
+    'Yaklaşık kırk dakika sonra kapı yeniden açıldı. Arif kıyafetlerini değiştirmişti; saçları hâlâ ıslaktı. Onu üç robot takip ediyordu. Robotlardan birinde kahve takımı, ötekinde atıştırmalıklar vardı. Üçüncüsünde ise görünürde hiçbir şey yoktu; yalnızca küçük bir başı ve tek bir merceği vardı. Arif yeniden masasına oturdu. Robotlar, tahtanın daire biçiminde aşındığı yerlerde durdu; üçüncüsü biraz uzakta kaldı, merceği ona dönüktü. Arif elini sağındaki boşluğa uzattı; robot hemen oraya ilerleyip kahveyi eline itti. Robota bakmadı bile; gözleri kapalı ekrandaydı. Bir yudum aldı, ardından bardağı aynı yere doğru uzatıp bıraktı. Neyse ki robot yakalamıştı; zaten hiç kaçırdığı olmamıştı. Bir yudum daha aldı ve bardağı yine aynı yere bıraktı; robot yine yakaladı. Bazı hareketleri düşünmeden yaparsınız. Çünkü onları daha önce binlerce kez yapmışsınızdır.',
+  archive:
+    'Arif, önündeki dev monitörün altındaki büyük siyah düğmeye basacaktı. Parmağı düğmenin bir santim üstünde durdu. Ayağa kalktı ve sol kapıya yöneldi. Bilmediği şeylerden çok, hatırlamadığı şeylerden korkuyordu. Kapıyı yavaşça açtı; soğuk, beyaz bir ışık tahtaların üstüne döküldü. İnsan unuturdu. Makine unutmazdı. En azından Arif buna inanıyordu. İçeride göz alabildiğine uzanan, derin ve geniş bir oda vardı. Koridorlar kitap raflarını andırıyordu; ama raflarda kitaplar değil, dijital bilgi taşıyıcıları diziliydi. Tüm dünya tarihi; kitaplar, filmler, biyografiler, olaylar… Hepsi kategorilere ayrılmış, ilgili koridorların belleklerinde saklanıyordu: savaş, ekonomi, inanç, göç, bilim, çöküş, toparlanma. Ana koridorun sonunda, halka hâlinde dizilmiş kara sütunların ortasında bilgisayarın beyni duruyordu. Arif’in aksine, hiç uyumuyordu. Dünyanın tüm tarihi burada bulunabilirdi. Arif kapıdan içeri girdi, sağ taraftaki şalteri indirdi. Işıklar raf raf, ta beyne kadar yandı. Unutmamak, onun için bir meziyet değildi. Bir zorunluluktu. Hafif bir ıslıkla ritim tutarak odasına döndü ve masasına oturdu. Arşivin kapısını açık bıraktı.',
+  history:
+    'Siyah düğme artık kırmızı yanıyordu. Sistem, şu ana kadar olan bütün tarihi, olayları, haberleri kategorilere ayırarak inceliyordu; masadaki ekranlar binlerce küçük görüntüyle doldu. Görüntülerden biri büyüdü ve bir şehir meydanına dönüştü. Arif bu meydanı ezbere biliyordu: saat kulesini, çeşmeyi, köşedeki fırını. 1914’tü: güneşli bir sabah, raylarda bir tramvay, cephelerde bayraklar, kalabalık. Makine meydana hep aynı yerden bakıyordu; değişen her şey görünsün diye. 1917’de savaş geldi: duman, çeşmenin yanında askerî bir kamyon, bomboş bir meydan. 1931’de kriz: bankanın merdivenlerinde uzun bir kuyruk, kepenkleri inmiş dükkânlar. Aynı korku, farklı yıllarda başka isimlerle ortaya çıkıyordu. 1944’te enkaz: kule yıkıldı; saati, yıkıldığı dakikada durdu. 1962’de toparlanma: iskeleler, onarılmış bir saat, yeniden insanlar. Sonra herkes yeniden başladı; her seferinde ilk kez başladığını sanarak.',
+  pattern:
+    'Meydan dönmeye devam etti. 1991’de yeni bir çatışma: tramvay raylarının üstünde barikatlar, kırık camlar. Binalar değişiyordu. 2008’de yeni bir kriz: başka kıyafetler, başka şemsiyeler, ama aynı banka kapısında aynı biçimde bir kuyruk. İnsanlar değişiyordu. 2029’da cam cepheler. 2041’de kulenin arkasında, 1917’dekiyle aynı yerde bir duman. Hikâye değişmiyordu. Sonra meydan noktalara ayrıldı; her insan, her araç, her pencere bir düğüme dönüştü. Makine, olaylardan çok boyutlu bir ağ örüyordu. Adeta bir insan beyni gibi, gelişmiş modellerle her şeyi birbirine bağlıyordu. İnsandan farklı olarak, bu makinede unutmak diye bir şey yoktu; yalnızca ilgili veri silinirse unutuluyordu. Amacı, geçmişe bakarak gelecekte olacakları önceden tahmin etmekti. Düğümler 1914’ten bugüne yükselen bir sarmalda toplandı. Tarih belli aralıklarla kendini tekrar ediyordu. Toplumlar, devletler hep aynı davranışlara dönüyordu: savaşlar, krizler… Yukarıdan bakıldığında sarmalın bütün turları tek bir çembere oturuyordu. Dünya sanki kendi içinde bir döngüye girmiş gibiydi. Karmaşanın içinde gizli bir düzen vardı. Arif de o düzeni çözmek için bu makineyi kullanıyordu.',
+  anomaly:
+    'Sarmal bugünde bitiyordu. En üstteki düğüm bu akşamdı: bir uyanış, bir kahve, bir şalter. Ama bir kayıt daha vardı: bugünden sonra. Sarmalın ucunun hemen üstünde, hiçbir şeye bağlı olmayan soluk kırmızı bir düğüm belirdi; ekranda ANOMALY yazıyordu. Arif önce bunu bir hata sandı. Sonra tarihi kontrol etti. Sağdaki ekranda iki tarih vardı: bugünün ve yarının. Kayıt yarın sabaha aitti. Saat 05.12. “Bu imkânsız,” dedi. Kaydı açtı. Ekranda, şafaktan önceki mavi ışıkta, alçak bir açıdan çekilmiş bir oda belirdi. Odanın bütün ayrıntılarını biliyordu: köşedeki kutuyu, masanın arkasında bekleyen robotları. Masada bir adam uyuyordu. Başı masanın üstünde, kolları iki yandan sarkıyordu. Ama bu kayıt henüz yaşanmamıştı. Arif başını çevirdi. Üçüncü robot, kaydın çekildiği yerde duruyordu. Merceği yine ona dönüktü.',
+  tekerrur:
+    'Düğme hâlâ kırmızı yanıyordu. Sabah 05.12’ye daha saatler vardı. Arif’in parmağı yeniden düğmeye indi. Bu kez durmadı. Düğmeye bastı. Bütün ekranlar sırayla karardı: önce masadakiler, sonra duvarlardaki orman, en son tavandaki gökyüzü. Geriye düğmenin kırmızı halkası kaldı; sonra o da söndü. Ses de gitti: ne akarsu kaldı ne uğultu. Bir süre sonra ekranlarda tek bir kelime belirdi: TEKERRÜR. Sistem açılmıştı… Ekranlar loş bir ışıkla geri geldi; ormanın yerinde, dört duvarda da tek bir çember vardı. Makine geleceği görmüyordu. Geleceğin, geçmişe ne kadar benzediğini hesaplıyordu.',
   observer:
-    'Arif sorar: Benim bunu sormam da hesapta mı? Evet. Bir sonraki sorumu biliyor musun? Sormadan önceki hâlinizi mi, sonraki hâlinizi mi? Arif susar. DURUM bildiği soruyu söylemeyi reddeder: söylemek, sorunun oluşacağı koşulları değiştirir. Yanılmasının sebebi, onu gördükten sonra insanların da onu hesaba katmasıdır. Selin 22.40’ta çıkmamıştı; tahmini duymuştu.',
-  itself:
-    'Arif sunucu salonuna girer. DURUM’un kendisi de evrenin içindedir; evreni eksiksiz bilmesi için kendini de bilmesi gerekir. Arif kendi geleceğini sorar. Ekranda uzun süre CALCULATING yazar, sonra MODEL SELF-REFERENCE DEPTH EXCEEDED. DURUM soruyu değiştirmeyi önerir; cevap artık yalnızca Arif’in geleceğine değil, Arif’e bağlıdır. Arif’in yarın 03.12’de burada olmayacağını söyler ama nereye gideceğini söylemez: bu bilgiyi vermek sonucu etkiler. Bilmek diye bir şey yoktur; koşullara bağlı sonuçlar vardır.',
-  choice:
-    'Masasında Defne’den bir cevapsız arama ve bir mesaj vardır: Yemek fırında. Yine sabah mı? Sorun değil, sadece bil istedim. Okur Arif’in ne soracağını seçer: eve gitsem, kalsam ya da hiçbir şey sormamak. DURUM sorar: Geleceğinizi bilmek istiyor musunuz? Arif bilmediğini söyler. Bu da tahmin edilebilirdi.',
-  recurrence:
-    'Arif sorgu arşivini açar. En eski kaydın oluşturulma tarihi 14 Mart 2031’dir; henüz gelmemiş bir tarih. Kaydı Arif oluşturmuştur, soruyu sorduktan sonra. Ekranda bekleyen bir sorgu belirir: Bunu zaten biliyor muydun? Listede aynı soru başka yıllarda, başka masalardan tekrar tekrar geçer. DURUM’un tahmin ettiği şey gelecek değil, sorulacak sorulardır.',
-  question:
-    'Saat üçe gelirken Arif ceketini alır; Selin gidip gitmediğini sorar. 03.12’de oda boştur, makine çalışmaya devam eder. Ekranda OBSERVER: 01, sonra OBSERVER: 02 belirir. Soru okura sorulur: Geleceği bilmek ister misin? Hangi cevap verilirse verilsin: Bu soru daha önce de soruldu.',
+    'Kayıtlar birbiri ardına açıldı; hepsi aynı alçak açıdan, üçüncü robotun durduğu yerden çekilmişti. Her birinin köşesinde ITERATION yazıyor, yanındaki numara her kayıtta bir artıyordu. Birinde Arif gözlüğünü düzeltiyordu. Fakat bir şey yanlıştı. Bir sonrakinde bez, bakılmadan atılmış, kutuya düşüyordu. Bu kayıtların hiçbiri ilk kayıt değildi. Sonra parmak, siyah düğmenin bir santim üstünde duruyordu. Bardak boşluğa bırakılıyor, robot onu yakalıyordu. Aynı oda. Aynı robot. Arif sağdaki kapıya yürüyordu. Aynı kapı. Aynı hareket. Ekranda makinenin döngüsü belirdi: PAST, PATTERN, SIMULATION, OBSERVATION, CORRECTION, REPEAT. Oda tepeden görünüyordu: ortada masa, masada kıpırtısız bir adam, aşınmış dairelerin üstünde robotlar. Arif, o düzeni çözmek için makineyi kullandığına inanıyordu. Saat 05.12’de masada uyuyordu. Kayıttaki gibi. Tavanda gün doğdu, öğleni geçti, akşama döndü; oda yeniden başladı. Gözlüğü yine yamuktu. Bez yine kutuya düştü. Sağındaki kapıya doğru yürüdü; aynı ağır adımlarla. Yarı yolda durdu. Bu, hiçbir kayıtta yoktu. Masaya döndü. Üçüncü robotun merceği, ilk kez ondan başka bir yere çevrildi: kaydı izleyen tarafa. Ortadaki ekranda iki satır belirdi: OBSERVER DETECTED. SCROLL INPUT. Arif ekrana baktı. Sonra, ekranın baktığı yere. Oda yavaşça karardı; en son, merceğin kenarındaki küçük beyaz ışık kaldı. Belki de gelecek, henüz yaşanmamış bir şey değildi. Belki yalnızca henüz hatırlamadığımız bir şeydi.',
 }
 
+/** Where the HUD steps back: the opening, the circle, the record, the press and the word, the observer to the end. */
 export const QUIET: Array<readonly [number, number]> = [
-  [0, at('office', 0.2)],
-  [at('wait13', 0.15), at('wait13', 0.62)],
-  [at('before'), at('before', 0.3)],
-  [at('depth'), at('depth', 0.38)],
-  [at('you', 0.3), at('you', 0.6)],
-  [at('empty'), at('observer2', 0.4)],
-  [at('end'), 1],
+  [0, at('black', 0.95)],
+  [at('above', 0.5), at('above', 1)],
+  [at('feed', 0.3), at('feedWide', 0.5)],
+  [at('back'), at('word', 0.62)],
+  [at('observer'), 1],
 ]
 
 export const CAPTIONS: CaptionCue<SegmentId>[] = [
-  { seg: 'coffee', at: 0.02, text: '[kahve makinesi fokurduyor]' },
-  { seg: 'drop', at: 0.14, text: '[kalem halıya düşer]' },
-  { seg: 'wait13', at: 0.3, text: '[duvar saatinin tıkırtısı]' },
-  { seg: 'wait13', at: 0.92, text: '[koridorda ayak sesleri]' },
-  { seg: 'crash', at: 0.55, text: '[cam kırılır]' },
-  { seg: 'hall', at: 0.05, text: '[sunucu fanları]' },
-  { seg: 'phone', at: 0.04, text: '[telefon titreşir]' },
-  { seg: 'leaving', at: 0.9, text: '[kapı kapanır]' },
+  { seg: 'black', at: 0.3, text: '[bir röle tıklar; duvar panelleri birer birer açılır]' },
+  { seg: 'black', at: 0.75, text: '[akarsu sesi]' },
+  { seg: 'asleep', at: 0.15, text: '[ağır, düzensiz bir nefes]' },
+  { seg: 'desk', at: 0.66, text: '[dokunmatik masanın kısa uyarı sesleri]' },
+  { seg: 'walls', at: 0.3, text: '[yapraklarda rüzgâr, uzakta bir kuş]' },
+  { seg: 'wake', at: 0.62, text: '[derin bir nefes; koltuk gıcırdar]' },
+  { seg: 'throw', at: 0.48, text: '[bez kutuya düşer]' },
+  { seg: 'rise', at: 0.3, text: '[koltuk tahtada geri itilir]' },
+  { seg: 'walk', at: 0.1, text: '[tahta zeminde ağır adımlar]' },
+  { seg: 'rightDoor', at: 0.15, text: '[ağır kapı kolu döner]' },
+  { seg: 'rightDoor', at: 0.4, text: '[akarsu birden yakından duyulur]' },
+  { seg: 'rightDoor', at: 0.97, text: '[kapı kapanır]' },
+  { seg: 'forty', at: 0.38, text: '[ince yağmur]' },
+  { seg: 'forty', at: 0.6, text: '[duvarlardan alçak bir elektrik vızıltısı]' },
+  { seg: 'reopen', at: 0.15, text: '[kapı açılır; küçük tekerlekler tahtada]' },
+  { seg: 'reach', at: 0.4, text: '[porselen fincan tabağında tıkırdar]' },
+  { seg: 'sip', at: 0.46, text: '[tepsiye yumuşak bir tık]' },
+  { seg: 'thousands', at: 0.55, text: '[aynı yumuşak tık]' },
+  { seg: 'leftDoor', at: 0.35, text: '[ağır bir kapı; ardından soğuk, derin bir uğultu]' },
+  { seg: 'core', at: 0.15, text: '[derinden gelen makine sesi]' },
+  { seg: 'lever', at: 0.4, text: '[şalter iner; röleler sırayla uzaklara doğru açılır]' },
+  { seg: 'whistle', at: 0.05, text: '[ıslıkla tutulan bir ritim]' },
+  { seg: 'red', at: 0.12, text: '[tek, alçak bir bip]' },
+  { seg: 'red', at: 0.55, text: '[usul bir piyano motifi başlar]' },
+  { seg: 'history', at: 0.03, text: '[tramvay zili, kalabalık; camın ardından boğuk]' },
+  { seg: 'history', at: 0.23, text: '[uzakta bir siren]' },
+  { seg: 'history', at: 0.63, text: '[enkazın üstünde rüzgâr]' },
+  { seg: 'repeat', at: 0.03, text: '[aynı siren]' },
+  { seg: 'repeat', at: 0.28, text: '[yağmur, şemsiyeler]' },
+  { seg: 'network', at: 0.1, text: '[alçak, düzenli nabızlar]' },
+  { seg: 'beyond', at: 0.1, text: '[müzik kesilir]' },
+  { seg: 'anomaly', at: 0.1, text: '[alçak bir uyarı tonu]' },
+  { seg: 'feed', at: 0.3, text: '[kayıttan gelen oda sesi: akarsu, uğultu, yavaş bir nefes]' },
+  { seg: 'press', at: 0.32, text: '[düğmenin tıkı]' },
+  { seg: 'press', at: 0.75, text: '[bütün sesler kesilir]' },
+  { seg: 'word', at: 0.05, text: '[tek bir röle tıkı]' },
+  { seg: 'word', at: 0.65, text: '[alçak bir makine uğultusu başlar]' },
+  { seg: 'records', at: 0.02, text: '[kayıt başlangıç sesi, her kayıtta yeniden]' },
+  { seg: 'again', at: 0.55, text: '[akarsu sesi geri gelir]' },
+  { seg: 'again', at: 0.9, text: '[bez kutuya düşer]' },
+  { seg: 'halt', at: 0.48, text: '[adımlar kesilir]' },
+  { seg: 'turn', at: 0.47, text: '[robotun başı ince bir vızıltıyla döner]' },
+  { seg: 'observer', at: 0.08, text: '[yalnızca makine uğultusu]' },
+  { seg: 'end', at: 0.3, text: '[röle tıkı, makine uğultusu, uzakta su; sonra sessizlik]' },
 ]
 
-/** World positions match the set in src/three/tekerrur/. */
+/** World positions match the layout in docs/stories/tekerrur.md (room at the origin, square at x 300). */
 export const DISCOVERIES: Discovery<SegmentId>[] = [
   {
-    id: 'stopped-clock',
-    title: 'Duran saat',
-    seg: 'office',
-    from: 0,
-    to: 6,
-    pos: [0.6, 2.35, 3.96],
+    id: 'cheek-window',
+    title: 'Yanağın altındaki pencere',
+    seg: 'asleep',
+    from: 0.3,
+    to: 1.9,
+    pos: [-0.15, 0.78, 0.3],
     size: 0.35,
+    kind: 'text',
+    visibility: 'visible',
+    examine: { verb: 'OKU', lines: ['Dokunmatik yüzey, yanağının altında bir pencere açmıştı:', '“Son kayıttan devam edilsin mi?”'] },
+  },
+  {
+    id: 'seam',
+    title: 'Ek yeri',
+    seg: 'stream',
+    from: 0,
+    to: 1.0,
+    pos: [1.0, 0.5, -4.98],
+    size: 0.6,
     kind: 'anomaly',
-    visibility: 'hidden',
-    examine: { verb: 'BAK', lines: ['Duvar saati 21.13’te durmuştu.', 'Ne zamandır durduğunu kimse hatırlamıyordu.'] },
-  },
-  {
-    id: 'future-query',
-    title: 'Bekleyen sorgu',
-    seg: 'desk',
-    from: 0,
-    to: 3,
-    pos: [-0.66, 1.1, -0.74],
-    size: 0.3,
-    kind: 'text',
     visibility: 'subtle',
-    examine: { verb: 'OKU', lines: ['Kuyrukta bekleyen bir sorgu: FUTURE QUERY · 1.', 'Gönderen yok. Tarih yok.'] },
+    examine: { verb: 'BAK', lines: ['İki panelin birleştiği yerde su, bir piksel kayarak akıyordu.'] },
   },
   {
-    id: 'note',
-    title: 'Monitördeki not',
-    seg: 'coffee',
-    from: 0,
-    to: 4,
-    pos: [0.27, 1.27, -0.84],
-    size: 0.15,
-    kind: 'text',
-    visibility: 'subtle',
-    examine: { verb: 'OKU', lines: ['Monitörün kenarında sarı bir not: “KAHVE!”', 'Altında daha küçük harflerle: “gerçekten.”'] },
-  },
-  {
-    id: 'report',
-    title: 'Doğrulama raporu',
-    seg: 'desk',
-    from: 0,
-    to: 3,
-    pos: [-0.34, 0.77, -0.42],
-    size: 0.25,
-    kind: 'text',
-    visibility: 'subtle',
-    examine: { verb: 'OKU', lines: ['DURUM · Haftalık doğrulama. Başarı: %99,97.', 'Arif kalan %0,03’ü kurşun kalemle daire içine almış.'] },
-  },
-  {
-    id: 'whiteboard',
-    title: 'Tahtadaki soru',
-    seg: 'log',
-    from: 0,
-    to: 6,
-    pos: [-1.6, 1.55, 3.96],
-    size: 0.8,
-    kind: 'text',
-    visibility: 'hidden',
-    examine: { verb: 'OKU', lines: ['Tahtada silinmeye çalışılmış eski bir yazı:', '“Sorulmamış soru = ölçülmemiş durum?” — S.K., 2029'] },
-  },
-  {
-    id: 'failed',
-    title: 'Yanlış çıkan tahmin',
-    seg: 'test',
-    from: 0,
-    to: 2,
-    pos: [0.66, 1.1, -0.74],
-    size: 0.3,
-    kind: 'text',
-    visibility: 'subtle',
-    examine: { verb: 'OKU', lines: ['Kayıtlarda tek bir kırmızı satır: 2 Kasım 2030 · hava · YANLIŞ.', 'Not: “Tahmin yayımlandı.”'] },
-  },
-  {
-    id: 'drawing',
-    title: 'Bir çocuk resmi',
-    seg: 'selin',
-    from: 0,
-    to: 6,
-    pos: [3.7, 1.22, 0.98],
-    size: 0.25,
+    id: 'cloth-box',
+    title: 'Bez kutusu',
+    seg: 'throw',
+    from: 0.45,
+    to: 1.0,
+    pos: [4.3, 0.45, -4.3],
+    size: 0.5,
     kind: 'object',
     visibility: 'subtle',
-    examine: { verb: 'BAK', lines: ['Yan masanın bölmesine iğnelenmiş bir resim.', '“Annemin işi: bilgisayar uyumasın diye bekliyor.”'] },
+    examine: { verb: 'BAK', lines: ['Kutu ağzına kadar bezle doluydu.', 'Hepsi aynı bez; hepsi aynı biçimde buruşmuş.'] },
   },
   {
-    id: 'city',
-    title: 'Gece şehir',
-    seg: 'chain',
-    from: 0,
-    to: 2,
-    pos: [5.0, 1.7, 0],
-    size: 1.6,
+    id: 'worn-floor',
+    title: 'Aşınmış tahta',
+    seg: 'robots',
+    from: 0.4,
+    to: 1.25,
+    pos: [-0.95, 0.01, 1.6],
+    size: 0.6,
     kind: 'environment',
     visibility: 'subtle',
+    examine: { verb: 'BAK', lines: ['Robotun duracağı yerde tahta aşınmıştı.', 'Kusursuz bir daire; tam bir tekerlek izi kalınlığında.'] },
   },
   {
-    id: 'observer-input',
-    title: 'Gözlemci girdisi',
-    seg: 'because',
-    from: 0,
-    to: 1.2,
-    pos: [3.5, 1.1, 1.4],
-    size: 0.3,
+    id: 'recorder-lens',
+    title: 'Üçüncü robotun merceği',
+    seg: 'sits',
+    from: 0.5,
+    to: 3.35,
+    pos: [-3.2, 0.95, 0.35],
+    size: 0.35,
+    kind: 'character',
+    visibility: 'visible',
+    examine: { verb: 'BAK', lines: ['Merceğin kenarında küçük, beyaz bir ışık yanıyordu.', 'Hiç sönmüyordu.'] },
+  },
+  {
+    id: 'room-row',
+    title: 'ODA koridoru',
+    seg: 'deep',
+    from: 0.6,
+    to: 1.43,
+    pos: [-20.3, 3.0, 2.4],
+    size: 0.9,
+    kind: 'text',
+    visibility: 'subtle',
+    examine: { verb: 'OKU', lines: ['Bir koridorun başındaki levha: ODA.', 'Raftaki kayıtların hepsi aynı uzunluktaydı: bir gece.'] },
+  },
+  {
+    id: 'erased',
+    title: 'Boş raf',
+    seg: 'aisles',
+    from: 0.62,
+    to: 1.0,
+    pos: [-24.3, 2.2, 6.5],
+    size: 1.0,
     kind: 'anomaly',
+    visibility: 'subtle',
+    examine: { verb: 'BAK', lines: ['Bir rafın etiketleri yerindeydi; taşıyıcıları yoktu.', 'Unutulmamışlardı. Silinmişlerdi.'] },
+  },
+  {
+    id: 'bakery',
+    title: 'Köşedeki fırın',
+    seg: 'history',
+    from: 0,
+    to: 1.69,
+    pos: [303.0, 1.2, 10.3],
+    size: 1.2,
+    kind: 'environment',
+    visibility: 'subtle',
+    examine: { verb: 'BAK', lines: ['Köşedeki fırın her dönemde oradaydı.', 'Tabelası değişiyordu; kapısı hiç değişmiyordu.'] },
+  },
+  {
+    id: 'street-clock',
+    title: 'Sokak saati',
+    seg: 'history',
+    from: 0.6,
+    to: 0.8,
+    pos: [302.2, 3.0, 11.4],
+    size: 0.6,
+    kind: 'anomaly',
+    visibility: 'subtle',
+    examine: { verb: 'BAK', lines: ['Fırının önündeki sokak saati de durmuştu.', 'Beşi on iki geçe.'] },
+  },
+  {
+    id: 'same-cloud',
+    title: 'Aynı bulut',
+    seg: 'again',
+    from: 0.45,
+    to: 2.6,
+    pos: [0.5, 4.55, -1.5],
+    size: 2.0,
+    kind: 'visual',
     visibility: 'hidden',
-    examine: { verb: 'OKU', lines: ['OBSERVER INPUT DETECTED', 'Kaynak: bu odada değil.'] },
-  },
-  {
-    id: 'self-model',
-    title: 'Öz-model rafı',
-    seg: 'hall',
-    from: 0,
-    to: 3,
-    pos: [0.6, 1.95, -7.88],
-    size: 0.4,
-    kind: 'text',
-    visibility: 'visible',
-    examine: { verb: 'OKU', lines: ['ÖZ-MODEL · KATMAN 7', 'Uyarı: kendi soğutmasını hesaplamak için ek soğutma gerekiyor.'] },
-  },
-  {
-    id: 'message',
-    title: 'Defne’nin mesajı',
-    seg: 'phone',
-    from: 0,
-    to: 2,
-    pos: [0.28, 0.78, -0.32],
-    size: 0.15,
-    kind: 'text',
-    visibility: 'visible',
-    examine: { verb: 'OKU', lines: ['“Yemek fırında. Yine sabah mı? Sorun değil, sadece bil istedim.”', '22.53’te gönderilmiş. Okundu.'] },
-  },
-  {
-    id: 'same-question',
-    title: 'Aynı soru',
-    seg: 'count',
-    from: 0,
-    to: 2,
-    pos: [0, 1.2, -0.84],
-    size: 0.4,
-    kind: 'text',
-    visibility: 'visible',
-    examine: { verb: 'OKU', lines: ['“Geleceğimi biliyor musun?”', 'İlk kez 2029’da, bu masadan sorulmuş.'] },
+    examine: { verb: 'BAK', lines: ['Tavandaki kancalı bulut, ilk akşamki yerindeydi.', 'Biçimi bile aynıydı.'] },
   },
 ]
+
+/** No choices: the reader's part is the scrolling itself — which the system notices at the end. */
+export const CHOICES: ChoiceGate<SegmentId>[] = []
+
+const BASE_DATE = Date.UTC(2047, 2, 11)
+
+/** The calendar day an iteration wakes up to. Iteration 7184 is 11.03.2047. */
+export function iterationDate(iteration: number) {
+  const d = new Date(BASE_DATE + (iteration - BASE_ITERATION) * 86_400_000)
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  return `${dd}.${mm}.${d.getUTCFullYear()}`
+}
+
+/** {IT0}…{IT4}, {TODAY} and {NEXT} for the current pass of the loop. */
+export function resolveTokens(text: string, iteration: number) {
+  return text
+    .replace(/\{IT(\d)\}/g, (_, k: string) => String(iteration + Number(k)))
+    .replace(/\{TODAY\}/g, iterationDate(iteration))
+    .replace(/\{NEXT\}/g, iterationDate(iteration + 1))
+}
+
+/**
+ * Where every record is shot from: the third robot's lens at its stop. The
+ * position never changes; the lens may pan and zoom (see the screenplay), and
+ * `target` is its rest aim (Arif in the chair).
+ */
+export const RECORDER_LENS = { pos: [-3.2, 0.95, 0.35] as const, target: [0.1, 0.95, 0.9] as const }
+
+/** Progress of shared cues (scene and sound). */
+export const CUES = {
+  panelsOn: at('black', 0.3),
+  drizzle: at('forty', 0.38),
+  scanLine: at('forty', 0.6),
+  pressClick: at('press', 0.32),
+  blackout: at('press', 0.75),
+  observer: SEG.observer.start,
+} as const

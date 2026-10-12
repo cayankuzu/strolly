@@ -7,9 +7,10 @@
  * question, a mood, a length — and how far they have come.
  */
 import { useEffect, useRef, useState } from 'react'
-import { STORIES, STORY_ORDER } from '@/stories/registry'
+import { STORY_ORDER } from '@/stories/registry'
 import type { StoryId } from '@/stories/types'
 import type { StorySave } from '@/lib/save'
+import { useStories, useT, type Translate } from '@/lib/i18n'
 import { STORY_ART } from './StoryArt'
 import { MenuButton, useMenuKeys, useUiSound } from './ui'
 
@@ -24,18 +25,20 @@ type Props = {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-function status(save: StorySave | null | undefined, chapters: number) {
-  if (!save) return 'YENİ'
-  if (save.completed) return 'TAMAMLANDI'
-  return `BÖLÜM ${pad(save.chapter)} / ${pad(chapters)}`
+function status(t: Translate, save: StorySave | null | undefined, chapters: number) {
+  if (!save) return t('select.new')
+  if (save.completed) return t('common.completed')
+  return t('common.chapterOf', { n: pad(save.chapter), total: pad(chapters) })
 }
 
 export default function StorySelect({ active, saves, focus, onFocus, onPlay, onBack }: Props) {
   const listRef = useRef<HTMLOListElement>(null)
   const [chaptersOpen, setChaptersOpen] = useState(false)
   const play = useUiSound()
+  const t = useT()
+  const stories = useStories()
   const id = focus ?? STORY_ORDER[0]
-  const story = STORIES[id]
+  const story = stories[id]
   const save = saves[id] ?? null
   const chapters = story.timeline.CHAPTERS
   const Art = STORY_ART[id]
@@ -66,16 +69,16 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
 
       <header className="ss-head">
         <button type="button" className="ss-back" onClick={onBack} onMouseEnter={() => play('hover')}>
-          <span aria-hidden="true">←</span> ANA MENÜ
+          <span aria-hidden="true">←</span> {t('common.mainMenu')}
         </button>
         <h1 id="stories-title" className="ss-title">
-          HİKÂYELER
+          {t('common.stories')}
         </h1>
       </header>
 
       <ol ref={listRef} className="ss-list">
         {STORY_ORDER.map((sid) => {
-          const s = STORIES[sid]
+          const s = stories[sid]
           const sv = saves[sid]
           return (
             <li key={sid}>
@@ -112,8 +115,10 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
                 }}
               >
                 <span className="ss-index">{pad(s.meta.index)}</span>
-                <span className="ss-name">{s.meta.title}</span>
-                {sv?.completed && <span className="ss-done" aria-label="tamamlandı" />}
+                <span className="ss-name" data-long={s.meta.title.length > 14 || undefined}>
+                  {s.meta.title}
+                </span>
+                {sv?.completed && <span className="ss-done" aria-label={t('select.doneLabel')} />}
               </button>
             </li>
           )
@@ -126,40 +131,41 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
         </div>
         <p className="ss-meta">
           <span>{story.meta.mood}</span>
-          <span>~{story.meta.minutes} DK</span>
-          <span>{chapters.length} BÖLÜM</span>
+          <span>{t('select.minutes', { n: story.meta.minutes })}</span>
+          <span>{t(chapters.length === 1 ? 'select.chaptersOne' : 'select.chapters', { n: chapters.length })}</span>
         </p>
         <h2 className="ss-detail-title">{story.meta.title}</h2>
         <p className="ss-hook">{story.meta.hook}</p>
         <p className="ss-tags">{story.meta.tags}</p>
+        {story.meta.warning && <p className="ss-warning">{story.meta.warning}</p>}
         <p className="ss-status" data-state={save?.completed ? 'done' : save ? 'progress' : 'new'}>
-          {status(save, chapters.length)}
+          {status(t, save, chapters.length)}
         </p>
 
         {!chaptersOpen ? (
           <div className="ss-actions">
             {save && !save.completed ? (
               <>
-                <MenuButton tier="primary" sound="transition" onClick={() => onPlay(id, save.chapter)} sub={`BÖLÜM ${pad(save.chapter)} · ${chapters[save.chapter - 1]?.title ?? ''}`}>
-                  DEVAM ET
+                <MenuButton tier="primary" sound="transition" onClick={() => onPlay(id, save.chapter)} sub={t('select.resumeSub', { n: pad(save.chapter), title: chapters[save.chapter - 1]?.title ?? '' })}>
+                  {t('common.continue')}
                 </MenuButton>
                 <MenuButton sound="transition" onClick={() => onPlay(id)}>
-                  BAŞTAN BAŞLA
+                  {t('select.restart')}
                 </MenuButton>
               </>
             ) : (
               <MenuButton tier="primary" sound="transition" onClick={() => onPlay(id)}>
-                {save?.completed ? 'TEKRAR OYNA' : 'OYNA'}
+                {save?.completed ? t('common.playAgain') : t('select.play')}
               </MenuButton>
             )}
             {save && (
               <MenuButton tier="utility" sound="open" onClick={() => setChaptersOpen(true)}>
-                BÖLÜMLER
+                {t('select.chapterList')}
               </MenuButton>
             )}
           </div>
         ) : (
-          <div className="ss-chapters" role="group" aria-label="Bölüm seç">
+          <div className="ss-chapters" role="group" aria-label={t('select.chooseChapter')}>
             <ol>
               {chapters.map((c) => {
                 const open = unlocked(c.index)
@@ -167,14 +173,14 @@ export default function StorySelect({ active, saves, focus, onFocus, onPlay, onB
                   <li key={c.id}>
                     <button type="button" className="ss-chapter" disabled={!open} onClick={() => onPlay(id, c.index)} onMouseEnter={() => open && play('hover')}>
                       <span>{pad(c.index)}</span>
-                      <span>{open ? c.title : 'KİLİTLİ'}</span>
+                      <span>{open ? c.title : t('select.locked')}</span>
                     </button>
                   </li>
                 )
               })}
             </ol>
             <MenuButton tier="utility" sound="close" onClick={() => setChaptersOpen(false)}>
-              GERİ
+              {t('common.back')}
             </MenuButton>
           </div>
         )}

@@ -8,6 +8,7 @@
 import { useRef } from 'react'
 import type { StoryContent } from '@/stories/types'
 import type { JournalEntry } from './runtime'
+import { useT } from '@/lib/i18n'
 import { MenuButton, useMenuKeys } from './ui'
 
 export type JournalTab = 'journal' | 'discoveries'
@@ -26,6 +27,7 @@ const pad = (n: number) => String(n).padStart(2, '0')
 
 export default function Journal({ open, tab, story, entries, seen, onTab, onClose }: Props) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   useMenuKeys(menu, open)
   if (!open) return null
   const found = story.discoveries.filter((d) => seen.has(d.id))
@@ -35,17 +37,17 @@ export default function Journal({ open, tab, story, entries, seen, onTab, onClos
         <p className="pause-story">{story.meta.title}</p>
         <div ref={menu} className="journal-tabs" role="tablist">
           <MenuButton tier="utility" role="tab" aria-selected={tab === 'journal'} className={tab === 'journal' ? 'is-on' : ''} onClick={() => onTab('journal')} data-autofocus={tab === 'journal' ? '' : undefined}>
-            GÜNLÜK
+            {t('common.journal')}
           </MenuButton>
           <MenuButton tier="utility" role="tab" aria-selected={tab === 'discoveries'} className={tab === 'discoveries' ? 'is-on' : ''} onClick={() => onTab('discoveries')} data-autofocus={tab === 'discoveries' ? '' : undefined}>
-            KEŞİFLER {pad(found.length)}/{pad(story.discoveries.length)}
+            {t('common.discoveries')} {pad(found.length)}/{pad(story.discoveries.length)}
           </MenuButton>
           <MenuButton tier="utility" sound="close" onClick={onClose}>
-            KAPAT
+            {t('journal.close')}
           </MenuButton>
         </div>
         <h2 id="journal-title" className="sr-only">
-          {tab === 'journal' ? 'Günlük' : 'Keşifler'}
+          {tab === 'journal' ? t('journal.title') : t('journal.discoveries')}
         </h2>
         {tab === 'journal' ? (
           entries.length ? (
@@ -68,7 +70,7 @@ export default function Journal({ open, tab, story, entries, seen, onTab, onClos
               ))}
             </ol>
           ) : (
-            <p className="journal-empty">Bu okumada henüz bir şey sorulmadı, bir şey seçilmedi.</p>
+            <p className="journal-empty">{t('journal.empty')}</p>
           )
         ) : (
           <ul className="journal-list journal-found">
@@ -79,7 +81,7 @@ export default function Journal({ open, tab, story, entries, seen, onTab, onClos
                   {d.examine && <p className="journal-a">{d.examine.lines.join(' ')}</p>}
                 </li>
               ) : (
-                <li key={d.id} className="journal-unknown" aria-label="Henüz fark edilmedi">
+                <li key={d.id} className="journal-unknown" aria-label={t('journal.unknown')}>
                   <span className="journal-kicker">— — —</span>
                 </li>
               ),

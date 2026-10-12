@@ -1,5 +1,23 @@
 # Sürüm notları
 
+## 2.0.0-beta.1 (geliştiriliyor)
+
+- Dokuz yeni hikâye, yazarın kendi metinlerinden: YAŞAMAK, ÖTE, TEK AYAK,
+  ÖFKESEL DENEYİM SİMÜLASYONU, TAKINTI, PARALEL-LEŞ, TEKERRÜR (ilk sürümüne
+  döndü), BEYİN-KÖKÜ ve DURUM (eski "Her Şeyin Durumu", yeniden yazıldı).
+  EMANET, KALAN ve EŞİK kaldırıldı (`v1.2.0` etiketinde duruyor).
+- Her hikâyenin senaryosu `docs/stories/` altında; her satır bir görüntüye
+  bağlı. DURUM'un master prompt'u `docs/MASTER_PROMPT_DURUM.md`.
+- Gerçek CC0 varlıklar (Poly Haven): 54 model, 20 taranmış yüzey, 7 HDRI ve
+  bir orman panoraması (`ASSET_MANIFEST.md`); her biri yüklenemezse koddan
+  üretilen karşılığına düşer.
+- İngilizce: dokuz hikâyenin İngilizce baskısı; sahnedeki Türkçe yazılar
+  İngilizce modda altyazı olarak görünür.
+- Her satır artık tam okunur (geçişler satırın süresine sığdırılır).
+- Hikâye seçimi dokuz hikâyeye ve telefona göre düzenlendi; içerik uyarıları.
+- Henüz tamamlanmayanlar: ÖTE, ÖFKESEL DENEYİM SİMÜLASYONU, PARALEL-LEŞ ve
+  BEYİN-KÖKÜ sahnelerinin bir kısmı; arayüzün İngilizce çevirisi; cila geçişi.
+
 ## 1.2.0
 
 - Kısa saç artık kulak arkasından enseye kadar iniyor; boyun kafatasının içinde

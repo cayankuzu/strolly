@@ -2,9 +2,10 @@
 
 /** The smaller screens of the game: the archive, the end of a story, a confirmation, leaving, a scene that failed. */
 import { useRef } from 'react'
-import { STORIES, STORY_ORDER } from '@/stories/registry'
+import { STORY_ORDER } from '@/stories/registry'
 import type { StoryId } from '@/stories/types'
 import type { StorySave } from '@/lib/save'
+import { useStories, useT } from '@/lib/i18n'
 import { MenuButton, useMenuKeys } from './ui'
 
 /**
@@ -13,19 +14,21 @@ import { MenuButton, useMenuKeys } from './ui'
  */
 export function ArchiveScreen({ active, saves, onBack }: { active: boolean; saves: Partial<Record<StoryId, StorySave | null>>; onBack: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
+  const stories = useStories()
   useMenuKeys(menu, active)
   return (
     <section className="screen credits archive" aria-hidden={!active} inert={!active} aria-labelledby="archive-title" data-lenis-prevent>
       <div className="credits-inner">
         <h1 id="archive-title" className="credits-title">
-          ARŞİV
+          {t('archive.title')}
         </h1>
         <ol className="archive-list">
           {STORY_ORDER.map((id) => {
-            const st = STORIES[id]
+            const st = stories[id]
             const sv = saves[id]
             const found = st.discoveries.filter((d) => sv?.discoveries.includes(d.id))
-            const state = sv?.completed ? 'TAMAMLANDI' : sv ? `BÖLÜM ${pad(sv.maxChapter)} / ${pad(st.timeline.CHAPTERS.length)}` : 'OKUNMADI'
+            const state = sv?.completed ? t('common.completed') : sv ? t('common.chapterOf', { n: pad(sv.maxChapter), total: pad(st.timeline.CHAPTERS.length) }) : t('archive.unread')
             return (
               <li key={id} className="archive-story" data-read={!!sv}>
                 <p className="archive-head">
@@ -34,27 +37,27 @@ export function ArchiveScreen({ active, saves, onBack }: { active: boolean; save
                   <span className="archive-state">{state}</span>
                 </p>
                 <p className="archive-found">
-                  KEŞİFLER {pad(found.length)}/{pad(st.discoveries.length)}
+                  {t('common.discoveries')} {pad(found.length)}/{pad(st.discoveries.length)}
                   {found.length > 0 && <span> · {found.map((d) => d.title).join(' · ')}</span>}
                 </p>
               </li>
             )
           })}
         </ol>
-        <h2 className="credits-title archive-sub">EMEĞİ GEÇENLER</h2>
+        <h2 className="credits-title archive-sub">{t('archive.credits')}</h2>
         <dl className="credits-list">
           <dt>STROLLY</dt>
-          <dd>Kaydırdıkça zamanın aktığı, baktıkça anlamın değiştiği etkileşimli hikâyeler.</dd>
-          <dt>GÖRÜNTÜ VE SES</dt>
-          <dd>Bütün mekânlar, karakterler, dokular, ekranlar ve sesler kodla üretildi. Dışarıdan alınmış görsel ya da ses yok.</dd>
-          <dt>YAZI TİPİ</dt>
-          <dd>Geist, Geist Mono — Vercel (SIL Open Font License 1.1)</dd>
-          <dt>KÜTÜPHANELER</dt>
-          <dd>Next.js, React, three.js (MIT) · GSAP, ScrollTrigger (GSAP Standard License) · Lenis (MIT)</dd>
+          <dd>{t('credits.about')}</dd>
+          <dt>{t('credits.media')}</dt>
+          <dd>{t('credits.mediaBody')}</dd>
+          <dt>{t('credits.type')}</dt>
+          <dd>{t('credits.typeBody')}</dd>
+          <dt>{t('credits.libs')}</dt>
+          <dd>{t('credits.libsBody')}</dd>
         </dl>
         <div ref={menu} className="credits-actions">
           <MenuButton tier="primary" sound="close" onClick={onBack}>
-            ANA MENÜ
+            {t('common.mainMenu')}
           </MenuButton>
         </div>
       </div>
@@ -84,37 +87,39 @@ export function CompleteScreen({
   onMenu: () => void
 }) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   useMenuKeys(menu, open, false)
   if (!open) return null
   return (
     <div className="complete" role="region" aria-labelledby="complete-title">
-      <p className="complete-kicker">HİKÂYE TAMAMLANDI</p>
+      <p className="complete-kicker">{t('complete.kicker')}</p>
       <h2 id="complete-title" className="complete-title">
         {title}
       </h2>
       {total > 0 && (
         <p className="complete-seen">
-          Fark ettiğin ayrıntılar: {pad(seen)} / {pad(total)}
+          {t('complete.seen', { seen: pad(seen), total: pad(total) })}
         </p>
       )}
       <div ref={menu} className="complete-actions">
         <MenuButton tier="primary" sound="transition" onClick={onReplay}>
-          TEKRAR OYNA
+          {t('common.playAgain')}
         </MenuButton>
         <MenuButton sound="transition" onClick={onStories}>
-          HİKÂYELER
+          {t('common.stories')}
         </MenuButton>
         <MenuButton tier="utility" sound="transition" onClick={onMenu}>
-          ANA MENÜ
+          {t('common.mainMenu')}
         </MenuButton>
       </div>
-      {loops && <p className="complete-loop">ya da kaydırmaya devam et</p>}
+      {loops && <p className="complete-loop">{t('complete.loop')}</p>}
     </div>
   )
 }
 
 export function ConfirmDialog({ open, title, body, confirm, onConfirm, onCancel }: { open: boolean; title: string; body: string; confirm: string; onConfirm: () => void; onCancel: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   useMenuKeys(menu, open)
   if (!open) return null
   return (
@@ -124,7 +129,7 @@ export function ConfirmDialog({ open, title, body, confirm, onConfirm, onCancel 
         <p id="confirm-body">{body}</p>
         <div ref={menu} className="confirm-actions">
           <MenuButton tier="secondary" sound="close" onClick={onCancel} data-autofocus="">
-            VAZGEÇ
+            {t('confirm.cancel')}
           </MenuButton>
           <MenuButton tier="primary" sound="warning" onClick={onConfirm}>
             {confirm}
@@ -137,14 +142,15 @@ export function ConfirmDialog({ open, title, body, confirm, onConfirm, onCancel 
 
 export function Farewell({ active, onReturn }: { active: boolean; onReturn: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   useMenuKeys(menu, active)
   return (
-    <section className="screen farewell" aria-hidden={!active} inert={!active} aria-label="Çıkış">
+    <section className="screen farewell" aria-hidden={!active} inert={!active} aria-label={t('farewell.label')}>
       <p className="farewell-mark">STROLLY</p>
-      <p className="farewell-line">Görüşmek üzere. Hikâyeler bekler.</p>
+      <p className="farewell-line">{t('farewell.line')}</p>
       <div ref={menu}>
         <MenuButton tier="utility" sound="open" onClick={onReturn}>
-          BAŞLIK EKRANINA DÖN
+          {t('farewell.back')}
         </MenuButton>
       </div>
     </section>
@@ -153,19 +159,20 @@ export function Farewell({ active, onReturn }: { active: boolean; onReturn: () =
 
 export function SceneError({ open, onRetry, onStories }: { open: boolean; onRetry: () => void; onStories: () => void }) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   useMenuKeys(menu, open)
   if (!open) return null
   return (
     <div className="overlay scene-error" role="alertdialog" aria-modal="true" aria-labelledby="scene-error-title">
       <div className="confirm-inner">
-        <h2 id="scene-error-title">BU SAHNE YÜKLENEMEDİ.</h2>
-        <p>Bağlantı kesilmiş olabilir. Son kayıt noktasından yeniden deneyebilirsin.</p>
+        <h2 id="scene-error-title">{t('error.title')}</h2>
+        <p>{t('error.body')}</p>
         <div ref={menu} className="confirm-actions">
           <MenuButton tier="primary" sound="transition" onClick={onRetry} data-autofocus="">
-            SON KAYIT NOKTASINA DÖN
+            {t('error.retry')}
           </MenuButton>
           <MenuButton sound="close" onClick={onStories}>
-            HİKÂYELER
+            {t('common.stories')}
           </MenuButton>
         </div>
       </div>

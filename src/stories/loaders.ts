@@ -7,19 +7,25 @@ import type { AudioProfileFactory } from '@/lib/audio/core'
 import type { StoryId } from './types'
 
 export const loadScene: Record<StoryId, () => Promise<SceneFactory>> = {
-  tekerrur: () => import('@/three/tekerrur/TekerrurScene').then((m) => m.createTekerrurScene),
-  emanet: () => import('@/three/emanet/EmanetScene').then((m) => m.createEmanetScene),
-  ofke: () => import('@/three/ofke/OfkeScene').then((m) => m.createOfkeScene),
   yasamak: () => import('@/three/yasamak/YasamakScene').then((m) => m.createYasamakScene),
-  kalan: () => import('@/three/kalan/KalanScene').then((m) => m.createKalanScene),
-  esik: () => import('@/three/esik/EsikScene').then((m) => m.createEsikScene),
+  ote: () => import('@/three/ote/OteScene').then((m) => m.createOteScene),
+  tekayak: () => import('@/three/tekayak/TekAyakScene').then((m) => m.createTekAyakScene),
+  ofke: () => import('@/three/ofke/OfkeScene').then((m) => m.createOfkeScene),
+  takinti: () => import('@/three/takinti/TakintiScene').then((m) => m.createTakintiScene),
+  paralel: () => import('@/three/paralel/ParalelScene').then((m) => m.createParalelScene),
+  tekerrur: () => import('@/three/tekerrur/TekerrurScene').then((m) => m.createTekerrurScene),
+  beyinkoku: () => import('@/three/beyinkoku/BeyinKokuScene').then((m) => m.createBeyinKokuScene),
+  durum: () => import('@/three/durum/DurumScene').then((m) => m.createDurumScene),
 }
 
 export const loadAudio: Record<StoryId, () => Promise<AudioProfileFactory>> = {
-  tekerrur: () => import('./tekerrur/audio').then((m) => m.createTekerrurAudio),
-  emanet: () => import('./emanet/audio').then((m) => m.createEmanetAudio),
-  ofke: () => import('./ofke/audio').then((m) => m.createOfkeAudio),
   yasamak: () => import('./yasamak/audio').then((m) => m.createYasamakAudio),
-  kalan: () => import('./kalan/audio').then((m) => m.createKalanAudio),
-  esik: () => import('./esik/audio').then((m) => m.createEsikAudio),
+  ote: () => import('./ote/audio').then((m) => m.createOteAudio),
+  tekayak: () => import('./tekayak/audio').then((m) => m.createTekAyakAudio),
+  ofke: () => import('./ofke/audio').then((m) => m.createOfkeAudio),
+  takinti: () => import('./takinti/audio').then((m) => m.createTakintiAudio),
+  paralel: () => import('./paralel/audio').then((m) => m.createParalelAudio),
+  tekerrur: () => import('./tekerrur/audio').then((m) => m.createTekerrurAudio),
+  beyinkoku: () => import('./beyinkoku/audio').then((m) => m.createBeyinKokuAudio),
+  durum: () => import('./durum/audio').then((m) => m.createDurumAudio),
 }

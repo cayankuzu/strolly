@@ -13,7 +13,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js'
 import type { Quality } from '@/lib/env'
 import { Composite } from './Composite'
 import { resolveFonts } from './screens'
-import { setSurfaceResolution } from './kit/surfaces'
+import { setSurfaceResolution, setScannedSurfaces } from './kit/surfaces'
 import type { Look, LookFrame } from './look'
 
 export type LabelFrame = { id: string; text: string; kind: string; x: number; y: number; opacity: number }
@@ -94,6 +94,7 @@ export class Stage {
   ) {
     resolveFonts()
     setSurfaceResolution(quality.tier === 'low' ? 256 : 512)
+    setScannedSurfaces(quality.tier !== 'low')
     this.aoEnabled = quality.tier === 'high' && !reduced
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false })
     const r = this.renderer

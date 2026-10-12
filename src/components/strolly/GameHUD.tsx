@@ -15,6 +15,7 @@
  */
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import type { Discovery, StoryContent } from '@/stories/types'
+import { useT } from '@/lib/i18n'
 
 export type HudHandle = {
   /** `off`: how far (radians) the reader's look is from the shot's framing. */
@@ -47,6 +48,7 @@ const GameHUD = forwardRef<HudHandle, Props>(function GameHUD({ story, soundOn, 
   const fillRef = useRef<HTMLSpanElement>(null)
   const glintRef = useRef<HTMLSpanElement>(null)
   const [chapter, setChapter] = useState(1)
+  const t = useT()
   const state = useRef({ chapter: 1, quiet: null as boolean | null, idle: null as boolean | null, pct: -1, p: -1, turned: false })
   const wakeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => void (wakeTimer.current && clearTimeout(wakeTimer.current)), [])
@@ -108,7 +110,7 @@ const GameHUD = forwardRef<HudHandle, Props>(function GameHUD({ story, soundOn, 
       <div className="hud-tl">
         <span className="hud-story">{story.meta.title}</span>
         <span className="hud-chapter">
-          BÖLÜM {pad(chapter)} <i>·</i> {current?.title}
+          {t('common.chapter', { n: pad(chapter) })} <i>·</i> {current?.title}
         </span>
       </div>
 
@@ -116,21 +118,21 @@ const GameHUD = forwardRef<HudHandle, Props>(function GameHUD({ story, soundOn, 
         <span ref={pctRef} className="hud-pct" aria-hidden="true">
           0%
         </span>
-        <button type="button" className="hud-btn hud-sound" aria-pressed={soundOn} aria-label={soundOn ? 'Sesi kapat' : 'Sesi aç'} onClick={onToggleSound}>
+        <button type="button" className="hud-btn hud-sound" aria-pressed={soundOn} aria-label={soundOn ? t('common.soundOff') : t('common.soundOn')} onClick={onToggleSound}>
           <span className="hud-sound-icon" data-on={soundOn} aria-hidden="true">
             <i />
             <i />
             <i />
             <i />
           </span>
-          <span className="hud-btn-label">SES</span>
+          <span className="hud-btn-label">{t('common.sound')}</span>
         </button>
-        <button type="button" className="hud-btn hud-menu" aria-label="Duraklat ve menüyü aç" onClick={onMenu}>
+        <button type="button" className="hud-btn hud-menu" aria-label={t('hud.menuLabel')} onClick={onMenu}>
           <span className="hud-menu-icon" aria-hidden="true">
             <i />
             <i />
           </span>
-          <span className="hud-btn-label">MENÜ</span>
+          <span className="hud-btn-label">{t('hud.menu')}</span>
         </button>
       </div>
 
@@ -147,23 +149,23 @@ const GameHUD = forwardRef<HudHandle, Props>(function GameHUD({ story, soundOn, 
 
       <span ref={glintRef} className="hud-glint" aria-hidden="true" />
 
-      <button type="button" className="hud-btn hud-recenter" aria-label="Bakışı sıfırla: sahneye geri dön" title="Bakışı sıfırla (C)" onClick={onRecenter}>
+      <button type="button" className="hud-btn hud-recenter" aria-label={t('hud.recenterLabel')} title={t('hud.recenterTitle')} onClick={onRecenter}>
         <svg className="hud-recenter-icon" viewBox="0 0 16 16" aria-hidden="true">
           <path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.75" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           <path d="M12.2 1.6v3.1H9.1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="8" cy="8" r="1.3" fill="currentColor" />
         </svg>
-        <span className="hud-btn-label">BAKIŞI SIFIRLA</span>
+        <span className="hud-btn-label">{t('hud.recenter')}</span>
         {!touch && <kbd>C</kbd>}
       </button>
 
       <div className="hud-center" aria-live="polite">
         {prompt?.examine && (
           <p className="hud-prompt" key={prompt.id}>
-            <kbd>{touch ? 'DOKUN' : 'TIKLA'}</kbd> {prompt.examine.verb}
+            <kbd>{touch ? t('hud.tap') : t('hud.click')}</kbd> {prompt.examine.verb}
           </p>
         )}
-        {!prompt && hint && <p className="hud-hint">{hint === 'behind' ? 'BAZI ŞEYLER ARKANDA' : 'ETRAFINA BAK'}</p>}
+        {!prompt && hint && <p className="hud-hint">{hint === 'behind' ? t('hud.behind') : t('hud.around')}</p>}
       </div>
 
       <div className="hud-messages" aria-live="polite">
@@ -180,10 +182,10 @@ const GameHUD = forwardRef<HudHandle, Props>(function GameHUD({ story, soundOn, 
       {onboarding && (
         <div className="hud-onboarding" role="note">
           <p>
-            <b>{touch ? 'PARMAĞINI YANA SÜRÜKLE' : 'TUT VE SÜRÜKLE'}</b> ETRAFINA BAK
+            <b>{touch ? t('hud.dragTouch') : t('hud.drag')}</b> {t('hud.look')}
           </p>
           <p>
-            <b>{touch ? 'YUKARI KAYDIR' : 'KAYDIR'}</b> HİKÂYE İLERLER
+            <b>{touch ? t('hud.scrollTouch') : t('hud.scroll')}</b> {t('hud.moves')}
           </p>
         </div>
       )}

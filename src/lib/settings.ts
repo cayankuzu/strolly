@@ -6,8 +6,11 @@ import { useSyncExternalStore } from 'react'
 
 export type QualityChoice = 'auto' | 'high' | 'mid' | 'low'
 export type TextSize = 'S' | 'M' | 'L' | 'XL'
+export type Lang = 'tr' | 'en'
 
 export type Settings = {
+  /** Language of the interface and the stories (Turkish is the original). */
+  lang: Lang
   // Display
   quality: QualityChoice
   /** Upper bound on internal resolution (0.6–1). */
@@ -36,6 +39,7 @@ export type Settings = {
 }
 
 export const DEFAULTS: Settings = {
+  lang: 'tr',
   quality: 'auto',
   resolution: 1,
   motion: true,
@@ -68,7 +72,9 @@ function read(): Settings {
     /* unavailable or corrupt: defaults */
   }
   const system = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  return { ...DEFAULTS, reducedMotion: !!system, ...stored }
+  // First visit: Turkish for Turkish browsers, English for everyone else.
+  const lang: Lang = typeof navigator !== 'undefined' && !navigator.language?.toLowerCase().startsWith('tr') ? 'en' : 'tr'
+  return { ...DEFAULTS, lang, reducedMotion: !!system, ...stored }
 }
 
 class SettingsStore {
@@ -96,13 +102,15 @@ class SettingsStore {
     this.listeners.forEach((l) => l())
   }
 
+  /** Back to the defaults; the language the player chose stays. */
   reset() {
+    const lang = this.get().lang
     try {
-      localStorage.removeItem(KEY)
+      localStorage.setItem(KEY, JSON.stringify({ lang }))
     } catch {
       /* nothing stored */
     }
-    this.value = read()
+    this.value = { ...read(), lang }
     this.reflect()
     this.listeners.forEach((l) => l())
   }
@@ -121,6 +129,7 @@ class SettingsStore {
     d.contrast = v.contrast ? 'high' : 'normal'
     d.immersion = String(v.immersion)
     d.motion = v.reducedMotion || !v.motion ? 'reduced' : 'full'
+    document.documentElement.lang = v.lang
   }
 }
 

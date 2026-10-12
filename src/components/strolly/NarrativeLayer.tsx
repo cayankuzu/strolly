@@ -13,14 +13,16 @@
 import { forwardRef, useImperativeHandle, useLayoutEffect, useMemo, useRef } from 'react'
 import gsap from 'gsap'
 import { meets, type StoryContent, type TextSegment } from '@/stories/types'
-import { textSpan } from '@/stories/registry'
+import { STORIES, textSpan } from '@/stories/registry'
+import { useLang } from '@/lib/i18n'
 
 export type NarrativeHandle = { seek: (p: number) => void }
 
 type Props = { story: StoryContent; iteration: number; fallback: boolean; reduced: boolean; flags: string[] }
 
 type Item =
-  | { key: string; type: 'text'; seg: TextSegment; who?: string; a: number; b: number; fade: number }
+  /** `subtitle`: the translation of words the set draws in Turkish, shown over the picture. */
+  | { key: string; type: 'text'; seg: TextSegment; who?: string; subtitle?: boolean; a: number; b: number; fade: number }
   | { key: string; type: 'chapter'; index: number; title: string; total: number; a: number; b: number; fade: number }
   | { key: string; type: 'scene'; text: string; a: number; b: number; fade: number }
 
@@ -30,13 +32,23 @@ function pad(n: number) {
   return String(n).padStart(2, '0')
 }
 
+/**
+ * In-world words (screens, signs, pages) that a translation changed: the set
+ * draws the Turkish original, so a translated edition shows them as subtitles.
+ */
+function subtitled(story: StoryContent) {
+  const original = new Map(STORIES[story.meta.id].text.map((t) => [t.id, t.lines.join('\n')]))
+  return new Set(story.text.filter((t) => t.world && original.get(t.id) !== t.lines.join('\n')).map((t) => t.id))
+}
+
 /** Lays out the story's words as timed items. Pure: same story and choices, same plan. */
-function plan(story: StoryContent, fallback: boolean, flags: ReadonlySet<string>) {
+function plan(story: StoryContent, fallback: boolean, flags: ReadonlySet<string>, subtitles: boolean) {
   const { timeline, text, quiet } = story
   const screen = 1 / timeline.TOTAL_SCREENS
   const items: Item[] = []
   const paired = new Set<string>()
   const whoOf = new Map<string, string>()
+  const translated = subtitles && !fallback ? subtitled(story) : null
   // A caption with exactly the same timing as a rail line is that line's speaker.
   // Lines that belong to choices the reader did not make are left out.
   const live = text.filter((t) => meets(t.when, flags))
@@ -50,9 +62,10 @@ function plan(story: StoryContent, fallback: boolean, flags: ReadonlySet<string>
   }
   for (const seg of live) {
     if (paired.has(seg.id)) continue
-    if (seg.world && !fallback) continue
+    const subtitle = !!translated?.has(seg.id)
+    if (seg.world && !fallback && !subtitle) continue
     const [a, b] = textSpan(story, seg)
-    items.push({ key: seg.id, type: 'text', seg, who: whoOf.get(seg.id), a, b, fade: (seg.fade ?? DEFAULT_FADE) * screen })
+    items.push({ key: seg.id, type: 'text', seg, who: whoOf.get(seg.id), subtitle, a, b, fade: (seg.fade ?? DEFAULT_FADE) * screen })
   }
   // Chapter labels arrive a moment into each chapter, never over a quiet passage.
   for (const c of timeline.CHAPTERS) {
@@ -68,6 +81,31 @@ function plan(story: StoryContent, fallback: boolean, flags: ReadonlySet<string>
     }
   }
   return items
+}
+
+/**
+ * Every line must be read: an item's fades and the arrival of its later lines
+ * are fitted into the time it is on screen, so each line reaches full opacity
+ * and holds for at least `HOLD` screens before the item leaves (short items get
+ * quicker fades; late second lines arrive earlier).
+ */
+const HOLD = 0.22
+const MIN_FADE = 0.06
+function fit(item: Item, lines: number, screen: number) {
+  let fade = item.fade
+  let stagger = item.type === 'text' ? item.seg.stagger : undefined
+  // Held past the last frame (or present from the start): no fade-out to fit.
+  if (item.b >= 1.02 || item.a <= 0) return { fade, stagger }
+  const span = Math.min(item.b, 1) - item.a
+  const hold = HOLD * screen
+  if (stagger && lines > 1) {
+    const latest = Math.max(0, span - 2 * fade - hold)
+    if ((lines - 1) * stagger * span > latest) stagger = latest / ((lines - 1) * span)
+  }
+  const lastStart = stagger && lines > 1 ? (lines - 1) * stagger * span : 0
+  const room = span - lastStart - hold
+  if (2 * fade > room) fade = Math.max(MIN_FADE * screen, room / 2)
+  return { fade, stagger }
 }
 
 const onRail = (i: Item) => i.type === 'chapter' || (i.type === 'text' && (i.seg.slot === 'rail' || i.seg.slot === 'caption'))
@@ -103,7 +141,8 @@ const NarrativeLayer = forwardRef<NarrativeHandle, Props>(function NarrativeLaye
   const master = useRef<gsap.core.Timeline | null>(null)
   const last = useRef(0)
   const flagKey = flags.join('|')
-  const items = useMemo(() => plan(story, fallback, new Set(flagKey ? flagKey.split('|') : [])), [story, fallback, flagKey])
+  const subtitles = useLang() !== 'tr'
+  const items = useMemo(() => plan(story, fallback, new Set(flagKey ? flagKey.split('|') : []), subtitles), [story, fallback, flagKey, subtitles])
   const railSpans = useMemo(() => items.filter(onRail).map((i) => [i.a - i.fade, i.b] as const), [items])
   const shadeOn = useRef<boolean | null>(null)
   const resolve = (s: string) => story.resolve(s, iteration)
@@ -147,9 +186,8 @@ const NarrativeLayer = forwardRef<NarrativeHandle, Props>(function NarrativeLaye
         tl.add(ctl, chapter.start)
       }
       const c0 = chapter.start
-      const fade = item.fade
       const lines = node.querySelectorAll<HTMLElement>('.nl-line')
-      const stagger = item.type === 'text' ? item.seg.stagger : undefined
+      const { fade, stagger } = fit(item, lines.length, 1 / timeline.TOTAL_SCREENS)
       if (item.a <= 0) {
         gsap.set(node, { autoAlpha: 1 })
       } else if (stagger && lines.length > 1) {
@@ -194,8 +232,10 @@ const NarrativeLayer = forwardRef<NarrativeHandle, Props>(function NarrativeLaye
         </p>
       )
     const s = item.seg
+    // A subtitle keeps its slot and kind; only the plain in-world copy is hidden while the set draws it.
+    const world = s.world ? (item.subtitle ? ' nl--subtitle' : ' nl--world') : ''
     return (
-      <div key={item.key} data-item={item.key} className={`nl-item nl--${s.kind}${s.strong ? ' nl--strong' : ''}${s.world ? ' nl--world' : ''}`}>
+      <div key={item.key} data-item={item.key} className={`nl-item nl--${s.kind}${s.strong ? ' nl--strong' : ''}${world}`}>
         <Lines seg={s} who={item.who} resolve={resolve} />
       </div>
     )

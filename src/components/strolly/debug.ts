@@ -20,6 +20,10 @@ export type DebugInfo = {
   paused: boolean
   segments: string[]
   chapters: Array<{ index: number; start: number }>
+  /** The last frame's renderer counters (draw calls, triangles) and GPU memory (geometries, textures). */
+  render: { calls: number; triangles: number; geometries: number; textures: number } | null
+  /** Real assets (models, HDRIs, panoramas) loaded so far this visit, and any that failed. */
+  assets: { loaded: number; failed: string[] } | null
 }
 
 export type DebugApi = {

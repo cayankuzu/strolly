@@ -2,176 +2,241 @@
  * The catalogue. Metadata and words only — safe for the server. Each story's
  * 3D scene and sound load on demand (see loaders.ts).
  */
-import type { StoryContent, StoryId, TextSegment } from './types'
-import * as tekerrurText from './tekerrur/text'
-import { timeline as tekerrurTimeline, SCREEN_VH as TEKERRUR_VH } from './tekerrur/timeline'
-import * as emanetText from './emanet/text'
-import { timeline as emanetTimeline, SCREEN_VH as EMANET_VH } from './emanet/timeline'
-import * as ofkeText from './ofke/text'
-import { timeline as ofkeTimeline, SCREEN_VH as OFKE_VH } from './ofke/timeline'
+import type { Lang, StoryContent, StoryId, StoryMeta, StoryTranslation, TextSegment, TimelineView } from './types'
+import { EN as yasamakEn } from './yasamak/en'
+import { EN as oteEn } from './ote/en'
+import { EN as tekayakEn } from './tekayak/en'
+import { EN as ofkeEn } from './ofke/en'
+import { EN as takintiEn } from './takinti/en'
+import { EN as paralelEn } from './paralel/en'
+import { EN as tekerrurEn } from './tekerrur/en'
+import { EN as beyinkokuEn } from './beyinkoku/en'
+import { EN as durumEn } from './durum/en'
 import * as yasamakText from './yasamak/text'
 import { timeline as yasamakTimeline, SCREEN_VH as YASAMAK_VH } from './yasamak/timeline'
-import * as kalanText from './kalan/text'
-import { timeline as kalanTimeline, SCREEN_VH as KALAN_VH } from './kalan/timeline'
-import * as esikText from './esik/text'
-import { timeline as esikTimeline, SCREEN_VH as ESIK_VH } from './esik/timeline'
+import * as oteText from './ote/text'
+import { timeline as oteTimeline, SCREEN_VH as OTE_VH } from './ote/timeline'
+import * as tekayakText from './tekayak/text'
+import { timeline as tekayakTimeline, SCREEN_VH as TEKAYAK_VH } from './tekayak/timeline'
+import * as ofkeText from './ofke/text'
+import { timeline as ofkeTimeline, SCREEN_VH as OFKE_VH } from './ofke/timeline'
+import * as takintiText from './takinti/text'
+import { timeline as takintiTimeline, SCREEN_VH as TAKINTI_VH } from './takinti/timeline'
+import * as paralelText from './paralel/text'
+import { timeline as paralelTimeline, SCREEN_VH as PARALEL_VH } from './paralel/timeline'
+import * as tekerrurText from './tekerrur/text'
+import { timeline as tekerrurTimeline, SCREEN_VH as TEKERRUR_VH, BASE_ITERATION as TEKERRUR_BASE } from './tekerrur/timeline'
+import * as beyinkokuText from './beyinkoku/text'
+import { timeline as beyinkokuTimeline, SCREEN_VH as BEYINKOKU_VH } from './beyinkoku/timeline'
+import * as durumText from './durum/text'
+import { timeline as durumTimeline, SCREEN_VH as DURUM_VH } from './durum/timeline'
 
 const same = (text: string) => text
 
+/** What every story's words module exports. */
+type Words = {
+  TEXT: TextSegment[]
+  TRANSCRIPT: Record<string, string>
+  QUIET: Array<readonly [number, number]>
+  DISCOVERIES: StoryContent['discoveries']
+  CAPTIONS: StoryContent['captions']
+  CHOICES: StoryContent['choices']
+  /** Tokens resolved per pass (dates, iteration numbers), for stories that loop. */
+  resolveTokens?: (text: string, iteration: number) => string
+}
+
+function story(meta: StoryMeta, timeline: TimelineView, words: Words, baseIteration = 0): StoryContent {
+  return {
+    meta,
+    timeline,
+    text: words.TEXT,
+    transcript: words.TRANSCRIPT,
+    quiet: words.QUIET,
+    discoveries: words.DISCOVERIES,
+    captions: words.CAPTIONS,
+    choices: words.CHOICES,
+    resolve: words.resolveTokens ?? same,
+    baseIteration,
+  }
+}
+
 export const STORIES: Record<StoryId, StoryContent> = {
-  tekerrur: {
-    meta: {
-      id: 'tekerrur',
+  yasamak: story(
+    {
+      id: 'yasamak',
       index: 1,
-      title: 'TEKERRÜR',
-      hook: 'Gelecek gerçekten bilinebilir mi?',
-      tags: 'DETERMİNİZM · OLASILIK · GÖZLEM',
-      description: 'Her şeyin durumunu bilen bir makine, ona soru soran bir insan ve bir gece.',
-      mood: 'GECE · SORGU',
-      minutes: 18,
-      theme: 'archival',
+      title: 'YAŞAMAK',
+      hook: 'Süreni uzatamayacağını bilsen, oyunu yine de açar mıydın?',
+      tags: 'ÖLÜM · ZAMAN · VEDA',
+      description: 'Çocukken yarım saati elli kuruşa uzatabilen biri, aynı internet kafe masasında süresi görünmeyen bir hayatı ve sevdiklerinin birer birer gidişini yaşar.',
+      mood: 'SICAK · HÜZÜNLÜ',
+      minutes: 13,
+      theme: 'temporal',
       rail: 'left',
-      screenVh: TEKERRUR_VH,
+      screenVh: YASAMAK_VH,
       loops: false,
+      warning: 'Yakınların ölümü ve ölümcül bir hastalık işlenir.',
     },
-    timeline: tekerrurTimeline,
-    text: tekerrurText.TEXT,
-    transcript: tekerrurText.TRANSCRIPT,
-    quiet: tekerrurText.QUIET,
-    discoveries: tekerrurText.DISCOVERIES,
-    captions: tekerrurText.CAPTIONS,
-    choices: tekerrurText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
-  emanet: {
-    meta: {
-      id: 'emanet',
+    yasamakTimeline,
+    yasamakText,
+  ),
+  ote: story(
+    {
+      id: 'ote',
       index: 2,
-      title: 'EMANET',
-      hook: 'Bir insanın hafızası, kendisinden daha uzun yaşayabilir mi?',
-      tags: 'HAFIZA · KAYIP · KİMLİK',
-      description: 'Hafıza, kayıp, kimlik ve ölüm üzerine duygusal bilimkurgu.',
-      mood: 'SICAK · YAKIN',
-      minutes: 17,
-      theme: 'memory',
+      title: 'ÖTE',
+      hook: 'Geri dönüşü olmayan bir yolculuğa kim imza atar?',
+      tags: 'SÖZLEŞME · YOLCULUK · BİLİNMEYEN',
+      description: 'Bir imza, bir asansör ve galaksinin merkezine tek yönlü bir bilet; anlatan ise onları camın ardından izleyen şirket.',
+      mood: 'SOĞUK · KOZMİK',
+      minutes: 12,
+      theme: 'cosmic',
+      rail: 'left',
+      screenVh: OTE_VH,
+      loops: false,
+      warning: 'Ölüm temasını işler.',
+    },
+    oteTimeline,
+    oteText,
+  ),
+  tekayak: story(
+    {
+      id: 'tekayak',
+      index: 3,
+      title: 'TEK AYAK',
+      hook: 'Bunu kim attı?',
+      tags: 'SINIF · CEZA · BAKIŞ',
+      description: 'Cuma son dersinde öğretmenin başına bir kâğıt uçak çarpar; üç arkadaşın cezası, çöp köşesinde tek ayak üstünde durmaktır.',
+      mood: 'GÜNDÜZ · ACI-TATLI',
+      minutes: 7,
+      theme: 'chalk',
       rail: 'right',
-      screenVh: EMANET_VH,
+      screenVh: TEKAYAK_VH,
       loops: false,
     },
-    timeline: emanetTimeline,
-    text: emanetText.TEXT,
-    transcript: emanetText.TRANSCRIPT,
-    quiet: emanetText.QUIET,
-    discoveries: emanetText.DISCOVERIES,
-    captions: emanetText.CAPTIONS,
-    choices: emanetText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
-  ofke: {
-    meta: {
+    tekayakTimeline,
+    tekayakText,
+  ),
+  ofke: story(
+    {
       id: 'ofke',
-      index: 3,
-      title: 'ÖFKE NÖBETİ',
-      hook: 'Acı çeken gerçek değilse, acı gerçek midir?',
-      tags: 'ÖFKE · SİSTEM · PERSPEKTİF',
-      description: 'Öfkenin bir kamu hizmetine dönüştüğü yakın gelecekte, camın iki tarafı.',
+      index: 4,
+      title: 'ÖFKESEL DENEYİM SİMÜLASYONU',
+      hook: 'Devlet sana öfkeni boşaltacak bir oda verse, girer miydin?',
+      tags: 'ÖFKE · DEVLET · HALÜSİNASYON',
+      description: 'Patronu istifasını kabul etmeyince Arif, devletin ücretsiz hizmetine gider: Öfke Nöbeti. Sonra aynı oda, öbür tarafından.',
       mood: 'KLİNİK · GERGİN',
-      minutes: 18,
+      minutes: 14,
       theme: 'clinical',
       rail: 'left',
       screenVh: OFKE_VH,
       loops: false,
+      warning: 'Şiddet ve idam içerir; cinsel suç anılır.',
     },
-    timeline: ofkeTimeline,
-    text: ofkeText.TEXT,
-    transcript: ofkeText.TRANSCRIPT,
-    quiet: ofkeText.QUIET,
-    discoveries: ofkeText.DISCOVERIES,
-    captions: ofkeText.CAPTIONS,
-    choices: ofkeText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
-  yasamak: {
-    meta: {
-      id: 'yasamak',
-      index: 4,
-      title: 'YAŞAMAK',
-      hook: 'Bir saatin olsaydı, onu nasıl geçirirdin?',
-      tags: 'ZAMAN · VEDA · ÖLÜM',
-      description: 'Bir internet kafede altmış dakika: en uzun ve en kısa veda.',
-      mood: 'ZAMANSAL · İNSANİ',
-      minutes: 17,
-      theme: 'temporal',
-      rail: 'right',
-      screenVh: YASAMAK_VH,
-      loops: false,
-    },
-    timeline: yasamakTimeline,
-    text: yasamakText.TEXT,
-    transcript: yasamakText.TRANSCRIPT,
-    quiet: yasamakText.QUIET,
-    discoveries: yasamakText.DISCOVERIES,
-    captions: yasamakText.CAPTIONS,
-    choices: yasamakText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
-  kalan: {
-    meta: {
-      id: 'kalan',
+    ofkeTimeline,
+    ofkeText,
+  ),
+  takinti: story(
+    {
+      id: 'takinti',
       index: 5,
-      title: 'KALAN',
-      hook: 'Yaşanmamış bir hayat, hiç yaşanmamış mıdır?',
-      tags: 'SEÇİM · OLASILIK · BENLİK',
-      description: 'Henüz söylenmemiş bir cümleyi kaydetmiş bir ses kayıt cihazı.',
-      mood: 'BELİRSİZ · SESSİZ',
-      minutes: 16,
-      theme: 'uncertain',
-      rail: 'left',
-      screenVh: KALAN_VH,
-      loops: false,
-    },
-    timeline: kalanTimeline,
-    text: kalanText.TEXT,
-    transcript: kalanText.TRANSCRIPT,
-    quiet: kalanText.QUIET,
-    discoveries: kalanText.DISCOVERIES,
-    captions: kalanText.CAPTIONS,
-    choices: kalanText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
-  esik: {
-    meta: {
-      id: 'esik',
-      index: 6,
-      title: 'EŞİK',
-      hook: 'Bir şey, gözlendiği için mi gerçektir?',
-      tags: 'ALGI · GÖZLEM · GERÇEKLİK',
-      description: 'Kimsenin Mira’ya bakmadığı bir şehir. Ta ki biri bakana kadar.',
-      mood: 'GECE · ALGISAL',
-      minutes: 14,
-      theme: 'perception',
+      title: 'TAKINTI',
+      hook: 'Gece yarısı annen neyi dikiyor?',
+      tags: 'GECE · AİLE · KORKU',
+      description: 'Gece yarısı dikiş makinesinin başına oturan bir anne, onu yatağına geri gönderemeyen bir çocuk ve o evde artık kullanılmayan her şey.',
+      mood: 'KARANLIK · RAHATSIZ',
+      minutes: 10,
+      theme: 'dread',
       rail: 'right',
-      screenVh: ESIK_VH,
+      screenVh: TAKINTI_VH,
+      loops: false,
+      warning: 'Ağır şiddet ve beden korkusu içerir.',
+    },
+    takintiTimeline,
+    takintiText,
+  ),
+  paralel: story(
+    {
+      id: 'paralel',
+      index: 6,
+      title: 'PARALEL-LEŞ',
+      hook: 'Başka evrenlerde kaç kez öldün?',
+      tags: 'ÇOCUKLUK · RİSK · ÇOKLU EVREN',
+      description: 'Ölümle arasında şeffaf bir çizgi olan bir çocuk ve öbür evrenlerde kalan cesetleri.',
+      mood: 'RÜZGÂRLI · BAŞ DÖNDÜRÜCÜ',
+      minutes: 11,
+      theme: 'vertigo',
+      rail: 'left',
+      screenVh: PARALEL_VH,
       loops: false,
     },
-    timeline: esikTimeline,
-    text: esikText.TEXT,
-    transcript: esikText.TRANSCRIPT,
-    quiet: esikText.QUIET,
-    discoveries: esikText.DISCOVERIES,
-    captions: esikText.CAPTIONS,
-    choices: esikText.CHOICES,
-    resolve: same,
-    baseIteration: 0,
-  },
+    paralelTimeline,
+    paralelText,
+  ),
+  tekerrur: story(
+    {
+      id: 'tekerrur',
+      index: 7,
+      title: 'TEKERRÜR',
+      hook: 'Tarih tekerrür ediyorsa gelecek bilinebilir mi?',
+      tags: 'TARİH · ÖRÜNTÜ · DÖNGÜ',
+      description: 'Duvarları ormana açılan bir oda, unutmayan bir makine ve ekranlarda beliren tek bir kelime.',
+      mood: 'GECE · ARŞİV',
+      minutes: 13,
+      theme: 'archival',
+      rail: 'left',
+      screenVh: TEKERRUR_VH,
+      loops: true,
+    },
+    tekerrurTimeline,
+    tekerrurText,
+    TEKERRUR_BASE,
+  ),
+  beyinkoku: story(
+    {
+      id: 'beyinkoku',
+      index: 8,
+      title: 'BEYİN-KÖKÜ',
+      hook: 'Kararı gerçekten sen mi veriyorsun?',
+      tags: 'BİLİNÇ · İRADE · SİMÜLASYON',
+      description: 'Profesör Veyl’in laboratuvarında, kendi cennetinde yaşayan bir denek: Levy A.',
+      mood: 'STERİL · TEDİRGİN',
+      minutes: 26,
+      theme: 'neural',
+      rail: 'right',
+      screenVh: BEYINKOKU_VH,
+      loops: false,
+      warning: 'Cerrahi görüntüler ve korku içerir.',
+    },
+    beyinkokuTimeline,
+    beyinkokuText,
+  ),
+  durum: story(
+    {
+      id: 'durum',
+      index: 9,
+      title: 'DURUM',
+      hook: 'Her şeyi bilen bir makineye ne sorarsın?',
+      tags: 'DETERMİNİZM · BELİRSİZLİK · GÖZLEM',
+      description: 'Evrendeki her atomun konumunu ve hızını bilen bir makine ve ona soru soran bir insan.',
+      mood: 'GECE · SORGU',
+      minutes: 20,
+      theme: 'state',
+      rail: 'left',
+      screenVh: DURUM_VH,
+      loops: false,
+    },
+    durumTimeline,
+    durumText,
+  ),
 }
 
-export const STORY_ORDER: StoryId[] = ['tekerrur', 'emanet', 'ofke', 'yasamak', 'kalan', 'esik']
+export const STORY_ORDER: StoryId[] = ['yasamak', 'ote', 'tekayak', 'ofke', 'takinti', 'paralel', 'tekerrur', 'beyinkoku', 'durum']
+
+/** Translated editions (strings only); see localize.ts. */
+export const TRANSLATIONS: Partial<Record<Lang, Partial<Record<StoryId, StoryTranslation>>>> = {
+  en: { yasamak: yasamakEn, ote: oteEn, tekayak: tekayakEn, ofke: ofkeEn, takinti: takintiEn, paralel: paralelEn, tekerrur: tekerrurEn, beyinkoku: beyinkokuEn, durum: durumEn },
+}
 
 export const isStoryId = (v: unknown): v is StoryId => typeof v === 'string' && v in STORIES
 

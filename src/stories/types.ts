@@ -10,7 +10,7 @@ export type TimelineView = {
   chapterAt(p: number): Chapter
 }
 
-export type StoryId = 'tekerrur' | 'emanet' | 'ofke' | 'yasamak' | 'kalan' | 'esik'
+export type StoryId = 'yasamak' | 'ote' | 'tekayak' | 'ofke' | 'takinti' | 'paralel' | 'tekerrur' | 'beyinkoku' | 'durum'
 
 /**
  * Where a piece of text lives:
@@ -55,7 +55,7 @@ export type TextSegment<Id extends string = string> = {
 }
 
 /** The game UI keeps one design system; each story tints it slightly. */
-export type StoryTheme = 'archival' | 'memory' | 'clinical' | 'temporal' | 'uncertain' | 'perception'
+export type StoryTheme = 'archival' | 'clinical' | 'temporal' | 'cosmic' | 'chalk' | 'dread' | 'vertigo' | 'neural' | 'state'
 
 export type StoryMeta = {
   id: StoryId
@@ -73,6 +73,8 @@ export type StoryMeta = {
   screenVh: number
   /** Keeps going into the next iteration after the last frame. */
   loops: boolean
+  /** Shown before starting, for stories with hard material (violence, body horror). */
+  warning?: string
 }
 
 export type DiscoveryKind = 'visual' | 'audio' | 'character' | 'environment' | 'anomaly' | 'reflection' | 'text' | 'object'
@@ -137,6 +139,30 @@ export type ChoiceGate<Id extends string = string> = {
 
 /** Captions for sounds, shown when captions are on (independent of audio being on). */
 export type CaptionCue<Id extends string = string> = { seg: Id; at: number; text: string; when?: When }
+
+/** The game's languages. Turkish is the original; English is a translation. */
+export type Lang = 'tr' | 'en'
+
+/**
+ * A translated edition of a story: every string the reader sees, keyed by the
+ * ids of the original. Anything missing falls back to the Turkish original,
+ * so a partial translation never breaks a story.
+ */
+export type StoryTranslation = {
+  meta: Partial<Pick<StoryMeta, 'title' | 'hook' | 'tags' | 'description' | 'mood' | 'warning'>>
+  /** Chapter id → title. */
+  chapters: Record<string, string>
+  /** Text item id → its lines (same count as the original) and optional sub line. */
+  text: Record<string, { lines: string[]; sub?: string }>
+  /** Gate id → its strings; option id → its strings. */
+  choices: Record<string, { title?: string; prompt?: string; options?: Record<string, { label?: string; tag?: string; speaker?: string; reply?: string[] }> }>
+  /** Discovery id → journal title and examine verb/lines. */
+  discoveries: Record<string, { title?: string; verb?: string; lines?: string[] }>
+  /** Sound caption: the Turkish caption text → its translation. */
+  captions: Record<string, string>
+  /** Chapter id → plain prose. */
+  transcript: Record<string, string>
+}
 
 export type StoryContent = {
   meta: StoryMeta

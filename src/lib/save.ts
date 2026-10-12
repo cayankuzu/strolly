@@ -22,10 +22,10 @@ export type StorySave = {
   updatedAt: number
 }
 
-type SaveFile = { version: 1; last: StoryId | null; stories: Partial<Record<StoryId, StorySave>> }
+type SaveFile = { version: 2; last: StoryId | null; stories: Partial<Record<StoryId, StorySave>> }
 
 const KEY = 'strolly:save'
-const EMPTY: SaveFile = { version: 1, last: null, stories: {} }
+const EMPTY: SaveFile = { version: 2, last: null, stories: {} }
 type Listener = (reason: 'saved' | 'cleared') => void
 
 class SaveStore {
@@ -36,7 +36,7 @@ class SaveStore {
     if (this.file) return this.file
     try {
       const parsed = JSON.parse(localStorage.getItem(KEY) ?? 'null') as SaveFile | null
-      this.file = parsed && parsed.version === 1 ? parsed : { ...EMPTY, stories: {} }
+      this.file = parsed && parsed.version === 2 ? parsed : { ...EMPTY, stories: {} }
     } catch {
       this.file = { ...EMPTY, stories: {} }
     }

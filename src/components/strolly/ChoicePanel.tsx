@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { meets, type ChoiceGate, type ChoiceOption } from '@/stories/types'
+import { useT } from '@/lib/i18n'
 import { MenuButton, useMenuKeys, useUiSound } from './ui'
 
 type Props = {
@@ -50,6 +51,7 @@ function Reply({ option, reduced }: { option: ChoiceOption; reduced: boolean }) 
 
 export default function ChoicePanel({ gate, picked, flags, reduced, onPick, onDone }: Props) {
   const menu = useRef<HTMLDivElement>(null)
+  const t = useT()
   const open = !!gate
   const done = !!gate && picked.length >= (gate.picks ?? 1)
   useMenuKeys(menu, open)
@@ -88,7 +90,7 @@ export default function ChoicePanel({ gate, picked, flags, reduced, onPick, onDo
     <div className={`choice choice--${gate.style}`} role="dialog" aria-label={gate.title} data-done={done}>
       <div className="choice-head">
         <span className="choice-title">{gate.title}</span>
-        {gate.style === 'query' && <span className="choice-status">{done ? 'YANIT ALINDI' : left > 1 ? `${left} SORGU` : 'SORGU BEKLENİYOR'}</span>}
+        {gate.style === 'query' && <span className="choice-status">{done ? t('choice.received') : left > 1 ? t('choice.queries', { n: left }) : t('choice.waiting')}</span>}
       </div>
       {gate.prompt && !asked.length && <p className="choice-prompt">{gate.prompt}</p>}
       {asked.length > 0 && (
@@ -127,7 +129,7 @@ export default function ChoicePanel({ gate, picked, flags, reduced, onPick, onDo
           ))}
         {done && (
           <MenuButton tier="utility" sound="transition" className="choice-go" onClick={onDone} data-autofocus="">
-            DEVAM ↓
+            {t('choice.go')}
           </MenuButton>
         )}
       </div>

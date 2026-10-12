@@ -1,1623 +1,2113 @@
 /**
- * TEKERRÜR — the DURUM observatory at night.
+ * TEKERRÜR — a room whose walls are a forest, a man asleep at its desk, three
+ * robots, an archive that does not forget, one square across a century, a
+ * spiral that is a circle, a record of tomorrow, and a lens that turns.
  *
- * World layout (meters, y up): the office is x −5…5, z −4…4, 3 m high. North
- * (z = −4) is a glass partition onto the server hall (z −4…−12). East (x = 5)
- * has three windows over Ankara at night. South (z = 4): the door to the
- * corridor (x = 2.6), the whiteboard, the stopped wall clock. West: the coffee
- * corner. Arif's desk faces north at the centre; Selin's desk is by the
- * windows. The corridor runs along z ≈ 5.3; the kitchen is across it.
+ * World (docs/stories/tekerrur.md §2): the room at the origin (10 × 10 m,
+ * screens all round), the walkway at x 5…9, the archive at x −5…−60, the
+ * square at x 300, the network void at x 600.
  *
- * Everything that moves is a function of progress and of what the reader
- * chose (frame.flags): where the cup goes, how the tea glass falls.
+ * Every frame is a pure function of progress: the director resets the state,
+ * lets the current segment write it (who is where doing what, the screens,
+ * the sky, the camera), then applies it. Shots that show another place or
+ * moment on a screen (the dive into the square, the record on the centre
+ * screen, the ghost of the previous era) render that moment first into a
+ * texture with the same machinery, then the present.
  */
 import * as THREE from 'three'
-import { SEG, at, clockText, local, segmentAt, storyHours, type SegmentId } from '@/stories/tekerrur/timeline'
-import { CHOICES } from '@/stories/tekerrur/text'
-import { clamp, lerp, mulberry32, smoothstep } from '@/lib/math'
+import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js'
+import { angleLerp, clamp, lerp, linear, smoothstep, window4 } from '@/lib/math'
+import { evalNumber, type Key } from '@/lib/track'
+import { BASE_ITERATION, SEG, at, eraAt, local, recordAt, segmentAt, type SegmentId } from '@/stories/tekerrur/timeline'
+import { RECORDER_LENS, iterationDate } from '@/stories/tekerrur/text'
 import type { SceneInfo, SceneOptions, StoryScene } from '../Stage'
-import { Figure, makePose, type FigureLook } from '../figure/Figure'
-import { makePath } from '../figure/paths'
+import { createSetScene, makeShot, type BuildContext, type SetDirector, type SetFrame, type Shot } from '../kit/SetScene'
+import { Actor, held, keyed } from '../kit/direct'
+import { addWalk } from '../figure/Figure'
+import { makePath, pointAt, type Path, type Sample } from '../figure/paths'
 import * as P from '../figure/poses'
-import { box, mesh } from '../util'
-import { createSetScene, type BuildContext, type SetDirector, type SetFrame, type Shot } from '../kit/SetScene'
-import { Actor, held, keyed, type ShotKeys } from '../kit/direct'
-import {
-  bin,
-  binder,
-  blinds,
-  canvasPlane,
-  ceilingPanel,
-  coffeeMachine,
-  counter,
-  desk,
-  deskLamp,
-  facade,
-  hardware,
-  keyboard,
-  monitor,
-  mouse,
-  mug,
-  officeChair,
-  papers,
-  pcTower,
-  phone,
-  plant,
-  printer,
-  radiator,
-  rbox,
-  room,
-  serverRack,
-  shelf,
-  socket,
-  std,
-  tube,
-  wallClock,
-  whiteboard,
-} from '../kit/props'
-import { pbr } from '../kit/surfaces'
-import * as S from './screens'
+import { fitFov } from '../lens'
+import { mesh } from '../util'
+import { ASLEEP, BEND_SEAT, HAND_OUT, LEAN_DESK, LISTENING, RUB, SIP, SIT_BACK_SLOW, SIT_UP, STAND_SHIFT, THROW_COCK, THROW_RELEASE, arifLooks, makeArif, setEyes, setGlasses } from './cast'
+import { RoomSet, BUTTON, CENTER_SCREEN, CHAIR_IN, CHAIR_OUT, DESK, MARKS, NICHES, type ScreenSet } from './room'
+import { Robot } from './robots'
+import { ArchiveSet } from './archive'
+import { SquareSet, SQUARE_CAM } from './square'
+import { NetworkSet, SQUARE_TO_VOID } from './network'
+import { LOOKS, Sky, type LookName } from './sky'
+import { RECORD_AIM, RECORD_TIMES, SHOTS } from './shots'
+import { drawDates, drawFlash, drawGrid, drawLine, drawObserver, drawPlayer, drawSorting, drawTimecode, drawTouch, drawVignette, drawWindow } from './screens'
 
 const PI = Math.PI
-const DESK = { x: 0, z: -0.6 }
-const SEAT = { x: 0, z: 0.14 }
-const MUG_ON_DESK = new THREE.Vector3(0.46, 0.754, -0.36)
-const PEN_ON_DESK = new THREE.Vector3(-0.34, 0.762, -0.3)
-const PEN_LAND = new THREE.Vector3(-0.27, 0.006, 0.05)
-const DOOR = { x: 2.6, z: 4.0 }
-const DISPLAY = new THREE.Vector3(2.6, 1.55, -3.55)
-const SELIN_DESK = { x: 3.3, z: 1.4 }
-const CONSOLE = new THREE.Vector3(-4.72, 1.28, -7.2)
-const COAT_RACK = { x: 3.95, z: 3.45 }
-const COFFEE = new THREE.Vector3(-4.72, 0.92, 0.5)
-/** Rack columns in the hall: two blocks of three, a wide aisle between them. */
-const RACK_X = [-3.9, -3.25, -2.6, 0.6, 1.25, 1.9]
-/** The rack that holds DURUM's model of itself: row B, first of the east block. */
-const SELF_RACK = { x: RACK_X[3], z: -8.4 }
+const SEAT_BACK = 0.06
+/** Where his right hand goes out into the empty air (palm up) and the robot meets it. */
+const HAND = new THREE.Vector3(0.56, 0.99, 1.04)
+/** The coffee robot's place at the hand-off (its cupSpot lands under HAND). */
+const HANDOFF = { x: HAND.x + 0.04, z: HAND.z - 0.08, yaw: -PI / 2 }
+const CHEEK_SPOT = new THREE.Vector3(-0.22, DESK.y + 0.002, 0.42)
+const HOVER_AT = new THREE.Vector3(0.02, BUTTON.y + 0.1, BUTTON.z + 0.1)
+const LEFT_HANDLE = new THREE.Vector3(-0.1, 1.05, 1.15)
+const RIGHT_HANDLE = new THREE.Vector3(-0.1, 1.05, 1.15)
+const SWITCH_HANDLE = new THREE.Vector3(0, 0.43, 0)
 
-/** Crouched low, reaching for the floor. */
-const CROUCH = makePose({
-  hipY: 0.48,
-  spine: [0.55, 0, 0],
-  chest: [0.25, 0, 0],
-  head: [0.35, 0, 0],
-  lThigh: [-1.75, 0, 0.12],
-  rThigh: [-1.55, 0, -0.12],
-  lShin: [2.1, 0, 0],
-  rShin: [2.05, 0, 0],
-  lFoot: [-0.4, 0, 0],
-  rFoot: [-0.45, 0, 0],
-  lUpper: [-0.9, 0, 0.15],
-  rUpper: [-1.2, 0, -0.1],
-  lFore: [-0.4, 0, 0],
-  rFore: [-0.25, 0, 0],
-})
+type SetName = 'room' | 'archive' | 'square' | 'void' | 'black'
+type ScreenMode = 'off' | 'sort' | 'dates' | 'observer' | 'line' | 'grid' | 'flash' | 'circle' | 'record'
+type ScreenState = { mode: ScreenMode; a: number; b: number; t: number; level: number }
 
-// ——— Paths ———
-
-const P_TO_COFFEE = makePath([
-  [SEAT.x, SEAT.z + 0.2],
-  [-1.6, 0.9],
-  [-3.4, 0.7],
-  [-4.15, 0.5],
-])
-const P_FROM_COFFEE = makePath([
-  [-4.15, 0.5],
-  [-2.2, 0.95],
-  [-0.6, 0.8],
-  [SEAT.x, SEAT.z + 0.25],
-])
-const P_TO_DOOR = makePath([
-  [SEAT.x, SEAT.z + 0.25],
-  [1.2, 1.6],
-  [2.4, 3.1],
-  [DOOR.x, 4.4],
-  [1.5, 5.3],
-])
-const P_TO_KITCHEN = makePath([
-  [1.5, 5.3],
-  [-1.2, 5.35],
-  [-2.2, 6.2],
-  [-2.3, 7.6],
-  [-2.6, 8.9],
-])
-const P_BACK = makePath([
-  [-2.6, 8.9],
-  [-2.3, 7.4],
-  [-2.0, 5.6],
-  [0.6, 5.25],
-  [DOOR.x, 4.85],
-  [DOOR.x, 4.45],
-])
-const P_SELIN_IN = makePath([
-  [6.5, 5.4],
-  [4.2, 5.3],
-  [DOOR.x + 0.1, 4.6],
-  [DOOR.x, 3.4],
-  [1.4, 1.2],
-  [0.82, 0.12],
-])
-/** Kitchen night: she leaves her desk for the door, tea in hand, as he comes back. */
-const P_SELIN_OUT = makePath([
-  [SELIN_DESK.x - 0.95, SELIN_DESK.z + 0.25],
-  [2.45, 2.6],
-  [DOOR.x, 3.55],
-])
-/** For the broom: out of the office to the kitchen, and back. */
-const BROOM_DESK: Array<[number, number]> = [
-  [0.7, 0.25],
-  [1.5, 1.6],
-  [2.5, 3.2],
-  [DOOR.x, 4.4],
-  [1.4, 5.3],
-]
-const BROOM_DOOR: Array<[number, number]> = [
-  [DOOR.x + 0.18, 3.6],
-  [DOOR.x, 4.4],
-  [1.4, 5.3],
-]
-const P_BROOM = { desk: [makePath(BROOM_DESK), makePath([...BROOM_DESK].reverse())], door: [makePath(BROOM_DOOR), makePath([...BROOM_DOOR].reverse())] }
-const P_TO_DISPLAY = makePath([
-  [SEAT.x, SEAT.z + 0.25],
-  [1.0, -0.2],
-  [2.1, -1.6],
-  [2.45, -2.45],
-])
-const P_TO_HALL = makePath([
-  [SEAT.x, SEAT.z + 0.25],
-  [-1.6, -0.6],
-  [-3.1, -3.0],
-  [-3.1, -4.5],
-  [-1.0, -5.1],
-  [-1.0, -6.9],
-  [SELF_RACK.x, -7.25],
-])
-const P_TO_CONSOLE = makePath([
-  [SELF_RACK.x, -7.25],
-  [-2.0, -7.2],
-  [-4.15, -7.2],
-])
-const P_TO_RACK = makePath([
-  [SEAT.x, SEAT.z + 0.25],
-  [1.1, 1.0],
-  [2.6, 2.6],
-  [COAT_RACK.x - 0.45, COAT_RACK.z - 0.1],
-])
-const P_OUT = makePath([
-  [COAT_RACK.x - 0.45, COAT_RACK.z - 0.1],
-  [DOOR.x, 3.5],
-  [DOOR.x, 4.4],
-  [1.4, 5.3],
-  [-1.5, 5.35],
-])
-
-// ——— Palette ———
-
-function palette() {
-  return {
-    wall: pbr('painted', 0xd7d4cc, { roughness: 1 }),
-    wallHall: pbr('painted', 0x2a2f35, { roughness: 1 }),
-    floor: pbr('carpet', 0x464b53),
-    hallFloor: pbr('tile', 0x8a9097, { roughness: 2.4 }),
-    corridorFloor: pbr('tile', 0x9a968c, { roughness: 1.8 }),
-    ceiling: pbr('plaster', 0xe2e0da),
-    trim: pbr('painted', 0xb9b6ae, { roughness: 0.9 }),
-    deskTop: pbr('laminate', 0xcbc3b4, { roughness: 0.9 }),
-    deskBody: pbr('painted', 0x5d636a, { roughness: 0.9 }),
-    chair: pbr('fabric', 0x2b2f35),
-    metal: pbr('metal', 0x9aa0a6, { roughness: 0.7 }),
-    dark: pbr('plastic', 0x1c1f23),
-    frame: pbr('plastic', 0x15171a, { roughness: 0.7 }),
-    rack: pbr('painted', 0x1d2125, { roughness: 0.8 }),
-    mug: pbr('ceramic', 0xe8e2d6),
-    coffee: std(0x1e120a, 0.08),
-    tea: new THREE.MeshPhysicalMaterial({ color: 0x8c2a08, roughness: 0.05, transmission: 0.4, thickness: 0.05, transparent: true, opacity: 0.9 }),
-    teaGlass: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.28, depthWrite: false }),
-    saucer: pbr('ceramic', 0xf1eee7),
-    // Tea soaking into carpet: a dark, damp stain rather than a glossy pool.
-    puddle: new THREE.MeshStandardMaterial({ color: 0x1c0a04, roughness: 0.3, transparent: true, opacity: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }),
-    pen: pbr('plastic', 0x1f3d8a, { roughness: 0.6 }),
-    counterTop: pbr('laminate', 0xb6afa2, { roughness: 0.8 }),
-    cabinet: pbr('painted', 0x98a1a7),
-    fridge: pbr('painted', 0xe6e4de, { roughness: 0.6 }),
-    coffeeBody: pbr('plastic', 0x24272b),
-    jugGlass: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transparent: true, opacity: 0.25, depthWrite: false }),
-    shelfWood: pbr('wood', 0x8a6d50, { roughness: 0.9 }),
-    book: pbr('paper', 0x6d5b4b, { roughness: 0.9 }),
-    bookB: pbr('paper', 0x4f6074, { roughness: 0.9 }),
-    bookC: pbr('paper', 0xb8aa92, { roughness: 0.9 }),
-    pot: pbr('ceramic', 0x6c776f, { roughness: 3 }),
-    leaf: std(0x56653f, 0.85),
-    glass: new THREE.MeshPhysicalMaterial({ color: 0xc8d6de, roughness: 0.04, transparent: true, opacity: 0.12, depthWrite: false }),
-    facade: pbr('concrete', 0x30353c),
-    facadeB: pbr('brick', 0x4a3a32),
-    ground: pbr('asphalt', 0x16181b),
-    coat: pbr('fabric', 0x33363a),
-    bag: pbr('leather', 0x3a2a20),
-    blindsMat: pbr('plastic', 0xc9c6bd, { roughness: 0.8 }),
-    radiatorMat: pbr('painted', 0xdedcd6, { roughness: 0.7 }),
-    tray: pbr('metal', 0x5c6268, { roughness: 0.9 }),
-    led: new THREE.MeshBasicMaterial({ color: 0x9cc8ff }),
-    panelOn: new THREE.MeshBasicMaterial({ color: 0xf4f6f8 }),
-    panelOff: std(0x9a9c9e, 0.6),
-    sky: new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true, side: THREE.BackSide, fog: false }),
-    simit: pbr('plaster', 0x8f5428, { roughness: 1 }),
-    napkin: pbr('paper', 0xf2efe8),
-    // The cast
-    skinA: std(0xc49a80, 0.55),
-    skinAHead: std(0xc49a80, 0.52, { vertexColors: true }),
-    skinS: std(0xd3aa90, 0.55),
-    skinSHead: std(0xd3aa90, 0.52, { vertexColors: true }),
-    eye: std(0x1a120c, 0.15),
-    hairA: std(0x2f2a26, 0.7),
-    hairS: std(0x3b2a20, 0.72),
-    sweater: std(0x4f5a66, 0.95),
-    shirt: std(0xc9ced4, 0.8),
-    trousersA: std(0x2a2e35, 0.9),
-    jacketS: std(0x3e4a3d, 0.9),
-    jeans: std(0x2b3546, 0.9),
-    shoe: std(0x1c1a18, 0.7),
-    sole: std(0x0e0e0e, 0.8),
-    glassesFrame: std(0x111111, 0.4),
-    lens: new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.02, transparent: true, opacity: 0.12, depthWrite: false }),
-  }
-}
-type Pal = ReturnType<typeof palette>
-
-function arifLook(m: Pal): FigureLook {
-  return {
-    name: 'Arif',
-    build: 'm',
-    face: { jaw: 0.3, nose: 0.21, lips: 0.045, stubble: 0.32 },
-    hairStyle: 'short',
-    skin: m.skinA,
-    skinHead: m.skinAHead,
-    eye: m.eye,
-    hair: m.hairA,
-    top: m.sweater,
-    bottom: m.trousersA,
-    shoes: m.shoe,
-    sole: m.sole,
-    cuff: m.shirt,
-    collar: 'crew',
-    topSurface: 'knit',
-    belt: true,
-    glasses: { frame: m.glassesFrame, lens: m.lens },
-  }
+const W = {
+  rise: makePath([
+    [0, CHAIR_IN.z],
+    [0.45, 1.16],
+    [0.7, 1.2],
+  ]),
+  walk: makePath([
+    [0.7, 1.2],
+    [2.2, 1.2],
+    [3.4, 0.8],
+  ]),
+  floor: makePath([
+    [3.4, 0.8],
+    [4.35, 0.3],
+  ]),
+  through: makePath([
+    [4.75, 0.2],
+    [5.9, 0.08],
+    [6.6, 0.0],
+  ]),
+  inside: makePath([
+    [6.2, 0.0],
+    [5.2, 0.12],
+    [4.3, 0.35],
+    [3.3, 0.85],
+  ]),
+  toDesk: makePath([
+    [3.3, 0.85],
+    [1.6, 0.98],
+    [0.35, 1.02],
+    [0.05, 1.02],
+  ]),
+  toLeft: makePath([
+    [0, 1.02],
+    [-0.6, 1.3],
+    [-2.2, 1.3],
+    [-3.5, 1.0],
+    [-4.4, -0.2],
+  ]),
+  inArchive: makePath([
+    [-4.6, -0.3],
+    [-5.4, -0.55],
+    [-6.05, -0.95],
+  ]),
+  back: makePath([
+    [-6.05, -0.95],
+    [-5.0, -0.25],
+    [-4.0, 0.2],
+    [-2.2, 1.25],
+    [-0.6, 1.25],
+    [0.0, 1.06],
+  ]),
+  halt: makePath([
+    [0.7, 1.2],
+    [2.2, 1.2],
+  ]),
 }
 
-function selinLook(m: Pal): FigureLook {
-  return {
-    name: 'Selin',
-    build: 'f',
-    face: { jaw: 0.16, nose: 0.14, lips: 0.07, stubble: 0 },
-    hairStyle: 'long',
-    skin: m.skinS,
-    skinHead: m.skinSHead,
-    eye: m.eye,
-    hair: m.hairS,
-    top: m.jacketS,
-    bottom: m.jeans,
-    shoes: m.shoe,
-    sole: m.sole,
-    cuff: m.jacketS,
-    collar: 'mock',
-    topSurface: 'fabric',
-    bottomSurface: 'denim',
-    height: 0.96,
-  }
+const R = {
+  recOut: makePath([
+    [-3.2, 0.35],
+    [-2.2, 1.9],
+    [-0.2, 2.2],
+    [1.6, 1.8],
+    [2.9, 1.1],
+    [3.9, 0.45],
+    [5.6, 0.0],
+    [7.6, 0.0],
+    [8.0, 1.15],
+  ]),
+  coffeeIn: makePath([
+    [NICHES.coffee[0], NICHES.coffee[1]],
+    [6.3, 0.15],
+    [5.0, 0.0],
+    [3.7, 0.75],
+    [2.3, 1.85],
+    [1.25, 1.85],
+    [MARKS.coffee[0], MARKS.coffee[1]],
+  ]),
+  snackIn: makePath([
+    [NICHES.snack[0], NICHES.snack[1]],
+    [7.0, 0.05],
+    [5.0, 0.0],
+    [3.7, 0.75],
+    [2.2, 2.05],
+    [0.6, 2.4],
+    [-0.5, 2.15],
+    [MARKS.snack[0], MARKS.snack[1]],
+  ]),
+  recIn: makePath([
+    [NICHES.recorder[0], NICHES.recorder[1]],
+    [7.8, 0.0],
+    [5.0, 0.0],
+    [3.6, 0.8],
+    [2.0, 2.25],
+    [0.2, 2.75],
+    [-1.6, 2.2],
+    [-2.7, 1.2],
+    [MARKS.recorder[0], MARKS.recorder[1]],
+  ]),
+  recHalt: makePath([
+    [MARKS.recorder[0], MARKS.recorder[1]],
+    [-2.0, 1.55],
+    [-0.3, 1.9],
+  ]),
+}
+const reversed = (p: Path) => makePath([...p.pts].reverse())
+const R_OUT = { coffee: reversed(R.coffeeIn), snack: reversed(R.snackIn) }
+
+const k = (p: number, v: number): Key<number> => [p, v, linear]
+/** How far along its path the recorder is while it follows Arif to the right door. */
+const REC_FOLLOW: Key<number>[] = [k(at('rise', 0.6), 0), k(at('walk', 0), 0.1), k(at('walk', 1), 0.42), k(at('floor', 0.7), 0.5), k(at('rightDoor', 0.55), 0.53), k(at('rightDoor', 0.83), 0.55), k(at('rightDoor', 0.94), 0.76), k(at('forty', 0.25), 1)]
+const COFFEE_IN: Key<number>[] = [k(at('reopen', 0.55), 0), k(at('robots', 1), 0.86), k(at('sits', 0.45), 1)]
+const SNACK_IN: Key<number>[] = [k(at('reopen', 0.68), 0), k(at('robots', 1), 0.8), k(at('sits', 0.5), 1)]
+const REC_IN: Key<number>[] = [k(at('reopen', 0.8), 0), k(at('robots', 1), 0.62), k(at('sits', 0.75), 1)]
+
+const sample: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
+const ahead: Sample = { x: 0, z: 0, yaw: 0, dist: 0, speed: 0 }
+const ease = (t: number) => t * t * (3 - 2 * t)
+const ramp = (a: number, b: number, u: number) => smoothstep(a, b, u)
+
+type Rig = {
+  hemi: THREE.HemisphereLight
+  key: THREE.DirectionalLight
+  lamp: THREE.SpotLight
+  spill: THREE.SpotLight
+  strip: THREE.RectAreaLight
+  screen: THREE.RectAreaLight
+  points: THREE.PointLight[]
 }
 
-// ——— Shots ———
-
-const SHOTS: Partial<Record<SegmentId, ShotKeys>> = {
-  open: [
-    [0, [-4.0, 1.75, 3.3, 0, 1.0, -0.6, 40]],
-    [1, [-3.7, 1.72, 3.0, 0, 1.0, -0.6, 40]],
-  ],
-  office: [
-    [0, [4.2, 1.66, 2.9, 0, 1.05, -0.9, 42]],
-    [1, [3.4, 1.6, 2.2, 0, 1.05, -0.9, 42]],
-  ],
-  coffee: [
-    [0, [-1.8, 1.62, 2.4, -3.6, 1.1, 0.5, 44]],
-    [1, [-2.6, 1.6, 2.0, -4.4, 1.15, 0.45, 42]],
-  ],
-  coffee2: [
-    [0, [-3.55, 1.6, 1.75, -4.6, 1.22, 0.45, 36]],
-    [1, [-3.4, 1.6, 1.85, -4.4, 1.2, 0.45, 36]],
-  ],
-  desk: [
-    [0, [0.75, 1.5, 1.35, 0, 1.1, -0.85, 40]],
-    [1, [0.45, 1.42, 0.85, 0, 1.12, -0.85, 38]],
-  ],
-  query1: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  log: [
-    [0, [1.0, 1.36, 0.45, 0.35, 1.1, -0.8, 38]],
-    [1, [0.9, 1.34, 0.35, 0.3, 1.1, -0.8, 36]],
-  ],
-  test: [
-    [0, [0.12, 1.17, -0.3, 0, 1.115, -0.86, 40]],
-    [1, [0.1, 1.16, -0.36, 0, 1.115, -0.86, 39]],
-  ],
-  small: [
-    [0, [1.5, 1.32, -0.05, 0, 1.1, 0.05, 38]],
-    [1, [1.4, 1.3, 0.1, 0, 1.1, 0.05, 36]],
-  ],
-  pen: [
-    [0, [-1.0, 1.0, 0.75, -0.3, 0.78, -0.2, 36]],
-    [1, [-0.95, 0.95, 0.7, -0.3, 0.74, -0.18, 34]],
-  ],
-  drop: [
-    [0, [-1.05, 0.42, 1.0, -0.27, 0.15, 0.0, 38]],
-    [1, [-0.9, 0.36, 0.9, -0.27, 0.05, 0.03, 36]],
-  ],
-  routine: [
-    [0, [3.9, 2.25, 3.45, 0, 1.0, -0.4, 40]],
-    [1, [3.7, 2.2, 3.3, 0, 1.0, -0.4, 40]],
-  ],
-  ask: [
-    [0, [0.86, 1.3, -0.52, 0, 1.18, 0.1, 40]],
-    [1, [0.8, 1.29, -0.5, 0, 1.18, 0.1, 38]],
-  ],
-  me: [
-    [0, [0.86, 1.3, -0.52, 0, 1.18, 0.1, 40]],
-    [1, [0.8, 1.29, -0.5, 0, 1.18, 0.1, 38]],
-  ],
-  cup: [
-    [0, [0.9, 1.02, 0.12, 0.46, 0.8, -0.36, 32]],
-    [1, [0.85, 0.98, 0.05, 0.46, 0.8, -0.36, 30]],
-  ],
-  cupChoice: [
-    [0, [1.65, 1.62, 1.45, 0.2, 0.9, -0.4, 40]],
-    [1, [1.55, 1.6, 1.35, 0.2, 0.9, -0.4, 40]],
-  ],
-  wait13: [
-    [0, [0.44, 1.36, 0.34, 0, 1.11, -0.86, 36]],
-    [1, [0.4, 1.35, 0.3, 0, 1.11, -0.86, 35]],
-  ],
-  selinQuery: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  late: [
-    [0, [3.3, 1.42, 2.6, 2.6, 1.05, 1.2, 40]],
-    [1, [3.2, 1.4, 2.5, 2.6, 1.05, 1.2, 38]],
-  ],
-  wrong: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  calc: [
-    [0, [0.86, 1.3, -0.52, 0, 1.18, 0.1, 40]],
-    [1, [0.8, 1.29, -0.5, 0, 1.18, 0.1, 38]],
-  ],
-  particle: [
-    [0, [3.9, 1.62, -0.6, 2.6, 1.5, -3.55, 40]],
-    [1, [3.7, 1.6, -0.9, 2.6, 1.5, -3.55, 40]],
-  ],
-  cloud: [
-    [0, [3.05, 1.56, -1.55, 2.6, 1.55, -3.55, 36]],
-    [1, [2.95, 1.55, -1.75, 2.6, 1.55, -3.55, 34]],
-  ],
-  chaosQuery: [
-    [0, [1.35, 1.52, -2.15, 2.6, 1.42, -2.8, 36]],
-    [1, [1.3, 1.5, -2.2, 2.6, 1.42, -2.8, 35]],
-  ],
-  chain: [
-    [0, [3.7, 1.62, -1.1, 2.6, 1.5, -3.55, 44]],
-    [1, [3.5, 1.6, -1.3, 2.6, 1.5, -3.55, 42]],
-  ],
-  some: [
-    [0, [2.25, 1.55, -3.25, 2.5, 1.6, -2.45, 32]],
-    [1, [2.25, 1.55, -3.2, 2.5, 1.6, -2.45, 30]],
-  ],
-  knowing: [
-    [0, [0.75, 1.5, -1.75, 2.4, 1.42, -3.2, 40]],
-    [1, [0.9, 1.5, -1.7, 2.4, 1.42, -3.2, 38]],
-  ],
-  asking: [
-    [0, [-1.65, 1.5, 1.45, 0, 1.1, -0.4, 40]],
-    [1, [-1.45, 1.48, 1.25, 0, 1.1, -0.4, 38]],
-  ],
-  before: [
-    [0, [0.86, 1.3, -0.52, 0, 1.18, 0.1, 40]],
-    [1, [0.8, 1.29, -0.5, 0, 1.18, 0.1, 38]],
-  ],
-  selfref: [
-    [0, [0.45, 1.33, 0.56, 0, 1.12, -0.85, 36]],
-    [1, [0.4, 1.31, 0.5, 0, 1.12, -0.85, 35]],
-  ],
-  because: [
-    [0, [-1.25, 1.42, 1.25, 0, 1.1, -0.2, 38]],
-    [1, [-1.15, 1.4, 1.1, 0, 1.1, -0.2, 37]],
-  ],
-  hall: [
-    [0, [-1.0, 1.65, -8.6, -3.1, 1.2, -4.0, 46]],
-    [1, [-1.1, 1.62, -8.7, 0.3, 1.3, -7.3, 44]],
-  ],
-  inside: [
-    [0, [2.45, 1.56, -7.0, 0.6, 1.45, -7.6, 40]],
-    [1, [2.35, 1.55, -7.05, 0.6, 1.5, -7.7, 38]],
-  ],
-  future: [
-    [0, [-2.4, 1.62, -7.0, -4.6, 1.3, -7.2, 38]],
-    [1, [-2.6, 1.6, -7.05, -4.6, 1.3, -7.2, 37]],
-  ],
-  depth: [
-    [0, [-3.5, 1.62, -6.62, -4.72, 1.28, -7.2, 36]],
-    [1, [-3.55, 1.6, -6.66, -4.72, 1.28, -7.2, 34]],
-  ],
-  you: [
-    [0, [-4.65, 1.6, -6.2, -4.15, 1.5, -7.2, 38]],
-    [1, [-4.65, 1.59, -6.3, -4.15, 1.52, -7.2, 35]],
-  ],
-  t0312: [
-    [0, [2.6, 1.9, -7.1, -4.2, 1.3, -7.2, 40]],
-    [1, [1.8, 1.8, -7.15, -4.2, 1.3, -7.2, 38]],
-  ],
-  phone: [
-    [0, [0.62, 1.06, 0.16, 0.28, 0.77, -0.32, 30]],
-    [1, [0.58, 1.03, 0.1, 0.28, 0.77, -0.32, 28]],
-  ],
-  homeQuery: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  wantKnow: [
-    [0, [0.86, 1.3, -0.52, 0, 1.18, 0.1, 40]],
-    [1, [0.8, 1.29, -0.5, 0, 1.18, 0.1, 38]],
-  ],
-  archive: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  record: [
-    [0, [0.12, 1.17, -0.3, 0, 1.115, -0.86, 40]],
-    [1, [0.1, 1.16, -0.36, 0, 1.115, -0.86, 39]],
-  ],
-  record2: [
-    [0, [0.05, 1.14, -0.44, 0, 1.115, -0.86, 40]],
-    [1, [0.04, 1.14, -0.48, 0, 1.115, -0.86, 40]],
-  ],
-  pending: [
-    [0, [0.05, 1.14, -0.44, 0, 1.115, -0.86, 40]],
-    [1, [0.04, 1.14, -0.48, 0, 1.115, -0.86, 40]],
-  ],
-  count: [
-    [0, [0.52, 1.4, 0.44, 0, 1.1, -0.86, 38]],
-    [1, [0.47, 1.38, 0.38, 0, 1.1, -0.86, 37]],
-  ],
-  questions: [
-    [0, [-1.45, 1.62, 1.65, 0, 1.1, -0.6, 40]],
-    [1, [-1.3, 1.6, 1.5, 0, 1.1, -0.6, 40]],
-  ],
-  leaving: [
-    [0, [0.6, 1.55, 1.2, 3.0, 1.2, 3.6, 40]],
-    [1, [0.8, 1.55, 1.4, 2.6, 1.3, 4.2, 40]],
-  ],
-  empty: [[0, [0, 1.2, 0.16, 0, 1.12, -0.85, 46]]],
-  observer2: [[0, [0, 1.2, 0.16, 0, 1.12, -0.85, 46]]],
-  finalQuery: [[0, [0, 1.2, 0.16, 0, 1.12, -0.85, 46]]],
-  accepted: [[0, [0, 1.2, 0.16, 0, 1.12, -0.85, 46]]],
-  end: [[0, [0, 1.2, 0.16, 0, 1.12, -0.85, 46]]],
+type State = {
+  set: SetName
+  room: boolean
+  archive: boolean
+  walkway: boolean
+  who: 'c' | 's' | null
+  eyes: number
+  askew: number
+  breath: 'sleep' | 'awake' | 'still'
+  drool: number
+  wet: number
+  windowA: number
+  clothFolded: boolean
+  clothHand: boolean
+  clothFly: THREE.Vector3 | null
+  clothTop: boolean
+  extraCloth: boolean
+  cupHand: boolean
+  cupFall: number
+  chairZ: number
+  rightDoor: number
+  leftDoor: number
+  lookA: LookName
+  lookB: LookName
+  lookT: number
+  onT: number
+  paint: number
+  hair: number
+  offT: number
+  wallDim: number
+  ceilDim: number
+  grid: number
+  circle: number
+  rain: number
+  scan: number
+  redraw: number
+  ceiling: boolean
+  ring: number
+  lamp: number
+  roomLight: number
+  center: ScreenState
+  left: ScreenState
+  right: ScreenState
+  hud: { code1: string; code2: string; vignette: number } | null
+  thumb: number
+  ghost: number
+  hideRecorder: boolean
+  recAway: number
+  recAim: 'arif' | 'camera'
+  ringLevel: number
+  era: number
+  eraT: number
+  hook: number
+  spill: number
+  record: number
 }
 
-type CupWay = 'kitchen' | 'drawer' | 'wait'
-const cupWay = (flags: ReadonlySet<string>): CupWay => (flags.has('cup:kitchen') ? 'kitchen' : flags.has('cup:drawer') ? 'drawer' : 'wait')
-
-/** The option the reader picked at a gate (for the screens), or null. */
-function picked(flags: ReadonlySet<string>, gate: string) {
-  const g = CHOICES.find((c) => c.id === gate)
-  return g?.options.find((o) => o.sets?.some((f) => flags.has(f))) ?? null
-}
+const screenOff = (): ScreenState => ({ mode: 'off', a: 0, b: 0, t: 0, level: 0 })
 
 class TekerrurDirector implements SetDirector {
-  private pal = palette()
-  private arif!: Actor
-  private selin!: Actor
-  private main!: ReturnType<typeof canvasPlane>
-  private left!: ReturnType<typeof canvasPlane>
-  private right!: ReturnType<typeof canvasPlane>
-  private wall!: ReturnType<typeof canvasPlane>
-  private selinScreen!: ReturnType<typeof canvasPlane>
-  private hallScreen!: ReturnType<typeof canvasPlane>
-  private phoneScreen!: ReturnType<typeof canvasPlane>
-  private clock!: ReturnType<typeof wallClock>
-  private mug = new THREE.Group()
-  private pen!: THREE.Mesh
-  private tea = new THREE.Group()
-  private shards!: THREE.InstancedMesh
-  private puddle!: THREE.Mesh
-  private coat = new THREE.Group()
-  private cupDoor = new THREE.Group()
-  private simit = new THREE.Group()
-  private drawerFront!: THREE.Mesh
-  private chair!: THREE.Group
-  private lamp!: THREE.SpotLight
-  private glowMain!: THREE.PointLight
-  private glowWall!: THREE.PointLight
-  private hallLights: THREE.PointLight[] = []
-  private corridorLight!: THREE.PointLight
-  private kitchenLight!: THREE.PointLight
-  private coffeeLed!: THREE.Mesh
-  private rackLeds: THREE.InstancedMesh[] = []
+  iteration = BASE_ITERATION
+  private scene!: THREE.Scene
+  private renderer!: THREE.WebGLRenderer
+  private room = new RoomSet()
+  private archive = new ArchiveSet()
+  private square = new SquareSet()
+  private net = new NetworkSet()
+  private arifC!: Actor
+  private arifS!: Actor
+  private ghost!: Actor
+  private ghostMats: THREE.MeshStandardMaterial[] = []
+  private coffee = new Robot('coffee')
+  private snack = new Robot('snack')
+  private rec = new Robot('recorder')
+  private cup!: THREE.Group
+  private drool!: THREE.Mesh
+  private wetSpot!: THREE.Mesh
+  private wetMat!: THREE.MeshStandardMaterial
+  private rig!: Rig
+  private env: THREE.Texture | null = null
+  private sky = new Sky()
+  private rt!: THREE.WebGLRenderTarget
+  private rtCam = new THREE.PerspectiveCamera(42, 16 / 9, 0.05, 600)
+  private altShot = makeShot()
+  private thumb!: THREE.Mesh
+  private thumbMat!: THREE.MeshBasicMaterial
+  private player!: { mesh: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
+  private hudVignette!: THREE.Mesh
+  private hudCode!: { mesh: THREE.Mesh; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; key: string }
+  private hudGhost!: THREE.Mesh
+  private hudGhostMat!: THREE.MeshBasicMaterial
+  private windowCtx!: CanvasRenderingContext2D
+  private windowTex!: THREE.CanvasTexture
+  private windowKey = ''
+  private releasePoint = new THREE.Vector3(0.45, 1.62, 0.98)
+  private time = 0
+  private st!: State
   private v = new THREE.Vector3()
-  private way: CupWay = 'wait'
+  private v2 = new THREE.Vector3()
+  private v3 = new THREE.Vector3()
+  private size = new THREE.Vector2()
+  private motionInfo = { step: 0, walking: 0, robots: 0, doors: 0, frame: 0 }
+  private lastRobots = new THREE.Vector3()
+  private stepBase = 0
 
-  build(scene: THREE.Scene, ctx: BuildContext) {
-    const m = this.pal
-    const hw = hardware()
-    scene.environment = ctx.environment
-    scene.environmentIntensity = 0.05
-    scene.background = new THREE.Color(0x05070a)
-    scene.fog = new THREE.FogExp2(0x070a0e, 0.008)
+  async build(scene: THREE.Scene, ctx: BuildContext) {
+    RectAreaLightUniformsLib.init()
+    this.scene = scene
+    this.renderer = ctx.renderer
+    scene.background = new THREE.Color(0x000000)
+    scene.fog = new THREE.Fog(0x000000, 500, 1000)
+    const [env] = await Promise.all([ctx.hdri('xanderklinge'), this.room.build(scene, ctx)])
+    this.env = env ?? ctx.environment
+    scene.environment = this.env
+    // Align the HDRI with the walls' photograph (the same place, the same yaw).
+    scene.environmentRotation.set(0, -0.491 * PI * 2, 0)
+    scene.environmentIntensity = 0.4
 
-    // ——— The office ———
-    const office = room({
-      w: 10,
-      d: 8,
-      h: 3.0,
-      wall: m.wall,
-      floor: m.floor,
-      ceiling: m.ceiling,
-      trim: m.trim,
-      skip: ['n'],
-      openings: [
-        { side: 'e', at: -2.3, width: 1.7, height: 1.6, bottom: 0.9 },
-        { side: 'e', at: 0, width: 1.7, height: 1.6, bottom: 0.9 },
-        { side: 'e', at: 2.3, width: 1.7, height: 1.6, bottom: 0.9 },
-        { side: 's', at: DOOR.x, width: 1.0, height: 2.1 },
-      ],
-    })
-    scene.add(office)
-    // The glass partition onto the server hall, with its door.
-    for (let i = 0; i <= 8; i++) {
-      const x = -5 + i * 1.25
-      rbox(0.06, 3.0, 0.08, m.frame, x, 1.5, -4.0, scene, 0.01)
-    }
-    rbox(10, 0.08, 0.1, m.frame, 0, 2.98, -4.0, scene, 0.01)
-    rbox(10, 0.1, 0.1, m.frame, 0, 0.05, -4.0, scene, 0.01)
-    rbox(10, 0.04, 0.06, m.frame, 0, 2.2, -4.0, scene, 0.01)
-    for (let i = 0; i < 8; i++) {
-      if (i === 1) continue
-      const pane = mesh(new THREE.PlaneGeometry(1.19, 2.88), m.glass, -5 + 0.625 + i * 1.25, 1.5, -4.0, scene)
-      pane.userData.noAO = true
-    }
-    // The glass door to the hall (x −3.75 … −3.75+1.25), a handle bar.
-    mesh(new THREE.PlaneGeometry(1.0, 2.1), m.glass, -3.125, 1.05, -3.99, scene)
-    rbox(0.03, 0.6, 0.03, hw.chrome, -2.75, 1.05, -3.93, scene, 0.012)
-    // Windows: frames, glass, blinds, sills, radiators.
-    for (const z of [-2.3, 0, 2.3]) {
-      const g = new THREE.Group()
-      g.position.set(5, 0, z)
-      g.rotation.y = -PI / 2
-      scene.add(g)
-      rbox(1.7, 0.06, 0.08, m.frame, 0, 0.93, -0.02, g, 0.01)
-      rbox(1.7, 0.06, 0.08, m.frame, 0, 2.47, -0.02, g, 0.01)
-      rbox(0.05, 1.6, 0.08, m.frame, 0, 1.7, -0.02, g, 0.01)
-      mesh(new THREE.PlaneGeometry(1.66, 1.56), m.glass, 0, 1.7, -0.03, g)
-      const bl = blinds(1.62, 1.5, m.blindsMat)
-      bl.group.position.set(0, 1.75, 0.08)
-      bl.set(z === 0 ? 0.65 : 0.35)
-      g.add(bl.group)
-      const rad = radiator(1.2, m.radiatorMat)
-      rad.position.set(0, 0, 0.12)
-      g.add(rad)
-    }
-    // Ceiling panels: most of them off at this hour.
-    for (const [x, z, on] of [
-      [-2.5, -2, false],
-      [2.5, -2, false],
-      [-2.5, 2, true],
-      [2.5, 2, false],
-    ] as const) {
-      const panelLight = ceilingPanel(0.6, 0.6, on ? m.panelOn : m.panelOff)
-      panelLight.position.set(x, 3.0, z)
-      scene.add(panelLight)
-    }
-    // Sockets and a cable run along the skirting.
-    for (const [x, z, r] of [
-      [-0.8, 3.97, PI],
-      [4.97, 1.4, -PI / 2],
-      [-4.97, -0.8, PI / 2],
-    ] as const) {
-      const s = socket()
-      s.position.set(x, 0.32, z)
-      s.rotation.y = r
-      scene.add(s)
-    }
+    this.archive.build()
+    scene.add(this.archive.group)
+    this.square.build()
+    scene.add(this.square.group)
+    this.net.build()
+    scene.add(this.net.group)
 
-    // ——— Arif's desk ———
-    const d = desk(1.8, 0.8, m.deskTop, m.deskBody)
-    d.position.set(DESK.x, 0, DESK.z)
-    d.rotation.y = PI
-    scene.add(d)
-    // The drawer that can be locked: its front, which slides.
-    this.drawerFront = rbox(0.4, 0.19, 0.018, m.deskBody, DESK.x - 0.66, 0.12 + 0.095, DESK.z + 0.39, scene, 0.003)
-    this.chair = officeChair(m.chair, m.metal)
-    this.chair.position.set(SEAT.x, 0, SEAT.z + 0.05)
-    this.chair.rotation.y = PI
-    scene.add(this.chair)
-    const screenMat = () => new THREE.MeshBasicMaterial({ color: 0xffffff })
-    const monMain = monitor(m.frame, screenMat(), 0.6, 0.34)
-    monMain.group.position.set(0, 0.74 + 0.205 + 0.17, -0.86)
-    scene.add(monMain.group)
-    const monL = monitor(m.frame, screenMat(), 0.5, 0.3)
-    monL.group.position.set(-0.66, 0.74 + 0.205 + 0.15, -0.76)
-    monL.group.rotation.y = 0.45
-    scene.add(monL.group)
-    const monR = monitor(m.frame, screenMat(), 0.5, 0.3)
-    monR.group.position.set(0.66, 0.74 + 0.205 + 0.15, -0.76)
-    monR.group.rotation.y = -0.45
-    scene.add(monR.group)
-    this.main = canvasPlane(0.6, 0.34, 1024, () => {}, { emissive: true })
-    this.main.mesh.position.set(0, 0, 0.002)
-    monMain.group.add(this.main.mesh)
-    this.left = canvasPlane(0.5, 0.3, 768, () => {}, { emissive: true })
-    this.left.mesh.position.set(0, 0, 0.002)
-    monL.group.add(this.left.mesh)
-    this.right = canvasPlane(0.5, 0.3, 768, () => {}, { emissive: true })
-    this.right.mesh.position.set(0, 0, 0.002)
-    monR.group.add(this.right.mesh)
-    const note = canvasPlane(0.07, 0.07, 128, S.drawNote)
-    note.mesh.position.set(0.27, 0.15, 0.003)
-    note.mesh.rotation.z = -0.08
-    monMain.group.add(note.mesh)
-    const kb = keyboard()
-    kb.position.set(0, 0.754, -0.44)
-    kb.rotation.y = PI
-    scene.add(kb)
-    const ms = mouse()
-    ms.position.set(-0.36, 0.754, -0.42)
-    scene.add(ms)
-    const lamp = deskLamp(m.metal, m.dark)
-    lamp.group.position.set(-0.78, 0.74, -0.85)
-    lamp.group.rotation.y = 0.5
-    scene.add(lamp.group)
-    const rep = papers(6, 3)
-    rep.position.set(-0.36, 0.754, -0.46)
-    scene.add(rep)
-    const bd = binder(m.bookB)
-    bd.position.set(0.82, 0.754, -0.88)
-    bd.rotation.y = PI / 2 + 0.1
-    scene.add(bd)
-    const ph = phone(m.dark, screenMat())
-    ph.group.position.set(0.28, 0.754, -0.3)
-    ph.group.rotation.y = 0.25
-    scene.add(ph.group)
-    this.phoneScreen = canvasPlane(0.066, 0.145, 256, () => {}, { emissive: true })
-    this.phoneScreen.mesh.rotation.x = -PI / 2
-    this.phoneScreen.mesh.position.y = 0.0086
-    ph.group.add(this.phoneScreen.mesh)
-    const tower = pcTower(m.dark)
-    tower.position.set(0.5, 0, -0.78)
-    tower.rotation.y = PI
-    scene.add(tower)
-    const b = bin(m.dark)
-    b.position.set(1.15, 0, -0.72)
-    scene.add(b)
-    tube(
-      [
-        [0.4, 0.74, -0.95],
-        [0.35, 0.4, -0.98],
-        [0.2, 0.02, -1.0],
-        [-0.6, 0.02, -1.1],
-        [-0.8, 0.3, 3.95],
-      ],
-      0.008,
-      m.dark,
-      scene,
-      48,
-    )
-    // The mug, the pen.
-    this.mug = mug(m.mug, m.coffee)
-    scene.add(this.mug)
-    this.pen = mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.14, 10), m.pen, 0, 0, 0, scene)
-    this.pen.castShadow = true
-
-    // ——— Selin's desk by the windows ———
-    const sd = desk(1.4, 0.7, m.deskTop, m.deskBody)
-    sd.position.set(SELIN_DESK.x, 0, SELIN_DESK.z)
-    sd.rotation.y = -PI / 2
-    scene.add(sd)
-    const sc = officeChair(m.chair, m.metal)
-    sc.position.set(SELIN_DESK.x - 0.62, 0, SELIN_DESK.z)
-    sc.rotation.y = PI / 2
-    scene.add(sc)
-    const monS = monitor(m.frame, screenMat(), 0.5, 0.3)
-    monS.group.position.set(SELIN_DESK.x + 0.22, 0.74 + 0.205 + 0.15, SELIN_DESK.z)
-    monS.group.rotation.y = -PI / 2
-    scene.add(monS.group)
-    this.selinScreen = canvasPlane(0.5, 0.3, 512, () => {}, { emissive: true })
-    this.selinScreen.mesh.position.z = 0.002
-    monS.group.add(this.selinScreen.mesh)
-    // A partition behind, with a drawing pinned on it.
-    rbox(0.04, 1.4, 1.5, m.chair, SELIN_DESK.x + 0.42, 0.7, SELIN_DESK.z, scene, 0.02)
-    const drawing = canvasPlane(0.24, 0.17, 256, S.drawDrawing)
-    drawing.mesh.position.set(SELIN_DESK.x + 0.395, 1.22, SELIN_DESK.z - 0.42)
-    drawing.mesh.rotation.y = -PI / 2
-    scene.add(drawing.mesh)
-    const thermo = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.24, 20), m.metal, SELIN_DESK.x + 0.1, 0.87, SELIN_DESK.z + 0.25, scene)
-    thermo.castShadow = true
-    // Her simit, on a napkin; half of it is gone by 22.40.
-    const ring = new THREE.TorusGeometry(0.052, 0.016, 10, 28, PI * 1.25)
-    const sim = mesh(ring, m.simit, 0, 0.016, 0, this.simit)
-    sim.rotation.x = -PI / 2
-    sim.castShadow = true
-    rbox(0.16, 0.002, 0.16, m.napkin, 0, 0.001, 0, this.simit, 0.001)
-    this.simit.position.set(SELIN_DESK.x - 0.1, 0.754, SELIN_DESK.z - 0.3)
-    this.simit.rotation.y = 0.6
-    scene.add(this.simit)
-    const pl = plant(m.pot, m.leaf, 0.9, 12)
-    pl.position.set(4.45, 0, -1.2)
-    scene.add(pl)
-
-    // ——— The big display on its stand ———
-    const disp = new THREE.Group()
-    disp.position.copy(DISPLAY)
-    scene.add(disp)
-    rbox(2.34, 1.36, 0.06, m.frame, 0, 0, -0.035, disp, 0.01)
-    this.wall = canvasPlane(2.24, 1.26, 1024, () => {}, { emissive: true })
-    this.wall.mesh.position.z = 0.002
-    disp.add(this.wall.mesh)
-    for (const sx of [-0.8, 0.8]) {
-      rbox(0.06, DISPLAY.y - 0.6, 0.06, m.metal, sx, -(DISPLAY.y - 0.6) / 2 - 0.6 + 0.01, -0.06, disp, 0.01)
-      rbox(0.08, 0.04, 0.6, m.metal, sx, -DISPLAY.y + 0.02, -0.06, disp, 0.01)
-    }
-
-    // ——— Coffee corner (west) ———
-    const ctr = counter(2.2, 0.62, 0.92, m.counterTop, m.cabinet)
-    ctr.position.set(-4.69, 0, 0.3)
-    ctr.rotation.y = PI / 2
-    scene.add(ctr)
-    const cm = coffeeMachine(m.coffeeBody, m.jugGlass, m.coffee)
-    cm.group.position.copy(COFFEE)
-    cm.group.rotation.y = PI / 2
-    scene.add(cm.group)
-    this.coffeeLed = cm.led
-    for (const [z, mat] of [
-      [-0.2, m.mug],
-      [-0.33, m.saucer],
-    ] as const) {
-      const mm = mug(mat)
-      mm.position.set(-4.75, 0.92, z)
-      scene.add(mm)
-    }
-    rbox(0.62, 0.86, 0.6, m.fridge, -4.68, 0.43, -1.25, scene, 0.02)
-    rbox(0.02, 0.3, 0.02, hw.chrome, -4.36, 0.62, -1.0, scene, 0.008)
-    const pr = printer(m.fridge)
-    pr.position.set(-4.62, 0.72, 2.7)
-    pr.rotation.y = PI / 2
-    scene.add(pr)
-    rbox(0.6, 0.72, 0.6, m.cabinet, -4.68, 0.36, 2.7, scene, 0.01)
-    const sh = shelf(1.2, 1.8, 0.32, m.shelfWood, [m.book, m.bookB, m.bookC], 21)
-    sh.position.set(-4.82, 0, -2.7)
-    sh.rotation.y = PI / 2
-    scene.add(sh)
-
-    // ——— South wall: whiteboard, the stopped clock, the coat rack ———
-    const wb = whiteboard(2.3, 1.15, m.metal, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 }))
-    wb.group.position.set(-1.6, 1.55, 3.985)
-    wb.group.rotation.y = PI
-    scene.add(wb.group)
-    const board = canvasPlane(2.3, 1.15, 1024, S.drawBoard)
-    board.mesh.position.z = 0.012
-    wb.group.add(board.mesh)
-    this.clock = wallClock(m.metal, new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.6 }), m.dark)
-    this.clock.group.position.set(0.6, 2.35, 3.98)
-    this.clock.group.rotation.y = PI
-    scene.add(this.clock.group)
-    const rack = new THREE.Group()
-    rack.position.set(COAT_RACK.x, 0, COAT_RACK.z)
-    scene.add(rack)
-    mesh(new THREE.CylinderGeometry(0.02, 0.025, 1.8, 12), m.metal, 0, 0.9, 0, rack)
-    mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.025, 24), m.metal, 0, 0.012, 0, rack)
-    for (let i = 0; i < 4; i++) {
-      const hook = rbox(0.18, 0.015, 0.015, m.metal, 0, 1.75, 0, rack, 0.006)
-      hook.rotation.y = (i * PI) / 2
-    }
-    // Arif's coat, hanging; it leaves with him.
-    // Arif's coat on a hanger: shoulders, a body that widens to the hem,
-    // sleeves hanging at its sides, a turned-down collar, the front opening.
-    tube(
-      [
-        [-0.2, -0.1, 0],
-        [0, -0.04, 0],
-        [0.2, -0.1, 0],
-      ],
-      0.006,
-      hw.chrome,
-      this.coat,
-      12,
-    )
-    tube(
-      [
-        [0, -0.04, 0],
-        [0, 0.01, 0],
-        [0.03, 0.04, 0],
-        [0.01, 0.06, 0],
-      ],
-      0.003,
-      hw.chrome,
-      this.coat,
-      12,
-    )
-    rbox(0.42, 0.07, 0.13, m.coat, 0, -0.11, 0, this.coat, 0.03)
-    const coatBody = new THREE.CylinderGeometry(0.19, 0.25, 0.92, 28, 4)
-    coatBody.scale(1, 1, 0.34)
-    mesh(coatBody, m.coat, 0, -0.6, 0, this.coat).castShadow = true
-    for (const sx of [-1, 1]) {
-      const sleeve = mesh(new THREE.CapsuleGeometry(0.048, 0.5, 4, 12), m.coat, sx * 0.205, -0.42, 0.012, this.coat)
-      sleeve.scale.z = 0.8
-      sleeve.rotation.z = sx * 0.06
-      sleeve.castShadow = true
-    }
-    const coatCollar = mesh(new THREE.TorusGeometry(0.075, 0.022, 8, 24, PI * 1.4), m.coat, 0, -0.09, 0.01, this.coat)
-    coatCollar.rotation.set(PI / 2, 0, -PI * 0.2)
-    coatCollar.scale.set(1, 0.55, 1)
-    rbox(0.012, 0.84, 0.01, m.dark, 0, -0.58, 0.086, this.coat, 0.004)
-    scene.add(this.coat)
-    const bag = rbox(0.38, 0.28, 0.1, m.bag, 0.0, 0.14, 0.2, rack, 0.03)
-    bag.rotation.y = 0.4
-
-    // ——— The server hall ———
-    const hall = room({ w: 10, d: 7.8, h: 3.3, z: -8.05, wall: m.wallHall, floor: m.hallFloor, ceiling: m.wallHall, trim: null, skip: ['s'] })
-    scene.add(hall)
-    const rand = mulberry32(42)
-    for (const z of [-6.0, -8.4, -10.8])
-      for (let i = 0; i < 6; i++) {
-        const r = serverRack(m.rack, Math.floor(rand() * 1000))
-        r.position.set(RACK_X[i], 0, z)
-        scene.add(r)
-        r.traverse((o) => {
-          if ((o as THREE.InstancedMesh).isInstancedMesh && o.userData.blink) this.rackLeds.push(o as THREE.InstancedMesh)
-        })
+    // ——— Cast ———
+    const looks = arifLooks()
+    this.arifC = new Actor(makeArif(looks.cardigan))
+    this.arifS = new Actor(makeArif(looks.shirt))
+    this.ghost = new Actor(makeArif(looks.ghost))
+    this.ghostMats = looks.ghostMats
+    this.ghost.figure.root.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh) {
+        m.castShadow = false
+        m.receiveShadow = false
+        m.renderOrder = 5
       }
-    // Cable trays overhead, a cooling unit, a console on the west wall.
-    for (const z of [-6.0, -8.4, -10.8]) rbox(5.0, 0.06, 0.4, m.tray, 0, 2.55, z, scene, 0.01)
-    rbox(0.9, 2.0, 1.6, m.fridge, -4.5, 1.0, -10.4, scene, 0.03)
-    for (let i = 0; i < 6; i++) rbox(0.02, 1.5, 0.02, m.dark, -4.04, 1.1, -10.9 + i * 0.2, scene, 0.005)
-    const label = canvasPlane(0.22, 0.06, 256, (c, W, H) => {
-      c.fillStyle = '#e8e2d2'
-      c.fillRect(0, 0, W, H)
-      c.fillStyle = '#1a1a1a'
-      c.font = `600 ${Math.round(H * 0.5)}px monospace`
-      c.fillText('ÖZ-MODEL · KATMAN 7', 8, H * 0.68)
     })
-    label.mesh.position.set(SELF_RACK.x, 1.95, SELF_RACK.z + 0.515)
-    scene.add(label.mesh)
-    const con = monitor(m.frame, screenMat(), 0.56, 0.34)
-    con.group.position.copy(CONSOLE)
-    con.group.rotation.y = PI / 2
-    scene.add(con.group)
-    rbox(0.5, 1.0, 0.5, m.rack, -4.72, 0.5, -7.2, scene, 0.02)
-    this.hallScreen = canvasPlane(0.56, 0.34, 768, () => {}, { emissive: true })
-    this.hallScreen.mesh.position.z = 0.002
-    con.group.add(this.hallScreen.mesh)
+    this.room.group.add(this.arifC.figure.root, this.arifS.figure.root, this.ghost.figure.root)
+    for (const r of [this.coffee, this.snack, this.rec]) this.room.group.add(r.group)
+    this.cup = this.coffee.cup!
+    this.room.group.add(this.cup)
+    // Where the throwing hand lets go: measured once from the pose.
+    this.arifC.begin().place(0, CHAIR_IN.z + SEAT_BACK, PI).hold(THROW_RELEASE)
+    this.arifC.apply(0, false)
+    this.arifC.figure.rGrip.getWorldPosition(this.releasePoint)
 
-    // ——— Corridor and kitchen ———
-    const corridor = room({ w: 16, d: 2.4, h: 2.8, z: 5.35, wall: m.wall, floor: m.corridorFloor, ceiling: m.ceiling, trim: m.trim, skip: ['n'], openings: [{ side: 's', at: -2.2, width: 1.0, height: 2.1 }] })
-    scene.add(corridor)
-    const kitchen = room({ w: 4, d: 3.2, h: 2.8, x: -2.2, z: 8.3, wall: m.wall, floor: m.corridorFloor, ceiling: m.ceiling, trim: m.trim, skip: ['n'] })
-    scene.add(kitchen)
-    const kc = counter(2.4, 0.62, 0.92, m.counterTop, m.cabinet)
-    kc.position.set(-2.2, 0, 9.55)
-    kc.rotation.y = PI
-    scene.add(kc)
-    // Wall cupboards: a carcass and four doors; the second one opens for the cup.
-    rbox(2.4, 0.7, 0.33, m.cabinet, -2.2, 1.9, 9.735, scene, 0.008)
-    for (let i = 0; i < 4; i++) {
-      const x0 = -3.4 + i * 0.6
-      const door = new THREE.Group()
-      door.position.set(x0 + 0.003, 1.9, 9.565)
-      scene.add(door)
-      rbox(0.594, 0.69, 0.02, m.cabinet, 0.297, 0, 0, door, 0.004)
-      rbox(0.012, 0.16, 0.02, hw.chrome, 0.55, -0.2, -0.018, door, 0.005)
-      if (i === 1) this.cupDoor = door
-    }
-    const shelfIn = rbox(1.15, 0.015, 0.28, m.cabinet, -2.6, 1.9, 9.74, scene, 0.003)
-    shelfIn.receiveShadow = true
-    for (let i = 0; i < 3; i++) {
-      const cup = mug(m.mug)
-      cup.position.set(-2.95 + i * 0.13, 1.908, 9.72)
-      scene.add(cup)
-    }
-    // The sink: a steel basin set into the worktop, a swan-neck tap.
-    rbox(0.52, 0.012, 0.42, hw.steel, -2.6, 0.926, 9.55, scene, 0.004)
-    rbox(0.44, 0.004, 0.34, m.dark, -2.6, 0.931, 9.55, scene, 0.002)
-    tube(
-      [
-        [-2.6, 0.93, 9.8],
-        [-2.6, 1.15, 9.79],
-        [-2.6, 1.22, 9.7],
-        [-2.6, 1.14, 9.6],
-      ],
-      0.011,
-      hw.chrome,
-      scene,
-      24,
-    )
+    // Drool: a thin strand from the corner of his mouth to the glass, and the wet mark it leaves.
+    const droolMat = new THREE.MeshPhysicalMaterial({ color: 0xe8eef0, roughness: 0.05, transparent: true, opacity: 0.55, depthWrite: false, clearcoat: 1 })
+    const dg = new THREE.CylinderGeometry(0.0016, 0.003, 1, 6, 1)
+    dg.translate(0, -0.5, 0)
+    this.drool = mesh(dg, droolMat, 0, 0, 0, this.room.group)
+    this.wetMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.0, depthWrite: false, envMapIntensity: 2.5, polygonOffset: true, polygonOffsetFactor: -3 })
+    this.wetSpot = mesh(new THREE.CircleGeometry(0.035, 20), this.wetMat, CHEEK_SPOT.x, DESK.y + 0.0012, CHEEK_SPOT.z, this.room.group)
+    this.wetSpot.rotation.x = -PI / 2
+    this.wetSpot.scale.set(1.4, 0.8, 1)
 
-    // ——— Outside: Ankara at night, three floors down ———
-    const skyGeo = new THREE.SphereGeometry(400, 32, 16)
-    const sp = skyGeo.attributes.position as THREE.BufferAttribute
-    const colors = new Float32Array(sp.count * 3)
-    const top = new THREE.Color(0x05080d)
-    const hor = new THREE.Color(0x2a2a30)
-    const tmp = new THREE.Color()
-    for (let i = 0; i < sp.count; i++) {
-      tmp.copy(hor).lerp(top, Math.pow(Math.max(0, sp.getY(i) / 400), 0.45))
-      tmp.toArray(colors, i * 3)
-    }
-    skyGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    mesh(skyGeo, m.sky, 0, 0, 0, scene)
-    const ground = mesh(new THREE.PlaneGeometry(600, 600), m.ground, 0, -9.5, 0, scene)
-    ground.rotation.x = -PI / 2
-    const crand = mulberry32(77)
-    for (let i = 0; i < 26; i++) {
-      const x = 22 + crand() * 160
-      const z = -90 + crand() * 180
-      const h = 12 + crand() * 40
-      const f = facade({ w: 10 + crand() * 16, h, d: 10, wall: crand() < 0.5 ? m.facade : m.facadeB, facing: -1, seed: 300 + i, lit: 0.18 + crand() * 0.25 })
-      f.position.set(x, -9.5, z)
-      scene.add(f)
-    }
+    // The pale window under his cheek.
+    const wc = document.createElement('canvas')
+    wc.width = 512
+    wc.height = 300
+    this.windowCtx = wc.getContext('2d')!
+    this.windowTex = new THREE.CanvasTexture(wc)
+    this.windowTex.colorSpace = THREE.SRGBColorSpace
+    this.room.windowMat.map = this.windowTex
+    this.room.windowMat.needsUpdate = true
+    this.room.window.position.set(-0.36, DESK.y + 0.0016, 0.38)
+    this.room.window.rotation.z = 0.25
+    drawTouch(this.room.touchCtx, 1024, 452, 1)
+    this.room.touchTex.needsUpdate = true
 
-    // ——— Light ———
-    scene.add(new THREE.HemisphereLight(0x6f7e92, 0x0d0e10, 0.32))
-    this.lamp = new THREE.SpotLight(0xffd9a8, 9, 4, 0.75, 0.6, 1.4)
-    this.lamp.position.copy(lamp.bulb).applyMatrix4(lamp.group.matrixWorld.compose(lamp.group.position, lamp.group.quaternion, lamp.group.scale))
-    this.lamp.target.position.set(-0.1, 0.75, -0.45)
-    this.lamp.castShadow = ctx.quality.shadows
-    this.lamp.shadow.mapSize.set(1024, 1024)
-    this.lamp.shadow.bias = -0.0005
-    this.lamp.shadow.radius = 4
-    scene.add(this.lamp, this.lamp.target)
-    this.glowMain = new THREE.PointLight(0xb9d0ff, 1.4, 2.6, 1.6)
-    this.glowMain.position.set(0, 1.12, -0.6)
-    this.glowWall = new THREE.PointLight(0xc8dcff, 0, 5, 1.5)
-    this.glowWall.position.set(DISPLAY.x, DISPLAY.y, DISPLAY.z + 0.6)
-    scene.add(this.glowMain, this.glowWall)
-    const corner = new THREE.PointLight(0xfff0dc, 3.5, 6, 1.6)
-    corner.position.set(-2.5, 2.8, 2)
-    scene.add(corner)
-    for (const [x, z] of [
-      [-2, -6.0],
-      [2, -8.4],
-      [-1, -10.8],
-    ] as const) {
-      const l = new THREE.PointLight(0x7fa6d8, 6, 7, 1.6)
-      l.position.set(x, 2.9, z)
-      this.hallLights.push(l)
-      scene.add(l)
-    }
-    this.corridorLight = new THREE.PointLight(0xe8f0ff, 5, 7, 1.6)
-    this.corridorLight.position.set(1.5, 2.6, 5.3)
-    this.kitchenLight = new THREE.PointLight(0xffe2bd, 0, 5, 1.6)
-    this.kitchenLight.position.set(-2.2, 2.6, 8.3)
-    scene.add(this.corridorLight, this.kitchenLight)
+    // ——— The light rig: the same lights for every set (a constant light count, no recompiles) ———
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x333333, 0.3)
+    const key = new THREE.DirectionalLight(0xffffff, 1)
+    key.castShadow = ctx.quality.shadows
+    key.shadow.mapSize.set(2048, 2048)
+    key.shadow.bias = -0.0004
+    key.shadow.normalBias = 0.03
+    const lamp = new THREE.SpotLight(0xffb26b, 3.2, 5, 0.9, 0.7, 2)
+    lamp.castShadow = ctx.quality.shadows
+    lamp.shadow.mapSize.set(1024, 1024)
+    lamp.shadow.bias = -0.0006
+    lamp.shadow.normalBias = 0.02
+    lamp.shadow.camera.near = 0.05
+    const spill = new THREE.SpotLight(0xf1f3f5, 0, 18, 0.42, 0.25, 1.2)
+    spill.castShadow = ctx.quality.shadows
+    spill.shadow.mapSize.set(1024, 1024)
+    spill.shadow.bias = -0.0008
+    spill.shadow.camera.near = 0.5
+    const strip = new THREE.RectAreaLight(0xffa860, 8, 2.4, 0.06)
+    const screen = new THREE.RectAreaLight(0xbfd0e0, 0, CENTER_SCREEN.w, CENTER_SCREEN.h)
+    const points = [0, 1, 2].map(() => new THREE.PointLight(0xffffff, 0, 4, 2))
+    this.rig = { hemi, key, lamp, spill, strip, screen, points }
+    scene.add(hemi, key, key.target, lamp, lamp.target, spill, spill.target, strip, screen, ...points)
 
-    // ——— People ———
-    const arif = new Figure(arifLook(m))
-    const selin = new Figure(selinLook(m))
-    scene.add(arif.root, selin.root)
-    this.arif = new Actor(arif)
-    this.selin = new Actor(selin)
+    // ——— Render target for screens that show another place or moment ———
+    this.rt = new THREE.WebGLRenderTarget(1024, 576, { type: THREE.HalfFloatType, samples: ctx.quality.msaa ? 2 : 0 })
+    this.thumbMat = new THREE.MeshBasicMaterial({ map: this.rt.texture, toneMapped: true, transparent: true, opacity: 1, depthWrite: false })
+    this.thumb = mesh(new THREE.PlaneGeometry(1, 1), this.thumbMat, 0, 0, 0, this.room.group)
+    this.thumb.renderOrder = 3
+    const pc = document.createElement('canvas')
+    pc.width = 1024
+    pc.height = 582
+    const ptex = new THREE.CanvasTexture(pc)
+    ptex.colorSpace = THREE.SRGBColorSpace
+    const pmesh = mesh(new THREE.PlaneGeometry(CENTER_SCREEN.w, CENTER_SCREEN.h), new THREE.MeshBasicMaterial({ map: ptex, transparent: true, depthWrite: false }), CENTER_SCREEN.pos.x, CENTER_SCREEN.pos.y, CENTER_SCREEN.pos.z + 0.004, this.room.group)
+    pmesh.renderOrder = 4
+    this.player = { mesh: pmesh, ctx: pc.getContext('2d')!, tex: ptex, key: '' }
 
-    // Selin's tea: a tulip glass on a saucer, and what it becomes.
-    turnedGlass(this.tea, m.teaGlass, m.tea, m.saucer)
-    scene.add(this.tea)
-    const shardGeo = new THREE.BufferGeometry()
-    shardGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0.018, 0, 0.004, 0.006, 0, 0.022], 3))
-    shardGeo.computeVertexNormals()
-    this.shards = new THREE.InstancedMesh(shardGeo, m.teaGlass, 24)
-    this.shards.frustumCulled = false
-    const sr = mulberry32(5)
-    const sm = new THREE.Matrix4()
-    for (let i = 0; i < 24; i++) {
-      const a = sr() * PI * 2
-      const r = Math.pow(sr(), 0.6) * 0.32
-      sm.makeRotationY(sr() * PI * 2).scale(new THREE.Vector3(0.6 + sr(), 1, 0.6 + sr())).setPosition(Math.cos(a) * r, 0.003, Math.sin(a) * r)
-      this.shards.setMatrixAt(i, sm)
-    }
-    scene.add(this.shards)
-    const stain = new THREE.Shape()
-    for (let i = 0; i <= 48; i++) {
-      const a = (i / 48) * PI * 2
-      const r = 0.16 * (1 + 0.22 * Math.sin(3 * a + 1) + 0.12 * Math.sin(5 * a + 2) + 0.06 * Math.sin(11 * a))
-      if (i === 0) stain.moveTo(Math.cos(a) * r, Math.sin(a) * r)
-      else stain.lineTo(Math.cos(a) * r, Math.sin(a) * r)
-    }
-    this.puddle = mesh(new THREE.ShapeGeometry(stain, 2), m.puddle, 0, 0.004, 0, scene)
-    this.puddle.rotation.x = -PI / 2
-    this.puddle.scale.set(1.2, 0.8, 1)
+    // ——— The record frame: a vignette and a timecode laid in front of the lens ———
+    const vc = document.createElement('canvas')
+    vc.width = 512
+    vc.height = 288
+    drawVignette(vc.getContext('2d')!, 512, 288)
+    const vtex = new THREE.CanvasTexture(vc)
+    vtex.colorSpace = THREE.SRGBColorSpace
+    this.hudVignette = mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: vtex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), 0, 0, 0, scene)
+    this.hudVignette.renderOrder = 20
+    const cc = document.createElement('canvas')
+    cc.width = 640
+    cc.height = 100
+    const ctex = new THREE.CanvasTexture(cc)
+    ctex.colorSpace = THREE.SRGBColorSpace
+    const cmesh = mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: ctex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), 0, 0, 0, scene)
+    cmesh.renderOrder = 21
+    this.hudCode = { mesh: cmesh, ctx: cc.getContext('2d')!, tex: ctex, key: '' }
+    this.hudGhostMat = new THREE.MeshBasicMaterial({ map: this.rt.texture, transparent: true, opacity: 0, depthTest: false, depthWrite: false, toneMapped: true })
+    this.hudGhost = mesh(new THREE.PlaneGeometry(1, 1), this.hudGhostMat, 0, 0, 0, scene)
+    this.hudGhost.renderOrder = 19
+    for (const m of [this.hudVignette, cmesh, this.hudGhost]) m.frustumCulled = false
   }
+
+  // ————————————————————————————————————————————————————————————————
+  // The frame
 
   frame(f: SetFrame, shot: Shot) {
+    this.time = f.time
     const seg = segmentAt(f.p).id as SegmentId
     const u = local(f.p, seg)
-    const p = f.p
-    const way = (this.way = cupWay(f.flags))
-    const again = f.flags.has('mem:asked')
-    const hours = storyHours(p)
-    const clock = clockText(hours)
-
-    this.directArif(f, seg, u, way)
-    this.directSelin(f, seg, u, way)
-    this.props(f, seg, u, way)
-    this.screens(f, seg, u, way, clock, hours, again)
-
-    // The stopped clock: 21.13 (21.14 on a second reading); its second hand twitches.
-    this.clock.set(again ? 21 + 14 / 60 : 21 + 13 / 60 + (Math.sin(f.time * 9) > 0.96 ? 1 / 3600 : 0))
-
-    // ——— Light ———
-    const wallOn = p >= SEG.particle.start && p < SEG.asking.start ? 1 : 0.25
-    this.glowWall.intensity = 3.2 * wallOn
-    this.lamp.intensity = p >= SEG.empty.start ? 6 : 9
-    this.corridorLight.intensity = 5
-    this.kitchenLight.intensity = way === 'kitchen' && p >= SEG.act.start && p < SEG.crash.start ? 4 : 0
-    this.coffeeLed.visible = p < SEG.desk.end
-    // Racks blink: a few LEDs drop out for a frame now and then.
-    const blink = Math.floor(f.time * 6)
-    this.rackLeds.forEach((im, i) => (im.visible = (blink + i * 7) % 11 !== 0))
-
-    // ——— Camera ———
-    this.camera(f, seg, u, way, shot)
+    // A screen in this shot shows another place or moment: render that first.
+    const alt = this.altFor(seg, u)
+    if (alt) {
+      this.compose(alt.p, f, this.altShot, true)
+      this.altShot.pos.copy(alt.pos)
+      this.altShot.tgt.copy(alt.tgt)
+      this.rtCam.position.copy(alt.pos)
+      this.rtCam.lookAt(alt.tgt)
+      this.rtCam.fov = alt.fov
+      this.rtCam.aspect = 16 / 9
+      this.rtCam.updateProjectionMatrix()
+      this.hideHud()
+      const r = this.renderer
+      const prev = r.getRenderTarget()
+      r.setRenderTarget(this.rt)
+      r.clear()
+      r.render(this.scene, this.rtCam)
+      r.setRenderTarget(prev)
+    }
+    this.compose(f.p, f, shot, false)
   }
 
-  // ——— Arif ———
+  /** Which shots need a picture of somewhere else first. */
+  private altFor(seg: SegmentId, u: number): { p: number; pos: THREE.Vector3; tgt: THREE.Vector3; fov: number } | null {
+    if (seg === 'dive' && u > 0.25) return { p: at('history', 0.06), pos: SQUARE_CAM.pos, tgt: SQUARE_CAM.tgt, fov: SQUARE_CAM.fov }
+    if ((seg === 'feed' && u < 0.25) || (seg === 'checked' && u > 0.97)) return { p: at('feed', 0.4), pos: this.v.set(...RECORDER_LENS.pos), tgt: this.v2.set(3.3, 0.85, 0.27), fov: 55 }
+    if (seg === 'history' || seg === 'repeat') {
+      const { era, t } = eraAt(seg === 'history' ? at('history', u) : at('repeat', u))
+      const n = seg === 'history' ? 5 : 4
+      const window = 0.035 * n
+      if (era > 0 && t < window && era !== 5) {
+        const first = seg === 'history' ? 0 : 5
+        const k0 = era - first
+        const prevP = seg === 'history' ? at('history', (k0 - 0.02) / n) : at('repeat', (k0 - 0.02) / n)
+        return { p: prevP, pos: SQUARE_CAM.pos, tgt: SQUARE_CAM.tgt, fov: SQUARE_CAM.fov }
+      }
+    }
+    return null
+  }
 
-  private directArif(f: SetFrame, seg: SegmentId, u: number, way: CupWay) {
-    const a = this.arif.begin()
-    const seated = (pose = P.SIT_TYPE) => a.place(SEAT.x, SEAT.z, PI).hold(pose)
+  private reset(): State {
+    return {
+      set: 'room',
+      room: true,
+      archive: false,
+      walkway: false,
+      who: null,
+      eyes: 0,
+      askew: 0,
+      breath: 'awake',
+      drool: 0,
+      wet: 0,
+      windowA: 0,
+      clothFolded: true,
+      clothHand: false,
+      clothFly: null,
+      clothTop: false,
+      extraCloth: false,
+      cupHand: false,
+      cupFall: -1,
+      chairZ: CHAIR_IN.z,
+      rightDoor: 0,
+      leftDoor: 0,
+      lookA: 'afternoon',
+      lookB: 'afternoon',
+      lookT: 0,
+      onT: 1,
+      paint: 1,
+      hair: 0,
+      offT: -1,
+      wallDim: 0,
+      ceilDim: 0,
+      grid: 0,
+      circle: 0,
+      rain: 0,
+      scan: -1,
+      redraw: 0,
+      ceiling: true,
+      ring: 0,
+      lamp: 1,
+      roomLight: 1,
+      center: screenOff(),
+      left: screenOff(),
+      right: screenOff(),
+      hud: null,
+      thumb: 0,
+      ghost: 0,
+      hideRecorder: false,
+      recAway: 0,
+      recAim: 'arif',
+      ringLevel: 1,
+      era: -1,
+      eraT: 0,
+      hook: 0,
+      spill: 0,
+      record: -1,
+    }
+  }
+
+  private compose(p: number, f: SetFrame, shot: Shot, alt: boolean) {
+    const seg = segmentAt(p).id as SegmentId
+    const u = local(p, seg)
+    this.st = this.reset()
+    this.arifC.begin()
+    this.arifS.begin()
+    this.ghost.begin()
+    this.worldByProgress(p, seg, u)
+    const keys = SHOTS[seg]
+    if (keys) keyed(keys, held(u, f.reduced), shot)
+    this.direct(seg, u, p, f, shot)
+    this.apply(p, seg, u, f, shot, alt)
+  }
+
+  // ————————————————————————————————————————————————————————————————
+  // The world as a function of progress (doors, chair, cloths, the clock, robots)
+
+  private worldByProgress(p: number, seg: SegmentId, u: number) {
+    const st = this.st
+    // The clock of the room.
+    const look = (a: LookName, b: LookName, t: number) => {
+      st.lookA = a
+      st.lookB = b
+      st.lookT = clamp(t)
+    }
+    if (p < at('ceiling', 0.4)) look('afternoon', 'afternoon', 0)
+    else if (p < SEG.wake.start) look('afternoon', 'golden', ramp(0.4, 1, local(p, 'ceiling')))
+    else if (p < SEG.rise.start) look('golden', 'golden', 0)
+    else if (p < SEG.walk.start) look('golden', 'sunset', local(p, 'rise'))
+    else if (p < at('walk', 0.68)) look('sunset', 'dusk', ramp(0.2, 0.68, local(p, 'walk')))
+    else if (p < SEG.forty.start) look('dusk', 'blue', (p - at('walk', 0.68)) / (SEG.forty.start - at('walk', 0.68)))
+    else if (p < SEG.reopen.start) look('blue', 'night', ramp(0.05, 0.6, local(p, 'forty')))
+    else look('night', 'night', 0)
+    // Drizzle from `forty` 0.38; lighter through the night.
+    if (p >= at('forty', 0.38) && p < SEG.records.start) st.rain = p < SEG.reopen.start ? ramp(0.38, 0.5, local(p, 'forty')) : p < SEG.hover.start ? 0.7 : 0.45
+    // The scan line redraws the forest a little differently.
+    if (p >= at('forty', 0.6)) st.redraw = 1
+    if (seg === 'forty' && u >= 0.6 && u < 0.72) {
+      st.redraw = 0
+      st.scan = ((u - 0.6) / 0.12) * 4.8
+    }
+    // The chair.
+    const out = CHAIR_OUT.z
+    if (p >= at('rise', 0.15) && p < at('sits', 0.4)) st.chairZ = seg === 'rise' ? lerp(CHAIR_IN.z, out, ramp(0.15, 0.45, u)) : seg === 'sits' ? lerp(out, CHAIR_IN.z, ramp(0.25, 0.4, u)) : out
+    if (p >= at('hover', 0.75) && p < at('whistle', 0.95)) st.chairZ = seg === 'hover' ? lerp(CHAIR_IN.z, out, ramp(0.75, 0.95, u)) : seg === 'whistle' ? lerp(out, CHAIR_IN.z, ramp(0.78, 0.95, u)) : out
+    if (p >= SEG.halt.start) st.chairZ = out
+    // Doors.
+    if (seg === 'rightDoor') st.rightDoor = 1.3 * ease(ramp(0.25, 0.55, u)) * (1 - ramp(0.95, 0.99, u))
+    if (seg === 'reopen') st.rightDoor = 1.3 * ease(ramp(0.1, 0.3, u))
+    if (seg === 'robots') st.rightDoor = 1.3 * (1 - ease(ramp(0.6, 0.8, u)))
+    if (seg === 'again') st.rightDoor = 1.25 * ramp(0.4, 0.44, u) * (1 - ramp(0.52, 0.56, u))
+    if (p >= at('leftDoor', 0.35)) st.leftDoor = seg === 'leftDoor' ? 1.45 * ease(ramp(0.35, 0.95, u)) : 1.45
+    // The left door's light across the planks.
+    st.spill = seg === 'leftDoor' ? ramp(0.38, 0.9, u) : p >= SEG.deep.start ? 1 : 0
+    // Cloths.
+    st.clothFolded = p < at('wipe', 0.6) || (p >= at('again', 0.45) && p < at('again', 0.715))
+    st.clothTop = p >= at('throw', 0.48)
+    st.extraCloth = p >= at('again', 0.9) || this.iteration > BASE_ITERATION
+    // The button's ring: deep red from `red` 0.08, out at the end of `press`.
+    if (p >= at('red', 0.08) && p < SEG.dark.start) st.ring = seg === 'red' ? ramp(0.08, 0.3, u) : seg === 'press' ? 1 - ramp(0.75, 0.95, u) : 1
+    // Robot rings dim after RUTİN.
+    st.ringLevel = p >= SEG.hover.start ? 0.25 : 1
+    // The hooked cloud: in its first-evening place, a little shifted on other passes.
+    st.hook = this.iteration % 2 === 1 ? 1 : 0
+  }
+
+  // ————————————————————————————————————————————————————————————————
+  // Direction: what each segment shows
+
+  private direct(seg: SegmentId, u: number, p: number, f: SetFrame, shot: Shot) {
+    const st = this.st
+    const C = this.arifC
+    const S = this.arifS
     switch (seg) {
-      case 'open':
-      case 'office':
-        seated()
+      // ——— 01 UYANIŞ ———
+      case 'black': {
+        this.asleep(C)
+        st.hair = ramp(0.3, 0.4, u)
+        st.onT = u < 0.4 ? -0.01 : ((u - 0.4) / 0.5) * 1.001
+        st.paint = ramp(0.9, 1.0, u)
+        st.roomLight = clamp(st.onT) * 0.8 + st.hair * 0.04
+        st.lamp = ramp(0.45, 0.9, u)
+        if (u < 0.3) shot.fade = 1
         break
-      case 'coffee':
-        if (u < 0.12) seated()
-        else a.walk(P_TO_COFFEE, smoothstep(0.12, 0.7, u), P.STAND, PI, -PI / 2)
-        if (u > 0.7) a.reach('r', smoothstep(0.75, 0.95, u), COFFEE.x + 0.08, 1.05, COFFEE.z + 0.02, 0.4)
-        break
-      case 'coffee2':
-        if (u < 0.6) a.place(-4.15, 0.5, -PI / 2).hold(P.STAND_EASY).reach('r', 1 - smoothstep(0.3, 0.55, u), COFFEE.x + 0.08, 1.05, COFFEE.z + 0.02, 0.4)
-        else a.walk(P_FROM_COFFEE, smoothstep(0.6, 1, u) * 0.6, P.CARRY, -PI / 2, PI)
+      }
+      case 'asleep':
+        this.asleep(C)
+        st.windowA = u > 0.3 ? this.breathWindow() : 0
         break
       case 'desk':
-        if (u < 0.4) a.walk(P_FROM_COFFEE, 0.6 + smoothstep(0, 0.4, u) * 0.4, P.CARRY, -PI / 2, PI)
-        else a.place(SEAT.x, SEAT.z, PI).blend([
-          [0.4, P.STAND],
-          [0.55, P.SIT_TYPE],
-        ], u)
+        this.asleep(C)
+        st.windowA = u > 0.6 ? this.breathWindow() : 0.4 * this.breathWindow()
         break
-      case 'query1':
-        seated()
+      case 'walls':
+      case 'stream':
+      case 'doors':
+      case 'ceiling':
+        this.asleep(C)
         break
-      case 'log':
-      case 'test':
-        seated(P.SIT_LOOK)
+      case 'wake':
+        this.wake(C, u)
         break
-      case 'small':
-        seated(P.SIT_BACK)
+      case 'wipe':
+        this.wipe(C, u)
         break
-      case 'pen':
-        seated(P.SIT_STRAIGHT).reach('r', smoothstep(0.05, 0.25, u), PEN_ON_DESK.x - 0.02, 0.82, PEN_ON_DESK.z + 0.12, 0.3)
+      case 'throw':
+        this.throwAct(C, u)
+        if (u > 0.25 && u < 0.5 && st.clothFly) {
+          // The camera stays put and pans with the arc.
+          const w = ramp(0.25, 0.32, u)
+          shot.tgt.lerp(st.clothFly, w * (1 - ramp(0.46, 0.5, u)))
+        }
         break
-      case 'drop':
-        seated(P.SIT_STRAIGHT).reach('r', 1 - smoothstep(0.3, 0.6, u), PEN_ON_DESK.x - 0.02, 0.82, PEN_ON_DESK.z + 0.12, 0.3).lookAt(PEN_LAND.x, PEN_LAND.z + 1, 0.3)
+      // ——— 02 DIŞARISI ———
+      case 'rise':
+        this.rise(C, u)
         break
-      case 'routine':
-        seated(P.SIT_READ)
+      case 'walk': {
+        C.walk(W.walk, u, LISTENING, undefined, undefined, 0.85)
+        this.heavy(C)
+        st.clothFolded = false
+        this.follow(shot, C, 1.2, 0.35)
         break
-      case 'ask':
-      case 'me':
-        seated(P.SIT_LOOK)
+      }
+      case 'floor':
+        C.walk(W.floor, u / 0.7, LISTENING, undefined, PI / 2, 0.85)
+        this.heavy(C)
         break
-      case 'cup':
-        seated(P.SIT_STILL).lookAt(MUG_ON_DESK.x, MUG_ON_DESK.z, 0.5)
+      case 'rightDoor':
+        this.rightDoor(C, u)
         break
-      case 'cupChoice':
-        if (u < 0.35 || way === 'wait') seated(P.SIT_STILL)
-        else if (way === 'drawer') seated(P.SIT_STRAIGHT).reach('r', Math.sin(PI * smoothstep(0.35, 0.95, u)), DESK.x - 0.6, 0.45, DESK.z + 0.42, 0.6)
-        else if (u < 0.6) a.place(SEAT.x, SEAT.z, PI).blend([
-          [0.35, P.SIT_STILL],
-          [0.5, P.STAND],
-        ], u).reach('r', smoothstep(0.45, 0.58, u), MUG_ON_DESK.x - 0.02, 0.84, MUG_ON_DESK.z, 0.5)
-        else a.walk(P_TO_DOOR, smoothstep(0.6, 1, u), P.CARRY, PI, PI)
+      case 'forty':
         break
-      case 'act':
-        if (way === 'kitchen') {
-          if (u < 0.55) a.walk(P_TO_KITCHEN, smoothstep(0, 0.55, u), P.CARRY, PI, PI)
-          else a.place(-2.6, 8.9, 0).hold(P.STAND).reach('r', Math.sin(PI * smoothstep(0.6, 0.95, u)), -2.5, 1.72, 9.5, 0.4)
-        } else seated(P.SIT_STILL)
+      // ——— 03 RUTİN ———
+      case 'reopen':
+        this.reopen(S, u)
         break
-      case 'wait13':
-        if (way === 'kitchen') a.walk(P_BACK, smoothstep(0.05, 1, u), P.STAND, 0, PI)
-        else seated(P.SIT_STILL).lookAt(0, -1, 0)
+      case 'robots': {
+        S.walk(W.toDesk, u, P.STAND, undefined, PI)
+        // The camera keeps the robots in view.
+        const cx = (this.coffee.x + this.snack.x + this.rec.x) / 3
+        const cz = (this.coffee.z + this.snack.z + this.rec.z) / 3
+        shot.tgt.set(lerp(shot.tgt.x, cx, 0.6), 0.55, lerp(shot.tgt.z, cz, 0.6))
+        if (u > 0.5) shot.tgt.lerp(this.v.set(this.rec.x, 0.8, this.rec.z), ramp(0.5, 0.65, u) * 0.6)
         break
-      case 'crash':
-        // Face to face in the doorway; both step the same way.
-        if (way === 'kitchen') a.place(DOOR.x + 0.18 * smoothstep(0.3, 0.5, u), 4.45 - 0.22 * smoothstep(0, 0.3, u), PI).hold(P.STAND)
-        else if (way === 'drawer') a.place(SEAT.x, SEAT.z, PI).blend([
-          [0.42, P.SIT_STILL],
-          [0.52, P.STAND],
-        ], u)
-        else seated(P.SIT_STILL).lookAt(0.8, 0.1, smoothstep(0.1, 0.3, u))
+      }
+      case 'sits':
+        this.sits(S, u)
         break
-      case 'done':
-      case 'selin':
-        if (way === 'kitchen') a.place(DOOR.x + 0.18, 4.23, PI).hold(P.STAND_EASY).lookAt(DOOR.x + 0.1, 3.6, 0.3)
-        else a.place(SEAT.x, SEAT.z, PI + 0.5).hold(seg === 'done' ? P.STAND : P.STAND_EASY).lookAt(0.7, 0.2, 0.6)
+      case 'reach':
+        this.reachAct(S, u)
         break
-      case 'selinQuery':
-        seated()
+      case 'sip':
+        this.sipAct(S, u)
         break
-      case 'late':
-        a.place(SEAT.x, SEAT.z, PI - 0.9).hold(P.SIT_BACK).lookAt(SELIN_DESK.x - 0.6, SELIN_DESK.z, 0.7)
+      case 'thousands': {
+        const r = u < 0.45 ? 0.05 + (u / 0.45) * 0.88 : 1
+        if (u < 0.45) this.reachAct(S, r)
+        else this.sipAct(S, 0.1 + ((u - 0.45) / 0.55) * 0.9)
+        // The ghost of the previous catch, a beat behind.
+        st.ghost = 0.22 * window4(0.42, 0.52, 0.68, 0.8, u)
+        if (st.ghost > 0) this.sipAct(this.ghost, clamp(0.1 + ((u - 0.42) / 0.55) * 0.9), true)
+        this.recordFrame(shot, null)
         break
-      case 'wrong':
-        seated(P.SIT_LOOK)
+      }
+      // ——— 04 ARŞİV ———
+      case 'hover':
+        this.hover(S, u)
         break
-      case 'calc':
-        seated(P.SIT_STILL)
+      case 'toLeft':
+        S.walk(W.toLeft, u, P.STAND, PI, -PI / 2)
+        this.follow(shot, S, 0.25, 0)
         break
-      case 'particle':
-        if (u < 0.3) a.walk(P_TO_DISPLAY, smoothstep(0, 0.3, u), P.STAND, PI, PI)
-        else a.place(2.45, -2.45, PI).hold(P.STAND_EASY)
+      case 'leftDoor':
+        this.leftDoor(S, u)
         break
-      case 'cloud':
-      case 'chaosQuery':
-      case 'chain':
-        a.place(2.45, -2.45, PI).hold(seg === 'chain' ? P.ARMS_CROSSED : P.STAND_EASY)
+      case 'deep':
+        S.place(-4.6, -0.3, -PI / 2).hold(P.STAND).lookAt(-12, 0, 0.3)
+        st.archive = true
         break
-      case 'some':
-      case 'knowing':
-        a.place(2.45, -2.45, PI - 0.2).hold(P.ARMS_CROSSED)
+      case 'aisles':
+      case 'core':
+        S.place(-4.6, -0.3, -PI / 2).hold(P.STAND)
+        st.archive = true
+        st.set = 'archive'
         break
-      case 'asking':
-      case 'before':
-      case 'selfref':
-      case 'because':
-        seated(seg === 'before' ? P.SIT_STILL : seg === 'selfref' ? P.SIT_TYPE : P.SIT_BACK)
+      case 'lever':
+        this.lever(S, u)
+        st.archive = true
         break
-      case 'hall':
-        a.walk(P_TO_HALL, smoothstep(0, 1, u), P.STAND, PI, PI)
+      case 'whistle':
+        this.whistle(S, u)
         break
-      case 'inside':
-        a.place(SELF_RACK.x, -7.25, PI).hold(P.STAND_EASY)
+      // ——— 05 TARİH ———
+      case 'red':
+        this.seated(S, P.SIT_STRAIGHT)
+        S.lookAt(0, -2, 1)
+        st.center = { mode: 'sort', a: 1, b: 0, t: ramp(0.5, 1, u), level: ramp(0.5, 0.58, u) }
+        st.left = { mode: 'sort', a: 1, b: 0, t: ramp(0.55, 1, u), level: ramp(0.52, 0.6, u) }
+        st.right = { mode: 'sort', a: 1, b: 0, t: ramp(0.58, 1, u), level: ramp(0.55, 0.62, u) }
         break
-      case 'future':
-        a.walk(P_TO_CONSOLE, smoothstep(0, 0.45, u), P.STAND, -PI / 2, -PI / 2)
+      case 'dive':
+        this.seated(S, P.SIT_STRAIGHT)
+        st.center = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
+        st.left = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
+        st.right = { mode: 'sort', a: 1, b: 0, t: 1, level: 1 }
+        st.thumb = ramp(0.25, 0.9, u)
         break
-      case 'depth':
-      case 'you':
-      case 't0312':
-        a.place(-4.15, -7.2, -PI / 2).hold(seg === 't0312' ? P.STAND : P.STAND_EASY)
-        if (seg === 't0312') a.lookAt(0, -7.2, smoothstep(0.6, 0.9, u))
+      case 'history':
+      case 'repeat': {
+        const { era, t } = eraAt(p)
+        st.set = 'square'
+        st.era = era
+        st.eraT = t
+        shot.pos.copy(SQUARE_CAM.pos)
+        shot.tgt.copy(SQUARE_CAM.tgt)
+        shot.fov = SQUARE_CAM.fov
+        // The ghost of the previous era (≤ 0.3), crossfading out.
+        const n = seg === 'history' ? 5 : 4
+        const win = 0.035 * n
+        if (era > 0 && era !== 5 && t < win) {
+          st.ghost = 0.3 * (1 - t / win)
+          shot.locked = true
+        }
         break
-      case 'phone':
-        if (u < 0.4) seated(P.SIT_STILL)
-        else seated(P.PHONE)
+      }
+      // ——— 06 ÖRÜNTÜ ———
+      case 'network': {
+        if (u < 0.1) {
+          // The square goes dark around its points.
+          const { era } = eraAt(SEG.network.start - 1e-6)
+          st.set = 'square'
+          st.era = era
+          st.eraT = 1
+          shot.pos.copy(SQUARE_CAM.pos)
+          shot.tgt.copy(SQUARE_CAM.tgt)
+          shot.fov = SQUARE_CAM.fov
+          shot.locked = true
+        } else st.set = 'void'
         break
-      case 'homeQuery':
-        seated()
+      }
+      case 'spiral':
+      case 'above':
+      case 'beyond':
+      case 'anomaly':
+        st.set = 'void'
         break
-      case 'wantKnow':
-        seated(P.SIT_BACK)
+      // ——— 07 ANOMALİ ———
+      case 'checked':
+        this.checked(S, u)
         break
-      case 'archive':
-      case 'record':
-      case 'record2':
-      case 'pending':
-      case 'count':
-        seated(P.SIT_LOOK)
+      case 'feed':
+        if (u < 0.25) {
+          this.seated(S, LEAN_DESK)
+          S.lookAt(0, -2, 1)
+          st.thumb = 1
+          st.center = { mode: 'record', a: 1, b: 0, t: 0, level: 1 }
+        } else this.recordOfTomorrow(shot, 'subject', u)
         break
-      case 'questions':
-        seated(P.SIT_BACK)
+      case 'feedWide':
+        if (u < 0.5) this.recordOfTomorrow(shot, 'subject', 1)
+        else {
+          this.seated(S, SIT_BACK_SLOW)
+          S.lookAt(MARKS.recorder[0], MARKS.recorder[1], ramp(0.6, 0.75, u))
+          st.center = { mode: 'grid', a: 0.6, b: 0, t: 0, level: 0.5 }
+        }
         break
-      case 'leaving':
-        if (u < 0.1) seated(P.SIT_BACK)
-        else if (u < 0.42) a.walk(P_TO_RACK, smoothstep(0.1, 0.42, u), P.STAND, PI, 0.6)
-        else if (u < 0.55) a.place(COAT_RACK.x - 0.45, COAT_RACK.z - 0.1, 0.9).hold(P.STAND).reach('l', Math.sin(PI * smoothstep(0.42, 0.55, u)), COAT_RACK.x, 1.7, COAT_RACK.z, 0.3)
-        else a.walk(P_OUT, smoothstep(0.55, 1, u), P.CARRY, 0.9, -PI / 2)
+      // ——— 08 TEKERRÜR ———
+      case 'back':
+        this.button(S, u, 'back')
         break
-      default:
-        // The room without him.
-        a.place(-6, 6, 0).hold(P.STAND)
-        a.visible = false
+      case 'press':
+        this.button(S, u, 'press')
+        break
+      case 'dark':
+        this.seated(S, P.SIT_STILL)
+        st.set = 'black'
+        shot.fade = 0
+        break
+      case 'word':
+        this.seated(S, P.SIT_STILL)
+        st.onT = 1
+        st.grid = 1
+        st.wallDim = 1 - 0.7 * ramp(0.62, 1, u)
+        st.ceilDim = 1 - 0.5 * ramp(0.7, 1, u)
+        st.lamp = 0
+        st.roomLight = 0.06 * ramp(0.62, 1, u)
+        st.center = u < 0.62 ? { mode: 'line', a: ramp(0.05, 0.12, u), b: 0, t: 0, level: 1 } : { mode: 'grid', a: ramp(0.62, 1, u), b: 0, t: 0, level: 0.35 }
+        st.left = u < 0.62 ? screenOff() : { mode: 'grid', a: ramp(0.65, 1, u), b: 0, t: 0, level: 0.25 }
+        st.right = st.left
+        if (u < 0.05) shot.fade = 0
+        break
+      case 'law':
+        this.seated(S, P.SIT_STILL)
+        S.lookAt(-1.5, -4, 0.4)
+        st.grid = 0.5
+        st.circle = 1
+        st.wallDim = 0.25
+        st.ceilDim = 0.5
+        st.lamp = 0
+        st.roomLight = 0.16
+        st.center = { mode: 'circle', a: 1, b: 0, t: 0, level: 0.4 }
+        st.left = { mode: 'grid', a: 1, b: 0, t: 0, level: 0.25 }
+        st.right = st.left
+        break
+      // ——— 09 GÖZLEMCİ ———
+      case 'records':
+        this.records(p, u, shot)
+        break
+      case 'engine':
+        this.seated(S, P.SIT_STILL)
+        st.circle = 1
+        st.grid = 0.4
+        st.wallDim = 0.3
+        st.ceiling = false
+        st.lamp = 0.2
+        st.roomLight = 0.2
+        st.center = { mode: 'circle', a: 1, b: 0, t: 0, level: 0.4 }
+        st.left = { mode: 'grid', a: 1, b: 0, t: 0, level: 0.25 }
+        st.right = st.left
+        {
+          const a = (u - 0.5) * (10 * PI) / 180
+          shot.pos.set(Math.sin(a) * 0.01, 14, Math.cos(a) * 0.01)
+          shot.locked = true
+        }
+        break
+      case 'again':
+        this.again(C, u, shot)
+        break
+      case 'halt':
+        this.halt(C, u, shot)
+        break
+      case 'turn':
+        this.turnAct(C, u)
+        break
+      case 'observer':
+        this.observer(C, u, shot)
+        break
+      case 'maybe':
+        this.observer(C, 1, shot)
+        st.wallDim = ramp(0.0, 0.35, u)
+        st.ceilDim = ramp(0.3, 0.6, u)
+        st.center = { mode: 'observer', a: 1 - ramp(0.55, 0.8, u), b: 1 - ramp(0.55, 0.8, u), t: 0, level: 1 - ramp(0.55, 0.8, u) }
+        st.lamp = 1 - ramp(0.2, 0.7, u)
+        st.roomLight = 1 - ramp(0.0, 0.75, u)
+        st.spill *= 1 - ramp(0.2, 0.7, u)
+        break
+      case 'end':
+        this.observer(C, 1, shot)
+        st.wallDim = 1
+        st.ceilDim = 1
+        st.lamp = 0
+        st.roomLight = 0
+        st.spill = 0
+        shot.fade = 0
+        break
     }
-    a.apply(f.time, !f.reduced)
+    void f
   }
 
-  // ——— Selin ———
+  // ——— Acts ———
 
-  private directSelin(f: SetFrame, seg: SegmentId, u: number, way: CupWay) {
-    const s = this.selin.begin()
-    const p = f.p
-    s.visible = true
-    // Early in the evening she is in the hall, at a rack.
-    if (p < SEG.cup.start) {
-      s.place(RACK_X[1] + Math.sin(f.time * 0.05) * 0.15, -7.3, PI).hold(P.STAND_EASY).reach('r', 0.6 + 0.2 * Math.sin(f.time * 0.6), RACK_X[1], 1.3, -7.88, 0.4)
-    } else if (p < SEG.wait13.start + SEG.wait13.len * 0.66) {
-      s.visible = false
-    } else if (seg === 'wait13') {
-      // Footsteps in the corridor: she is on her way, tea in hand.
-      const t = smoothstep(0.66, 1, u)
-      if (way === 'kitchen') s.walk(P_SELIN_OUT, t * 0.85, P.CARRY, PI / 2, 0)
-      else s.walk(P_SELIN_IN, t * 0.45, P.CARRY, -PI / 2, PI)
-    } else if (seg === 'crash') {
-      if (way === 'kitchen') {
-        if (u < 0.3) s.walk(P_SELIN_OUT, 0.85 + 0.15 * smoothstep(0, 0.3, u), P.CARRY, PI / 2, 0)
-        else s.place(DOOR.x + 0.18 * smoothstep(0.3, 0.5, u), 3.55, 0).hold(u < 0.5 ? P.CARRY : P.STAND)
-      }
-      else if (way === 'drawer') {
-        if (u < 0.3) s.walk(P_SELIN_IN, 0.45 + 0.55 * smoothstep(0, 0.3, u), P.CARRY, -PI / 2, PI)
-        else s.place(0.82, 0.12, -PI / 2 - 0.3).hold(P.CARRY).lookAt(0, -0.85, 0.6)
-      } else {
-        if (u < 0.25) s.walk(P_SELIN_IN, 0.45 + 0.55 * smoothstep(0, 0.25, u), P.CARRY, -PI / 2, PI)
-        else s.place(0.82, 0.12, -PI / 2 - 0.3).blend([
-          [0.25, P.CARRY],
-          [0.4, P.LEAN_SOFT],
-        ], u).reach('r', Math.sin(PI * smoothstep(0.22, 0.45, u)), 0.56, 0.8, -0.22, 0.4)
-      }
-    } else if (seg === 'done') {
-      const at = way === 'kitchen' ? { x: DOOR.x + 0.18, z: 3.55 } : { x: 0.82, z: 0.12 }
-      s.place(at.x, at.z, way === 'kitchen' ? 0 : -PI / 2 - 0.3).hold(P.STAND).lookAt(way === 'kitchen' ? at.x + 0.4 : at.x - 0.3, way === 'kitchen' ? at.z + 0.6 : at.z - 0.5, 0.4)
-    } else if (seg === 'selin') {
-      const at = way === 'kitchen' ? { x: DOOR.x + 0.18, z: 3.6 } : { x: 0.7, z: 0.25 }
-      s.place(at.x, at.z, way === 'kitchen' ? 0 : -PI / 2).blend([
-        [0.0, P.STAND],
-        [0.15, CROUCH],
-        [0.85, CROUCH],
-        [1.0, P.STAND],
-      ], u)
-    } else if (seg === 'selinQuery') {
-      // Off for a broom, and back.
-      const [out, back] = way === 'kitchen' ? P_BROOM.door : P_BROOM.desk
-      if (u < 0.3) s.walk(out, smoothstep(0, 0.3, u), P.STAND)
-      else if (u < 0.7) s.visible = false
-      else s.walk(back, 0.7 * smoothstep(0.7, 1, u), P.STAND)
-    } else if (p < SEG.because.end) {
-      // At her desk: eating, reading, later asleep over her arms.
-      s.place(SELIN_DESK.x - 0.62, SELIN_DESK.z, PI / 2).hold(p >= SEG.asking.start ? P.SIT_SLUMP : p >= SEG.particle.start ? P.SIT_READ : P.SIT_BACK)
-      if (seg === 'late') s.lookAt(SEAT.x, SEAT.z, 0.8).reach('r', 0.7 * Math.sin(PI * smoothstep(0.1, 0.5, u)), SELIN_DESK.x - 0.1, 0.8, SELIN_DESK.z - 0.3, 0.3)
-    } else if (p < SEG.leaving.start) {
-      s.place(SELIN_DESK.x - 0.62, SELIN_DESK.z, PI / 2).hold(P.SIT_SLUMP)
-    } else if (seg === 'leaving') {
-      // In the corridor, beside the door, on her way somewhere herself.
-      s.place(DOOR.x + 0.95, 4.95, -PI * 0.72).hold(P.STAND_EASY).lookAt(this.arif.x, this.arif.z, 0.8)
-      s.visible = u > 0.45
-    } else s.visible = false
-    s.apply(f.time, !f.reduced)
+  private seated(a: Actor, pose = P.SIT, chairZ = this.st.chairZ) {
+    this.st.who = a === this.arifC ? 'c' : a === this.arifS ? 's' : this.st.who
+    a.place(0, chairZ + SEAT_BACK, PI).hold(pose)
+    return a
   }
 
-  // ——— Things ———
-
-  private props(f: SetFrame, seg: SegmentId, u: number, way: CupWay) {
-    const p = f.p
-    const A = this.arif.figure
-    // The mug: on the desk, in a hand, in a drawer, in a cupboard.
-    const inHand = (seg === 'coffee' && u > 0.12) || seg === 'coffee2' || (seg === 'desk' && u < 0.45) || (way === 'kitchen' && ((seg === 'cupChoice' && u > 0.55) || (seg === 'act' && u < 0.75)))
-    const gone = (way === 'drawer' && p >= at('cupChoice', 0.65)) || (way === 'kitchen' && p >= at('act', 0.75))
-    this.mug.visible = !gone
-    if (inHand) {
-      A.rGrip.getWorldPosition(this.v)
-      this.mug.position.set(this.v.x, this.v.y - 0.055, this.v.z)
-      this.mug.rotation.y = this.arif.yaw + PI / 2
-    } else {
-      this.mug.position.copy(MUG_ON_DESK)
-      this.mug.rotation.y = 0
-    }
-    this.drawerFront.position.z = DESK.z + 0.39 + (way === 'drawer' && seg === 'cupChoice' ? 0.28 * Math.sin(PI * smoothstep(0.38, 0.95, u)) : 0)
-
-    // The pen: lying, held, falling, lying where it was told to.
-    const pen = this.pen
-    if (seg === 'pen' && u > 0.22) {
-      A.rGrip.getWorldPosition(this.v)
-      pen.position.set(this.v.x, this.v.y - 0.06, this.v.z)
-      pen.rotation.set(0, 0, 0.1)
-    } else if (seg === 'drop') {
-      const t = smoothstep(0.02, 0.3, u)
-      A.rGrip.getWorldPosition(this.v)
-      const start = this.v.clone()
-      start.y -= 0.06
-      const bounce = Math.abs(Math.sin(t * PI * 3)) * (1 - t) * 0.06
-      pen.position.set(lerp(start.x, PEN_LAND.x, t), lerp(start.y, PEN_LAND.y, Math.min(1, t * 1.6)) + bounce, lerp(start.z, PEN_LAND.z, t))
-      pen.rotation.set(t * PI * 0.5, 0.3, 0.1 + t * 0.8)
-    } else if (f.p >= SEG.drop.end && f.p < SEG.ask.start) {
-      pen.position.copy(PEN_LAND)
-      pen.rotation.set(PI / 2, 0.3, 0.9)
-    } else {
-      pen.position.copy(PEN_ON_DESK)
-      pen.rotation.set(PI / 2, 0, 1.2)
-    }
-
-    // The tea glass, until it falls; then glass on the floor, tea spreading.
-    const S_ = this.selin.figure
-    const fallAt = way === 'kitchen' ? 0.5 : way === 'drawer' ? 0.55 : 0.55
-    const where = way === 'kitchen' ? new THREE.Vector3(DOOR.x + 0.16, 0, 3.9) : new THREE.Vector3(0.62, 0, 0.0)
-    const carried = (seg === 'wait13' && u > 0.66) || (seg === 'crash' && u < fallAt - 0.06 && !(way === 'wait' && u > 0.3))
-    const onDesk = way === 'wait' && seg === 'crash' && u >= 0.3 && u < fallAt - 0.04
-    const falling = seg === 'crash' && u >= fallAt - 0.06 && u < fallAt
-    const broken = (seg === 'crash' && u >= fallAt) || seg === 'done' || seg === 'selin' || (seg === 'selinQuery' && u < 0.75)
-    this.tea.visible = carried || onDesk || falling
-    if (carried) {
-      S_.rGrip.getWorldPosition(this.v)
-      this.tea.position.set(this.v.x, this.v.y - 0.02, this.v.z)
-    } else if (onDesk) this.tea.position.set(0.56 + 0.06 * smoothstep(0.4, fallAt - 0.04, u), 0.754, -0.2 + 0.12 * smoothstep(0.4, fallAt - 0.04, u))
-    else if (falling) {
-      const t = (u - (fallAt - 0.06)) / 0.06
-      const from = way === 'wait' ? new THREE.Vector3(0.62, 0.754, -0.08) : new THREE.Vector3(where.x, 1.0, where.z)
-      this.tea.position.set(lerp(from.x, where.x, t), lerp(from.y, 0.02, t * t), lerp(from.z, where.z, t))
-      this.tea.rotation.set(t * 1.4, 0, t * 0.8)
-    }
-    if (!falling) this.tea.rotation.set(0, 0, 0)
-    this.shards.visible = broken
-    this.puddle.visible = broken
-    this.shards.position.copy(where)
-    this.puddle.position.set(where.x + 0.05, 0.004, where.z)
-    const spread = seg === 'crash' ? smoothstep(fallAt, fallAt + 0.3, u) : 1
-    this.puddle.scale.set(0.3 + spread, 0.25 + spread * 0.6, 1)
-
-    // The coat: on the rack until he takes it.
-    if (seg === 'leaving' && u >= 0.5) {
-      A.lGrip.getWorldPosition(this.v)
-      this.coat.position.set(this.v.x, this.v.y + 0.05, this.v.z)
-      this.coat.rotation.set(0, this.arif.yaw, 0.15)
-    } else {
-      this.coat.position.set(COAT_RACK.x + 0.12, 1.74, COAT_RACK.z)
-      this.coat.rotation.set(0, 0.3, 0)
-    }
-    this.coat.visible = !(f.p >= SEG.leaving.end)
-    this.cupDoor.rotation.y = way === 'kitchen' && seg === 'act' ? 1.6 * Math.sin(PI * smoothstep(0.55, 0.95, u)) : 0
-    this.simit.visible = p >= SEG.selinQuery.end && p < SEG.particle.start
-    // The chair swivels a little when he gets up, and stays that way.
-    this.chair.rotation.y = PI + (f.p >= at('leaving', 0.1) ? 0.6 : 0)
+  private asleep(a: Actor) {
+    const st = this.st
+    this.seated(a, ASLEEP, CHAIR_IN.z)
+    st.eyes = 1
+    st.askew = 1
+    st.breath = 'sleep'
+    st.drool = 1
+    st.wet = 1
   }
 
-  // ——— Screens ———
-
-  private screens(f: SetFrame, seg: SegmentId, u: number, way: CupWay, clock: string, hours: number, again: boolean) {
-    const p = f.p
-    const t = f.time
-    const tick = (hz: number) => Math.floor(t * hz)
-    const q = (gate: string) => picked(f.flags, gate)
-    const query = (gate: string, title?: string) => {
-      const o = q(gate)
-      this.main.redraw((c, W, H) => S.drawQuery(c, W, H, { clock, title, question: o?.label ?? null, answer: o?.reply ?? [], t }), `q-${gate}-${o?.id ?? tick(2)}-${clock}`)
-    }
-    // Main monitor.
-    switch (seg) {
-      case 'query1':
-        query('query1')
-        break
-      case 'log':
-      case 'test': {
-        const counted = seg === 'log' ? 0 : Math.round(212 * smoothstep(0.05, 0.5, u))
-        this.main.redraw((c, W, H) => S.drawPrediction(c, W, H, { clock, t, counted }), `pred-${counted}-${clock}`)
-        break
-      }
-      case 'pen':
-        if (u < 0.3) query('pen')
-        else this.main.redraw((c, W, H) => S.drawPen(c, W, H, { clock, landed: false }), `pen-0-${clock}`)
-        break
-      case 'drop':
-        this.main.redraw((c, W, H) => S.drawPen(c, W, H, { clock, landed: u > 0.35 }), `pen-${u > 0.35}-${clock}`)
-        break
-      case 'cup':
-      case 'cupChoice':
-      case 'act': {
-        const prog = clamp((hours - (21 + 4 / 60)) / (9 / 60 + 4 / 3600))
-        this.main.redraw((c, W, H) => S.drawBehavior(c, W, H, { clock, progress: prog, done: false }), `beh-${Math.round(prog * 200)}`)
-        break
-      }
-      case 'wait13': {
-        const text = clockText(hours, true)
-        const hit = hours >= 21 + 13 / 60 + 4 / 3600
-        this.main.redraw((c, W, H) => S.drawCountdown(c, W, H, { text, hit }), `cd-${text}`)
-        break
-      }
-      case 'crash':
-      case 'done':
-      case 'selin':
-        this.main.redraw((c, W, H) => S.drawBanner(c, W, H, { clock, module: 'DAVRANIŞ MODELİ · ARİF D.', title: 'TAHMİN TAMAMLANDI', lines: ['olay: bardak → zemin · 21.13.07', 'sapma: 3 saniye · kabul sınırı içinde'], tone: 'ok' }), `done-${clock}`)
-        break
-      case 'selinQuery':
-        query('selin')
-        break
-      case 'late':
-      case 'wrong':
-        this.main.redraw((c, W, H) => S.drawBanner(c, W, H, { clock, module: 'KİŞİ · SELİN A.', title: 'SAPMA · 22.40 · GÖZLENMEDİ', lines: ['çıkış tahmini 22.40 · güven %99,8', 'durum: binada'], tone: 'warn' }), `dev-${clock}`)
-        break
-      case 'calc':
-        this.main.redraw((c, W, H) => S.drawBanner(c, W, H, { clock, module: 'MODEL', title: 'MODEL GÜNCELLENDİ', lines: ['sapma beklenen dağılımın içinde', 'olasılık: %0,2'], tone: 'plain' }), `calc-${clock}`)
-        break
-      case 'chaosQuery':
-        query('chaos', 'KARŞI-OLGU')
-        break
-      case 'asking':
-      case 'before':
-        this.main.redraw((c, W, H) => S.drawQuery(c, W, H, { clock, question: 'Benim sana bunu sormam da hesapta mı?', answer: ['Evet.'], t }), `ask-${clock}`)
-        break
-      case 'selfref':
-      case 'because':
-        this.main.redraw((c, W, H) => S.drawQuery(c, W, H, { clock, question: 'Şimdi sana bir soru soracağım.', answer: ['Biliyorum.'], t }), `self-${clock}`)
-        break
-      case 'hall':
-      case 'inside':
-      case 'future':
-      case 'depth':
-      case 'you':
-      case 't0312': {
-        const depth = seg === 'depth' || seg === 'you' || seg === 't0312' ? 7 : seg === 'future' ? 1 + Math.floor(u * 5) : 0
-        const draw = (c: CanvasRenderingContext2D, W: number, H: number) =>
-          seg === 'depth' || seg === 'you' || seg === 't0312'
-            ? S.drawBanner(c, W, H, { clock, module: 'SORGU · ARİF D. · GELECEK', title: 'MODEL SELF-REFERENCE DEPTH EXCEEDED', lines: ['öz-model katmanı 7 · kendi tahminini içeriyor', 'öneri: soruyu değiştir'], tone: 'alert' })
-            : seg === 'future'
-              ? S.drawCalculating(c, W, H, { clock, t, depth })
-              : S.drawState(c, W, H, { clock, t })
-        this.main.redraw(draw, `fut-${seg}-${depth}-${tick(8)}`)
-        this.hallScreen.redraw(draw, `fut-${seg}-${depth}-${tick(8)}`)
-        break
-      }
-      case 'phone':
-      case 'homeQuery':
-        query('home', 'SORGU')
-        break
-      case 'wantKnow':
-        this.main.redraw((c, W, H) => S.drawBanner(c, W, H, { clock, module: 'DURUM', title: 'Geleceğinizi bilmek istiyor musunuz?', lines: [], tone: 'plain' }), `want-${clock}`)
-        break
-      case 'archive':
-      case 'record':
-      case 'record2':
-      case 'count':
-      case 'questions': {
-        const highlight = seg === 'record' || seg === 'record2' ? 'record' : seg === 'count' || seg === 'questions' ? 'same' : 'none'
-        const scroll = seg === 'archive' ? smoothstep(0.1, 0.9, u) : seg === 'count' ? 0.6 * smoothstep(0.05, 0.6, u) : seg === 'questions' ? 0.6 : 0
-        const count = again ? 41209 : 41208
-        this.main.redraw((c, W, H) => S.drawArchive(c, W, H, { clock, highlight, scroll, count }), `arc-${highlight}-${Math.round(scroll * 60)}-${count}`)
-        break
-      }
-      case 'pending':
-        this.main.redraw((c, W, H) => S.drawBanner(c, W, H, { clock, module: 'ARŞİV · 14.03.2031', title: 'QUERY PENDING', lines: ['Bunu zaten biliyor muydun?'], tone: 'warn' }), `pend-${clock}`)
-        break
-      case 'leaving':
-        this.main.redraw((c, W, H) => S.drawState(c, W, H, { clock, t }), `state-${tick(4)}`)
-        break
-      case 'empty':
-      case 'observer2':
-      case 'finalQuery':
-      case 'accepted':
-      case 'end': {
-        const observers = seg === 'empty' ? 1 : 2
-        const input = seg === 'finalQuery' || seg === 'accepted' || seg === 'end'
-        const accepted = (seg === 'finalQuery' && f.flags.has('mem:asked') && (f.flags.has('final:yes') || f.flags.has('final:no'))) || seg === 'accepted' || seg === 'end'
-        this.main.redraw((c, W, H) => S.drawObserver(c, W, H, { observers, input, accepted, t }), `obs-${observers}-${input}-${accepted}-${tick(2)}`)
-        break
-      }
-      default:
-        this.main.redraw((c, W, H) => S.drawState(c, W, H, { clock, t, future: false }), `state-${tick(4)}`)
-    }
-    // Left: the log; a waiting query early on, a failed prediction in its history.
-    this.left.redraw((c, W, H) => S.drawLog(c, W, H, { t, future: p < SEG.ask.start, failed: seg === 'test' || seg === 'log' }), `log-${tick(3)}-${p < SEG.ask.start}-${seg === 'test' || seg === 'log'}`)
-    // Right: the traffic camera, then the cooling load (it spikes while a person is being modelled).
-    if (p < SEG.small.start) {
-      const count = seg === 'test' ? Math.round(212 * smoothstep(0.05, 0.5, u)) : 212
-      this.right.redraw((c, W, H) => S.drawCam(c, W, H, { t, count }), `cam-${tick(10)}-${count}`)
-    } else {
-      const spike = p >= SEG.cup.start && p < SEG.selin.end ? 1 : 0
-      this.right.redraw((c, W, H) => S.drawLoad(c, W, H, { t, spike, observer: false }), `load-${tick(6)}-${spike}`)
-    }
-    // Selin's monitor: the same load; it notices the reader once.
-    const observer = seg === 'because'
-    this.selinScreen.redraw((c, W, H) => S.drawLoad(c, W, H, { t, spike: p >= SEG.cup.start && p < SEG.selin.end ? 1 : 0, observer }), `sl-${tick(5)}-${observer}`)
-    if (!(p >= SEG.hall.start && p < SEG.phone.start)) this.hallScreen.redraw((c, W, H) => S.drawLoad(c, W, H, { t, spike: 0, observer: false }), `hl-${tick(3)}`)
-    // The wall display: the world, then one particle, its paths, the chain.
-    if (seg === 'particle' || seg === 'cloud') {
-      const spread = seg === 'particle' ? 0 : smoothstep(0.02, 0.3, u)
-      const measured = seg === 'cloud' ? smoothstep(0.42, 0.55, u) : 0
-      this.wall.redraw((c, W, H) => S.drawParticle(c, W, H, { t, spread, measured, clock }), `pa-${Math.round(spread * 40)}-${Math.round(measured * 10)}-${tick(4)}`)
-    } else if (seg === 'chaosQuery' || seg === 'chain' || seg === 'some') {
-      const progress = seg === 'chaosQuery' ? 0 : seg === 'chain' ? smoothstep(0.05, 0.95, u) : 1
-      const label = f.flags.has('chaos:bus') ? '413 · 40 sn' : 'HAVA PARSELİ · +0,001 °C'
-      this.wall.redraw((c, W, H) => S.drawChain(c, W, H, { progress, clock, label }), `ch-${Math.round(progress * 30)}-${label}`)
-    } else this.wall.redraw((c, W, H) => S.drawState(c, W, H, { clock, t: t * 0.5 }), `ws-${tick(2)}`)
-    // The phone: dark until it is turned over.
-    const lit = seg === 'phone' && u > 0.08
-    this.phoneScreen.redraw((c, W, H) => S.drawPhone(c, W, H, { clock, lit, message: lit }), `ph-${lit}-${clock}`)
+  /** The small pale window opening and closing with each breath. */
+  private breathWindow() {
+    const b = Math.sin(this.time * 1.25 + 0.6 * Math.sin(this.time * 0.37))
+    return 0.35 + 0.65 * smoothstep(-0.2, 0.9, b)
   }
 
-  // ——— Camera ———
+  private wake(a: Actor, u: number) {
+    const st = this.st
+    this.seated(a, ASLEEP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, ASLEEP],
+        [0.62, ASLEEP],
+        [0.8, SIT_UP],
+        [0.86, RUB],
+        [1, RUB],
+      ],
+      u,
+    )
+    st.eyes = 1 - ramp(0.45, 0.6, u)
+    st.askew = 1 - ramp(0.24, 0.32, u)
+    st.drool = 1 - ramp(0.55, 0.65, u)
+    st.wet = 1
+    st.breath = u < 0.6 ? 'sleep' : 'awake'
+    // The hanging right arm rises; two fingers push the glasses straight.
+    const wr = window4(0.05, 0.22, 0.32, 0.42, u)
+    if (wr > 0) {
+      a.apply(this.time, false)
+      a.figure.glasses.getWorldPosition(this.v)
+      this.v.y -= 0.01
+      a.reach('r', wr, this.v.x, this.v.y, this.v.z, 0.7)
+    }
+    // Both hands to the face, rubbing.
+    const wf = ramp(0.8, 0.88, u)
+    if (wf > 0) {
+      a.apply(this.time, false)
+      const head = a.figure.joints.head
+      const rub = Math.sin(this.time * 7) * 0.012
+      head.localToWorld(this.v.set(0.03, 0.12 + rub, 0.13))
+      head.localToWorld(this.v2.set(-0.03, 0.12 - rub, 0.13))
+      a.reach('l', wf, this.v.x, this.v.y, this.v.z, 0.6)
+      a.reach('r', wf, this.v2.x, this.v2.y, this.v2.z, 0.6)
+    }
+  }
 
-  private camera(f: SetFrame, seg: SegmentId, u: number, way: CupWay, shot: Shot) {
-    const A = this.arif
-    if (seg === 'act' && way === 'kitchen') {
-      // Following him down the corridor into the kitchen.
-      if (u < 0.55) {
-        shot.pos.set(A.x + 1.4, 1.65, A.z - 1.6)
-        shot.tgt.set(A.x, 1.2, A.z + 0.4)
-      } else {
-        shot.pos.set(-1.3, 1.6, 7.0)
-        shot.tgt.set(-2.6, 1.1, 9.2)
+  private wipe(a: Actor, u: number) {
+    const st = this.st
+    this.seated(a, SIT_UP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, SIT_UP],
+        [0.45, SIT_UP],
+        [0.52, BEND_SEAT],
+        [0.62, BEND_SEAT],
+        [0.7, LEAN_DESK],
+        [0.95, LEAN_DESK],
+        [1, SIT_UP],
+      ],
+      u,
+    )
+    st.wet = 1 - ramp(0.72, 0.9, u)
+    st.windowA = (1 - ramp(0.6, 0.72, u)) * 0.6
+    st.clothFolded = u < 0.6
+    st.clothHand = u >= 0.6
+    // The back of the left hand across the cheek.
+    const wc = window4(0.05, 0.16, 0.32, 0.42, u)
+    if (wc > 0) {
+      a.apply(this.time, false)
+      const s = Math.sin(((u - 0.12) / 0.2) * PI * 2) * 0.03
+      a.figure.joints.head.localToWorld(this.v.set(0.085, 0.07, 0.06 + s))
+      a.reach('l', wc, this.v.x, this.v.y, this.v.z, 0.8)
+    }
+    // Down to the cloth under the seat.
+    const wb = window4(0.48, 0.56, 0.6, 0.66, u)
+    if (wb > 0) {
+      this.room.clothFolded.getWorldPosition(this.v)
+      a.reach('r', wb, this.v.x, this.v.y + 0.03, this.v.z, 0.6)
+    }
+    // Wiping the glass where his cheek was.
+    const ww = window4(0.64, 0.72, 0.92, 0.98, u)
+    if (ww > 0) {
+      const t = (u - 0.64) * 40
+      a.reach('r', ww, CHEEK_SPOT.x + 0.05 + Math.cos(t) * 0.06, DESK.y + 0.05, CHEEK_SPOT.z + 0.02 + Math.sin(t) * 0.04, 0.7)
+    }
+  }
+
+  private throwAct(a: Actor, u: number) {
+    const st = this.st
+    this.seated(a, SIT_UP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, SIT_UP],
+        [0.1, SIT_UP],
+        [0.2, THROW_COCK],
+        [0.25, THROW_RELEASE],
+        [0.32, THROW_RELEASE],
+        [0.6, SIT_UP],
+      ],
+      u,
+    )
+    st.clothFolded = false
+    st.clothHand = u < 0.25
+    if (u >= 0.25 && u < 0.48) {
+      const t = (u - 0.25) / 0.23
+      const from = this.releasePoint
+      const to = this.boxTop()
+      st.clothFly = this.v3.set(lerp(from.x, to.x, t), lerp(from.y, to.y, t) + 2.0 * 4 * t * (1 - t), lerp(from.z, to.z, t))
+    }
+  }
+
+  private boxTop() {
+    this.room.clothTop.getWorldPosition(this.v2)
+    return this.v2
+  }
+
+  private rise(a: Actor, u: number) {
+    const st = this.st
+    st.clothFolded = false
+    if (u < 0.6) {
+      a.place(0, lerp(CHAIR_IN.z + SEAT_BACK, CHAIR_IN.z - 0.02, ramp(0.15, 0.45, u)), PI)
+      a.blend(
+        [
+          [0, SIT_UP],
+          [0.15, SIT_UP],
+          [0.32, P.LEAN_SOFT],
+          [0.45, P.STAND],
+        ],
+        u,
+      )
+      this.st.who = 'c'
+    } else a.walk(W.rise, (u - 0.6) / 0.4, P.STAND, PI)
+    this.st.who = 'c'
+  }
+
+  /** Heavy steps: shoulders down, the head lowered. */
+  private heavy(a: Actor) {
+    this.st.who = a === this.arifC ? 'c' : 's'
+  }
+
+  private rightDoor(a: Actor, u: number) {
+    const st = this.st
+    st.walkway = true
+    st.who = 'c'
+    if (u < 0.85) {
+      const x = lerp(4.35, 4.75, ramp(0.3, 0.55, u))
+      const z = lerp(0.3, 0.2, ramp(0.3, 0.55, u))
+      a.place(x, z, PI / 2).blend(
+        [
+          [0, P.STAND],
+          [0.55, P.STAND],
+          [0.65, LISTENING],
+        ],
+        u,
+      )
+      // The hand on the heavy handle, pushing the leaf out.
+      const wh = window4(0.08, 0.22, 0.42, 0.52, u)
+      if (wh > 0) {
+        this.room.rightLeaf.rotation.y = st.rightDoor
+        this.room.rightLeaf.updateMatrixWorld(true)
+        this.room.rightLeaf.localToWorld(this.v.copy(RIGHT_HANDLE))
+        a.reach('r', wh, this.v.x, this.v.y, this.v.z, 0.5)
       }
-      shot.fov = 44
-    } else if (seg === 'act') {
-      if (way === 'drawer') keyed([[0, [0.95, 0.85, 0.55, 0.35, 0.45, -0.3, 36]], [1, [0.9, 0.82, 0.5, 0.35, 0.45, -0.3, 34]]], held(u, f.reduced), shot)
-      else keyed([[0, [-0.85, 1.02, 0.75, 0, 0.72, 0.1, 34]], [1, [-0.8, 1.0, 0.7, 0, 0.72, 0.1, 32]]], held(u, f.reduced), shot)
-    } else if (seg === 'cupChoice' && way === 'kitchen' && u > 0.6) {
-      shot.pos.set(0.8, 1.6, 2.6)
-      shot.tgt.set(A.x, 1.15, A.z)
+    } else {
+      a.walk(W.through, (u - 0.85) / 0.15, P.STAND, PI / 2)
+    }
+  }
+
+  private reopen(a: Actor, u: number) {
+    const st = this.st
+    st.walkway = true
+    st.who = 's'
+    if (u < 0.3) a.place(6.2, 0.0, -PI / 2).hold(P.STAND)
+    else a.walk(W.inside, (u - 0.3) / 0.7, P.STAND, -PI / 2)
+  }
+
+  private sits(a: Actor, u: number) {
+    const st = this.st
+    st.who = 's'
+    if (u < 0.1) {
+      a.place(0.05, 1.02, PI).hold(P.STAND)
+      return
+    }
+    // Back onto the pushed-out chair, sitting, and rolling in with it.
+    const back = ramp(0.1, 0.25, u)
+    const z = lerp(1.02, CHAIR_OUT.z + SEAT_BACK, back)
+    const chairZ = lerp(CHAIR_OUT.z, CHAIR_IN.z, ramp(0.4, 0.55, u))
+    st.chairZ = chairZ
+    a.place(lerp(0.05, 0, back), u < 0.4 ? z : chairZ + SEAT_BACK, PI)
+    a.blend(
+      [
+        [0.1, P.STAND],
+        [0.22, P.LEAN_SOFT],
+        [0.4, P.SIT],
+        [0.6, SIT_UP],
+      ],
+      u,
+    )
+    a.lookAt(MARKS.coffee[0], MARKS.coffee[1], 0)
+  }
+
+  /** The right hand out into the empty air; the robot brings the cup; the cup to his lips. */
+  private reachAct(a: Actor, u: number, ghost = false) {
+    const st = this.st
+    this.seated(a, SIT_UP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, SIT_UP],
+        [0.05, SIT_UP],
+        [0.22, HAND_OUT],
+        [0.5, HAND_OUT],
+        [0.62, SIT_UP],
+        [0.75, SIP],
+        [0.9, SIP],
+      ],
+      u,
+    )
+    a.lookAt(0, -2, 1)
+    const wo = ramp(0.05, 0.22, u) * (1 - ramp(0.48, 0.6, u))
+    if (wo > 0) a.reach('r', wo, HAND.x, HAND.y + 0.02, HAND.z, 0.9)
+    if (u >= 0.6) {
+      a.apply(this.time, false)
+      a.figure.mouth.getWorldPosition(this.v)
+      const w = ramp(0.6, 0.78, u)
+      a.reach('r', w, this.v.x + 0.05, this.v.y - 0.06, this.v.z - 0.07, 0.4)
+    }
+    if (!ghost) st.cupHand = u >= 0.42
+  }
+
+  /** One sip, the cup held out to the same place, let go, caught. */
+  private sipAct(a: Actor, u: number, ghost = false) {
+    const st = this.st
+    this.seated(a, SIP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, SIP],
+        [0.22, SIP],
+        [0.38, HAND_OUT],
+        [0.5, HAND_OUT],
+        [0.7, SIT_UP],
+      ],
+      u,
+    )
+    a.lookAt(0, -2, 1)
+    if (u < 0.25) {
+      a.apply(this.time, false)
+      a.figure.mouth.getWorldPosition(this.v)
+      const tip = window4(0.08, 0.14, 0.2, 0.25, u)
+      a.reach('r', 1 - ramp(0.22, 0.25, u) * 0, this.v.x + 0.05 - tip * 0.02, this.v.y - 0.06 + tip * 0.02, this.v.z - 0.07 + tip * 0.03, 0.4)
+      if (u > 0.2) {
+        const w = ramp(0.2, 0.25, u)
+        a.reach('r', w, HAND.x, HAND.y + 0.02, HAND.z, 0.9)
+      }
+    } else {
+      const w = 1 - ramp(0.5, 0.62, u)
+      if (w > 0) a.reach('r', w, HAND.x, HAND.y + 0.02, HAND.z, 0.9)
+    }
+    if (ghost) return
+    st.cupHand = u < 0.42
+    st.cupFall = u >= 0.42 ? ramp(0.42, 0.48, u) : -1
+  }
+
+  private hover(a: Actor, u: number) {
+    const st = this.st
+    st.who = 's'
+    if (u < 0.75) {
+      this.seated(a, SIT_UP, CHAIR_IN.z)
+      a.lookAt(0, -2, 1 - ramp(0.58, 0.72, u))
+      if (u > 0.58) a.lookAt(-5, 0, ramp(0.58, 0.72, u))
+      // The index finger comes down toward the button and stops a centimetre above it.
+      const w = ramp(0.06, 0.2, u) * (1 - ramp(0.55, 0.7, u))
+      if (w > 0) {
+        const d = 1 - ease(ramp(0.1, 0.48, u))
+        a.reach('r', w, HOVER_AT.x + 0.04 * d, HOVER_AT.y + 0.16 * d, HOVER_AT.z + 0.22 * d, 0.5)
+      }
+    } else {
+      a.place(0, lerp(CHAIR_IN.z + SEAT_BACK, CHAIR_IN.z - 0.03, ramp(0.75, 0.95, u)), PI)
+      a.blend(
+        [
+          [0.75, SIT_UP],
+          [0.86, P.LEAN_SOFT],
+          [0.97, P.STAND],
+        ],
+        u,
+      )
+      a.lookAt(-5, 0, 0.6)
+    }
+  }
+
+  private leftDoor(a: Actor, u: number) {
+    const st = this.st
+    st.who = 's'
+    st.archive = u > 0.3
+    const x = lerp(-4.4, -4.6, ramp(0.4, 0.9, u))
+    const z = lerp(-0.2, -0.3, ramp(0.4, 0.9, u))
+    a.place(x, z, -PI / 2).hold(P.STAND)
+    const wh = window4(0.05, 0.25, 0.6, 0.75, u)
+    if (wh > 0) {
+      this.room.leftLeaf.rotation.y = st.leftDoor
+      this.room.leftLeaf.updateMatrixWorld(true)
+      this.room.leftLeaf.localToWorld(this.v.copy(LEFT_HANDLE))
+      a.reach('r', wh, this.v.x, this.v.y, this.v.z, 0.5)
+    }
+  }
+
+  private lever(a: Actor, u: number) {
+    const st = this.st
+    st.who = 's'
+    if (u < 0.25) a.walk(W.inArchive, u / 0.25, P.STAND, -PI / 2, 2.1)
+    else a.place(-6.05, -0.95, 2.1).hold(P.STAND)
+    st.set = 'archive'
+    const wl = window4(0.24, 0.36, 0.5, 0.6, u)
+    if (wl > 0) {
+      this.archive.lever.updateMatrixWorld(true)
+      this.archive.lever.localToWorld(this.v.copy(SWITCH_HANDLE))
+      a.reach('r', wl, this.v.x - 0.02, this.v.y, this.v.z, 0.5)
+    }
+  }
+
+  private whistle(a: Actor, u: number) {
+    const st = this.st
+    st.who = 's'
+    if (u < 0.75) {
+      a.walk(W.back, u / 0.75, P.STAND, 2.1, PI)
+      // Shoulders bobbing to the rhythm.
+      a.figure.joints.chest.rotation.z += 0
+      a.pose[2 + 2 * 3 + 2] += Math.sin(this.time * 9) * 0.04
+    } else {
+      const sit = ramp(0.8, 0.92, u)
+      a.place(0, lerp(1.06, CHAIR_IN.z + SEAT_BACK, sit), PI)
+      a.blend(
+        [
+          [0.75, P.STAND],
+          [0.8, P.LEAN_SOFT],
+          [0.92, P.SIT],
+          [1, SIT_UP],
+        ],
+        u,
+      )
+      // Two fingers drumming on the desk.
+      const wt = window4(0.74, 0.78, 0.88, 0.94, u)
+      if (wt > 0) a.reach('l', wt, -0.32, DESK.y + 0.04 + Math.max(0, Math.sin(this.time * 14)) * 0.025, 0.66, 0.6)
+    }
+  }
+
+  private checked(a: Actor, u: number) {
+    const st = this.st
+    this.seated(a, SIT_UP, CHAIR_IN.z)
+    a.blend(
+      [
+        [0, SIT_UP],
+        [0.08, LEAN_DESK],
+        [0.56, LEAN_DESK],
+        [0.85, SIT_BACK_SLOW],
+      ],
+      u,
+    )
+    a.lookAt(2.15, -0.25, 1 - ramp(0.56, 0.8, u) * 0.6)
+    st.right = { mode: 'dates', a: ramp(0.08, 0.15, u), b: ramp(0.24, 0.32, u), t: 0, level: 1 }
+    st.center = { mode: 'circle', a: 1, b: 0, t: 0, level: 0.75 }
+    st.left = { mode: 'sort', a: 1, b: 0, t: 1, level: 0.6 }
+  }
+
+  /** The record of tomorrow, 05:12, from the recorder's lens: the room asleep. */
+  private recordOfTomorrow(shot: Shot, label: 'subject', u: number) {
+    this.predawnRoom()
+    this.recordFrame(shot, { code1: `SUBJECT · ${iterationDate(this.iteration + 1)} · 05:12`, code2: '' })
+    void label
+    void u
+  }
+
+  /** The room at 05:12: the sleeper in the cardigan, the robots on their marks, rings dim. */
+  private predawnRoom() {
+    const st = this.st
+    this.asleep(this.arifC)
+    st.lookA = 'predawn'
+    st.lookB = 'predawn'
+    st.lookT = 0
+    st.rain = 0
+    st.chairZ = CHAIR_IN.z
+    st.ring = 0
+    st.lamp = 0
+    st.ringLevel = 0.25
+    st.center = screenOff()
+    st.left = screenOff()
+    st.right = screenOff()
+    st.clothFolded = true
+    st.hideRecorder = true
+  }
+
+  /** The recorder's framing: locked, a soft vignette, a timecode at the top right. */
+  private recordFrame(shot: Shot, code: { code1: string; code2: string } | null) {
+    shot.locked = true
+    shot.handheld = 0
+    this.st.hideRecorder = true
+    this.st.hud = { code1: code?.code1 ?? '', code2: code?.code2 ?? '', vignette: 1 }
+  }
+
+  private button(a: Actor, u: number, which: 'back' | 'press') {
+    const st = this.st
+    this.seated(a, SIT_UP, CHAIR_IN.z)
+    a.lookAt(0, -2, 1)
+    st.center = { mode: 'record', a: 0.6, b: 0, t: 0, level: 0.55 }
+    st.left = { mode: 'grid', a: 0.7, b: 0, t: 0, level: 0.35 }
+    st.right = { mode: 'dates', a: 0.8, b: 0.8, t: 0, level: 0.45 }
+    st.thumb = 0.55
+    if (which === 'back') {
+      const w = ramp(0.45, 0.62, u)
+      if (w > 0) a.reach('r', w, HOVER_AT.x + 0.03, HOVER_AT.y + 0.06 * (1 - ramp(0.62, 1, u)), HOVER_AT.z + 0.04, 0.5)
+      return
+    }
+    // The press: down, past the place where it stopped, and in.
+    const down = ramp(0.0, 0.32, u)
+    a.reach('r', 1 - ramp(0.5, 0.7, u), HOVER_AT.x + 0.03 - down * 0.01, HOVER_AT.y + 0.06 - down * 0.105, HOVER_AT.z + 0.04 - down * 0.08, 0.5)
+    // Everything goes black in sequence.
+    const off = ramp(0.4, 0.75, u)
+    st.offT = u < 0.4 ? -1 : off
+    const screens = 1 - ramp(0.38, 0.43, u)
+    st.center.level *= screens
+    st.left.level *= screens
+    st.right.level *= screens
+    st.thumb *= screens
+    st.lamp = 1 - ramp(0.42, 0.6, u)
+    st.roomLight = 1 - ramp(0.4, 0.78, u)
+    st.spill = 1 - ramp(0.55, 0.75, u)
+    st.rain = st.rain * (1 - off)
+    if (u > 0.75) {
+      // Only the ring.
+      st.roomLight = 0
+      st.spill = 0
+      st.offT = 1.1
+    }
+  }
+
+  private records(p: number, u: number, shot: Shot) {
+    const st = this.st
+    const { record, t } = recordAt(p)
+    st.record = record
+    if (u < 0.02) {
+      // The centre screen flashes: the match cut into the first record.
+      this.seated(this.arifS, P.SIT_STILL)
+      st.grid = 0.5
+      st.circle = 1
+      st.wallDim = 0.25
+      st.ceilDim = 0.5
+      st.lamp = 0
+      st.roomLight = 0.16
+      st.center = { mode: 'flash', a: 1, b: 0, t: 0, level: 1 }
+      shot.pos.set(0, 1.5, 1.6)
+      shot.tgt.set(0, 1.55, -0.6)
       shot.fov = 40
-    } else if (seg === 'wait13' && way === 'kitchen') {
-      // The corridor: he is coming back; footsteps from the other end.
-      shot.pos.set(-0.4, 1.75, 6.25)
-      shot.tgt.set(DOOR.x + 0.4, 1.2, 4.6)
-      shot.fov = 42
-    } else if (seg === 'crash' || seg === 'done' || seg === 'selin') {
-      if (way === 'kitchen') keyed([[0, [1.2, 1.6, 1.85, DOOR.x + 0.1, 1.3, 3.95, 42]], [1, [1.3, 1.5, 2.05, DOOR.x + 0.15, 0.8, 3.9, 40]]], held(u, f.reduced), shot)
-      else keyed([[0, [1.75, 1.38, -0.78, 0.4, 0.85, 0.0, 40]], [1, [1.7, 1.3, -0.72, 0.5, 0.55, 0.05, 38]]], held(u, f.reduced), shot)
-    } else keyed(SHOTS[seg] ?? SHOTS.office!, held(u, f.reduced), shot)
+      return
+    }
+    // Each record: an earlier evening, from the recorder's stop.
+    const aim = RECORD_AIM[record]
+    shot.pos.set(...RECORDER_LENS.pos)
+    shot.tgt.set(aim[0], aim[1], aim[2])
+    shot.fov = aim[3]
+    this.recordFrame(shot, { code1: iterationDate(this.iteration + record), code2: RECORD_TIMES[record] })
+    st.redraw = record % 2 ? 1 : 0
+    st.leftDoor = 0
+    st.spill = 0
+    st.ring = 0
+    st.ringLevel = 1
+    st.archive = false
+    st.center = screenOff()
+    st.left = screenOff()
+    st.right = screenOff()
+    // Something tiny differs in each: the cloud, one more cloth.
+    st.hook = record === 0 || record === 3 ? 1 : 0
+    st.extraCloth = record >= 2
+    const lt = 0.08 + t * 0.84
+    switch (record) {
+      case 0:
+        st.lookA = 'golden'
+        st.lookB = 'golden'
+        st.chairZ = CHAIR_IN.z
+        st.clothTop = false
+        st.clothFolded = true
+        this.wake(this.arifC, 0.02 + lt * 0.45)
+        break
+      case 1:
+        st.lookA = 'golden'
+        st.lookB = 'golden'
+        st.chairZ = CHAIR_IN.z
+        st.clothTop = false
+        this.throwAct(this.arifC, 0.05 + lt * 0.55)
+        st.clothTop = 0.05 + lt * 0.55 >= 0.48
+        break
+      case 2:
+        st.lookA = 'night'
+        st.lookB = 'night'
+        st.rain = 0.45
+        st.chairZ = CHAIR_IN.z
+        st.clothTop = true
+        this.hover(this.arifS, 0.05 + lt * 0.6)
+        break
+      case 3:
+        st.lookA = 'night'
+        st.lookB = 'night'
+        st.rain = 0.6
+        st.chairZ = CHAIR_IN.z
+        st.clothTop = true
+        this.sipAct(this.arifS, 0.2 + lt * 0.5)
+        break
+      case 4:
+        st.lookA = 'sunset'
+        st.lookB = 'dusk'
+        st.lookT = t
+        st.chairZ = CHAIR_OUT.z
+        st.clothTop = true
+        st.clothFolded = false
+        this.arifC.walk(W.walk, 0.1 + lt * 0.8, LISTENING, undefined, undefined, 0.85)
+        st.who = 'c'
+        break
+    }
+  }
 
-    shot.fade = seg === 'open' ? smoothstep(0.1, 0.9, u) : seg === 'end' ? 1 - smoothstep(0.1, 0.6, u) : 1
-    // The empty room: the reader sits where he sat. Look anywhere.
-    if (seg === 'empty' || seg === 'observer2' || seg === 'finalQuery' || seg === 'accepted') shot.handheld = 0.3
+  private again(a: Actor, u: number, shot: Shot) {
+    const st = this.st
+    if (u < 0.45) {
+      this.predawnRoom()
+      st.hideRecorder = u < 0.45
+      if (u < 0.45) this.recordFrame(shot, null)
+      // The time-lapse: the sky runs from dawn through noon to late afternoon.
+      if (u >= 0.4) {
+        const t = (u - 0.4) / 0.15
+        if (t < 0.33) {
+          st.lookA = 'predawn'
+          st.lookB = 'dawn'
+          st.lookT = t / 0.33
+        } else {
+          st.lookA = 'dawn'
+          st.lookB = 'noon'
+          st.lookT = (t - 0.33) / 0.67
+        }
+      }
+      return
+    }
+    st.hideRecorder = false
+    st.ringLevel = 1
+    if (u < 0.55) {
+      this.asleep(a)
+      const t = (u - 0.4) / 0.15
+      st.lookA = t < 0.6 ? 'dawn' : 'noon'
+      st.lookB = t < 0.6 ? 'noon' : 'afternoon'
+      st.lookT = t < 0.6 ? (t - 0.0) / 0.6 : (t - 0.6) / 0.4
+      st.redraw = 0
+      st.clothTop = true
+      return
+    }
+    st.lookA = 'afternoon'
+    st.lookB = 'afternoon'
+    st.redraw = 0
+    st.rain = 0
+    st.ring = 0
+    // A quick replay of the waking: glasses, the cheek, the cloth (it lands at 0.9).
+    const v = (u - 0.55) / 0.45
+    if (v < 0.25) this.wake(a, 0.02 + (v / 0.25) * 0.6)
+    else if (v < 0.36) this.wake(a, 0.62 + ((v - 0.25) / 0.11) * 0.18)
+    else if (v < 0.52) this.wipe(a, 0.05 + ((v - 0.36) / 0.16) * 0.9)
+    else this.throwAct(a, 0.05 + ((v - 0.52) / 0.48) * 0.6)
+    st.clothTop = true
+    if (v >= 0.52) {
+      const tu = 0.05 + ((v - 0.52) / 0.48) * 0.6
+      if (tu > 0.25 && tu < 0.48 && st.clothFly) shot.tgt.lerp(st.clothFly, 0.5)
+    }
+  }
+
+  private halt(a: Actor, u: number, shot: Shot) {
+    const st = this.st
+    st.who = 'c'
+    st.clothFolded = false
+    st.clothTop = true
+    st.extraCloth = true
+    if (u < 0.52) a.walk(W.halt, u / 0.52, LISTENING, undefined, PI / 2, 0.85)
+    else
+      a.place(2.2, 1.2, PI / 2).blend(
+        [
+          [0.52, P.STAND],
+          [0.62, P.STAND],
+          [0.75, STAND_SHIFT],
+          [0.88, P.STAND],
+        ],
+        u,
+      )
+    this.follow(shot, a, 1.15, 0.5)
+  }
+
+  private turnAct(a: Actor, u: number) {
+    const st = this.st
+    st.who = 'c'
+    st.clothFolded = false
+    st.clothTop = true
+    st.extraCloth = true
+    const yaw = angleLerp(PI / 2, Math.atan2(-2.2, -1.2), ease(ramp(0.05, 0.4, u)))
+    a.place(2.2, 1.2, yaw).hold(P.STAND)
+    const turning = window4(0.05, 0.12, 0.33, 0.4, u)
+    if (turning > 0) addWalk(a.pose, u * 40, turning * 0.25)
+    a.lookAt(0, -0.6, ramp(0.2, 0.4, u))
+    st.recAway = ramp(0.45, 0.75, u)
+  }
+
+  private observer(a: Actor, u: number, shot: Shot) {
+    const st = this.st
+    st.who = 'c'
+    st.clothFolded = false
+    st.clothTop = true
+    st.extraCloth = true
+    const face = Math.atan2(-2.2, -1.2)
+    const toCam = Math.atan2(shot.pos.x - 2.2, shot.pos.z - 1.2)
+    const turn = ease(ramp(0.55, 0.95, u))
+    a.place(2.2, 1.2, angleLerp(face, angleLerp(face, toCam, 0.55), turn)).hold(P.STAND)
+    if (turn < 0.01) a.lookAt(0, -0.6, 1)
+    else a.lookAt(shot.pos.x, shot.pos.z, turn)
+    st.recAway = 1
+    st.recAim = 'camera'
+    st.center = { mode: 'observer', a: ramp(0.08, 0.16, u), b: ramp(0.48, 0.56, u), t: 0, level: 1 }
+  }
+
+  /** A side-tracking shot: the target follows his chest. */
+  private follow(shot: Shot, a: Actor, y: number, lead: number) {
+    shot.tgt.set(a.x + Math.sin(a.yaw) * lead, y, a.z + Math.cos(a.yaw) * lead)
+  }
+
+  // ————————————————————————————————————————————————————————————————
+  // Applying the state
+
+  private apply(p: number, seg: SegmentId, u: number, f: SetFrame, shot: Shot, alt: boolean) {
+    const st = this.st
+    const time = f.time
+    // ——— Sets ———
+    const inRoom = st.set === 'room' || st.set === 'archive' || st.set === 'black'
+    this.room.group.visible = inRoom && st.set !== 'black'
+    const archiveShown = st.archive || st.leftDoor > 0.02 || st.set === 'archive'
+    this.archive.group.visible = archiveShown && inRoom && st.set !== 'black'
+    this.square.group.visible = st.set === 'square'
+    this.net.group.visible = st.set === 'void' || (seg === 'network' && u < 0.1)
+    this.room.walkway.visible = st.rightDoor > 0.01 || st.walkway
+    const scene = this.scene
+    const fog = scene.fog as THREE.Fog
+    if (st.set === 'square' && st.era >= 0) {
+      scene.background = null
+      this.square.setEra(st.era, st.eraT, time, scene, { key: this.rig.key, hemi: this.rig.hemi, points: this.rig.points })
+      scene.environmentIntensity = [0.5, 0.35, 0.35, 0.3, 0.55, 0.15, 0.3, 0.5, 0.3][st.era]
+      this.offRoomLights()
+      if (seg === 'network') {
+        // The square goes dark around the points.
+        const d = ramp(0.0, 0.1, u)
+        fog.color.setRGB(0, 0, 0)
+        fog.near = lerp(fog.near, 0.1, d)
+        fog.far = lerp(fog.far, 1, d)
+        this.rig.key.intensity *= 1 - d
+        this.rig.hemi.intensity *= 1 - d
+        this.net.group.position.copy(SQUARE_TO_VOID).multiplyScalar(-1)
+      }
+    } else {
+      this.net.group.position.set(0, 0, 0)
+    }
+    if (st.set === 'void') {
+      scene.background = (scene.background as THREE.Color | null)?.isColor ? scene.background : new THREE.Color(0x000000)
+      ;(scene.background as THREE.Color).setRGB(0.004, 0.004, 0.005)
+      fog.near = 500
+      fog.far = 1000
+      scene.environmentIntensity = 0
+      this.offRoomLights()
+      this.rig.key.intensity = 0
+      this.rig.hemi.intensity = 0
+    }
+    if (this.net.group.visible) this.updateNetwork(seg, u, shot)
+    if (inRoom) this.applyRoom(p, seg, u, f, shot, alt)
+    this.applyHud(shot, alt)
+    // Sound follows.
+    if (!alt) this.updateMotion(seg, u)
+  }
+
+  private offRoomLights() {
+    const r = this.rig
+    r.lamp.intensity = 0
+    r.spill.intensity = 0
+    r.strip.intensity = 0
+    r.screen.intensity = 0
+    for (const pl of r.points) pl.intensity = 0
+  }
+
+  private updateNetwork(seg: SegmentId, u: number, shot: Shot) {
+    const o = { dissolve: 0, grow: 0, gather: 0, deleted: 0, labels: 0, pulse: 0, anomaly: 0, time: this.time, camera: shot.pos, flat: 0 }
+    if (seg === 'network') {
+      o.dissolve = ramp(0.1, 0.3, u)
+      o.grow = ramp(0.2, 1, u)
+      o.deleted = ramp(0.72, 0.8, u)
+    } else if (seg === 'spiral') {
+      o.dissolve = 1
+      o.grow = 1
+      o.deleted = 1
+      o.gather = ease(ramp(0.0, 0.6, u))
+      o.labels = ramp(0.45, 0.65, u)
+    } else {
+      o.dissolve = 1
+      o.grow = 1
+      o.deleted = 1
+      o.gather = 1
+      o.labels = 1
+      if (seg === 'beyond') o.pulse = window4(0.42, 0.47, 0.55, 0.7, u)
+      if (seg === 'anomaly') o.anomaly = ramp(0.1, 0.16, u)
+    }
+    this.net.update(o)
+  }
+
+  private applyRoom(p: number, seg: SegmentId, u: number, f: SetFrame, shot: Shot, alt: boolean) {
+    const st = this.st
+    const time = f.time
+    const room = this.room
+    const r = this.rig
+    const scene = this.scene
+    scene.background = new THREE.Color(0x000000)
+    const fog = scene.fog as THREE.Fog
+    const camInArchive = shot.pos.x < -5.35
+    fog.color.set(camInArchive ? 0xc4c8ca : 0x9aa0a4)
+    fog.near = camInArchive ? 10 : 9
+    fog.far = camInArchive ? 75 : 70
+    if (!this.archive.group.visible) {
+      fog.near = 500
+      fog.far = 1000
+    }
+    // ——— The clock ———
+    const sky = this.sky.set(LOOKS[st.lookA], LOOKS[st.lookB], st.lookT)
+    for (const m of [room.forest, room.walkForest]) {
+      const un = m.uniforms
+      sky.apply(un)
+      un.uTime.value = time
+      un.uDrift.value.set(p * 18 + time * 0.004, p * 6)
+      un.uHook.value.set(0.5 + st.hook * 0.35, 2.55, -1.5 - st.hook * 0.2).normalize()
+      un.uOnT.value = st.onT
+      un.uPaint.value = st.paint
+      un.uHair.value = st.hair
+      un.uOffT.value = st.offT
+      un.uWallDim.value = st.wallDim
+      un.uCeilDim.value = st.ceilDim
+      un.uGrid.value = st.grid
+      un.uCircle.value = st.circle
+      un.uRain.value = st.rain
+      un.uScan.value = st.scan
+      un.uRedraw.value = st.redraw
+    }
+    room.walkForest.uniforms.uBright.value *= 1.05
+    const ceiling = room.group.getObjectByName('ceiling')
+    if (ceiling) ceiling.visible = st.ceiling
+    // How much the screens light the room right now.
+    const panels = clamp(st.onT) * (st.offT < 0 ? 1 : 1 - clamp(st.offT)) * (1 - st.wallDim * 0.9) * (1 - st.grid * 0.85) * st.roomLight
+    scene.environmentIntensity = sky.env * panels * (st.circle > 0 ? 0.3 : 1)
+    r.hemi.color.copy(sky.hemiSky)
+    r.hemi.groundColor.copy(sky.hemiGround)
+    r.hemi.intensity = sky.hemi * panels + (st.circle > 0 ? 0.12 : 0) * st.roomLight
+    r.hemi.position.set(0, 4, 0)
+    // The key: from the bright side of the sky, or the moon.
+    const kd = sky.el > 0 ? sky.sunDir : this.v.set(0.45, 0.75, 0.35).normalize()
+    r.key.position.set(kd.x * 6, Math.max(2.5, kd.y * 6), kd.z * 6)
+    r.key.target.position.set(0, 0, 0.5)
+    r.key.color.copy(sky.keyCol)
+    r.key.intensity = sky.key * panels
+    const sc = r.key.shadow.camera
+    if (sc.right !== 7) {
+      sc.left = -7
+      sc.right = 7
+      sc.top = 7
+      sc.bottom = -7
+      sc.near = 0.5
+      sc.far = 16
+      sc.updateProjectionMatrix()
+    }
+    // The desk lamp: warm, the face always readable.
+    const lampOn = st.lamp * sky.lamp + (sky.lamp < 0.5 ? st.lamp * 0.0 : 0)
+    r.lamp.position.set(-1.16, DESK.y + 0.56, 0.22)
+    r.lamp.target.position.set(-0.05, DESK.y, 0.5)
+    r.lamp.intensity = 2.6 * lampOn
+    r.lamp.angle = 0.95
+    r.lamp.penumbra = 0.75
+    r.lamp.distance = 5
+    room.lampBulb.visible = lampOn > 0.05
+    // The LED strip under the desk's lip.
+    r.strip.position.set(0, DESK.y - 0.095, 0.69)
+    r.strip.lookAt(0, -1, 1.0)
+    r.strip.intensity = 9 * clamp(st.roomLight + (st.circle > 0 ? 0.3 : 0)) * (st.offT > 0.3 ? 0 : 1)
+    room.strip.color.setRGB(1.0, 0.62, 0.3).multiplyScalar(2.2 * clamp(st.roomLight + 0.2) * (st.offT > 0.3 ? 0 : 1))
+    // The archive's light across the planks.
+    r.spill.position.set(-9.5, 2.4, -0.15)
+    r.spill.target.position.set(-1.0, 0, 0.7)
+    r.spill.intensity = 220 * st.spill * (camInArchive ? 0.4 : 1)
+    r.spill.angle = 0.42
+    r.spill.distance = 20
+    r.spill.color.set(p >= at('lever', 0.5) ? 0xfff6ea : 0xeef2f6)
+    if (this.archive.group.visible) {
+      const cascade = seg === 'lever' ? ramp(0.45, 1, u) : p > SEG.lever.end ? 1 : 0
+      this.archive.update(time, cascade, seg === 'lever' ? ramp(0.38, 0.45, u) : p > SEG.lever.end ? 1 : 0, seg === 'lever' ? window4(0.9, 0.95, 0.98, 1, u) : 0)
+      if (camInArchive) {
+        // Inside the hall: an even, cool light from the bands.
+        r.hemi.color.set(0xeef1f3)
+        r.hemi.groundColor.set(0x3a3c3e)
+        r.hemi.intensity = 1.05
+        r.key.position.set(-20, 30, 6)
+        r.key.target.position.set(-24, 0, 2)
+        r.key.color.set(0xf2f4f6)
+        r.key.intensity = 0.9
+        if (sc.right !== 26) {
+          sc.left = -26
+          sc.right = 26
+          sc.top = 26
+          sc.bottom = -26
+          sc.near = 5
+          sc.far = 70
+          sc.updateProjectionMatrix()
+        }
+        scene.environmentIntensity = 0.15
+      }
+    }
+    // Small lights: the red ring's glow, the walkway's warm door and its daylight.
+    const [p0, p1, p2] = r.points
+    p0.position.set(BUTTON.x, BUTTON.y + 0.06, BUTTON.z + 0.08)
+    p0.color.set(0xff1a10)
+    p0.distance = 1.8
+    p0.decay = 2
+    p0.intensity = 0.9 * st.ring
+    room.ring.color.setRGB(st.ring * 3.2, st.ring * 0.08, st.ring * 0.04)
+    room.buttonCap.position.y = 0.024 - (seg === 'press' && u > 0.3 && u < 0.45 ? 0.006 : 0)
+    p1.position.set(8.5, 2.2, 0)
+    p1.color.set(0xffb070)
+    p1.distance = 3.5
+    p1.decay = 2
+    p1.intensity = room.walkway.visible ? 1.2 : 0
+    p2.position.set(6.8, 2.6, -0.2)
+    p2.color.set(0xdfe8d8)
+    p2.distance = 5
+    p2.decay = 2
+    p2.intensity = room.walkway.visible ? 0.8 * (sky.bright + 0.3) : 0
+    if (camInArchive && st.set === 'archive') {
+      p1.position.set(-6.5, 2.6, 0)
+      p1.color.set(0xfff2e0)
+      p1.distance = 6
+      p1.intensity = 0.4
+    }
+    // ——— The room's moving parts ———
+    room.rightLeaf.rotation.y = st.rightDoor
+    room.leftLeaf.rotation.y = st.leftDoor
+    room.chair.position.set(CHAIR_IN.x, 0, st.chairZ)
+    room.clothFolded.visible = st.clothFolded
+    room.clothTop.visible = st.clothTop
+    room.extraCloth.visible = st.extraCloth
+    room.clothFly.visible = !!st.clothFly
+    if (st.clothFly) {
+      room.clothFly.position.copy(st.clothFly)
+      room.clothFly.rotation.set(time * 3, time * 2, 0)
+    }
+    room.windowMat.opacity = st.windowA
+    room.window.visible = st.windowA > 0.01
+    if (room.window.visible) {
+      const key = String(Math.floor(time * 6))
+      if (key !== this.windowKey) {
+        this.windowKey = key
+        drawWindow(this.windowCtx, 512, 300, time * 6)
+        this.windowTex.needsUpdate = true
+      }
+    }
+    this.wetMat.opacity = 0.65 * st.wet
+    this.wetSpot.visible = st.wet > 0.01
+    // ——— The screens ———
+    this.screen(room.center, st.center, 'c', time)
+    this.screen(room.left, st.left, 'l', time)
+    this.screen(room.right, st.right, 'r', time)
+    const screenLevel = Math.max(st.center.level, st.left.level * 0.6, st.right.level * 0.6, st.thumb)
+    r.screen.position.set(CENTER_SCREEN.pos.x, CENTER_SCREEN.pos.y, CENTER_SCREEN.pos.z + 0.03)
+    r.screen.lookAt(0, 1.2, 2.5)
+    r.screen.intensity = 5 * screenLevel * (st.center.mode === 'grid' || st.center.mode === 'circle' ? 0.3 : 1)
+    r.screen.color.set(st.center.mode === 'sort' ? 0xd8dde0 : 0xc8d6e4)
+    // The record or the square on the centre screen.
+    this.thumb.visible = st.thumb > 0.001 && !alt
+    if (this.thumb.visible) {
+      const k = seg === 'dive' ? st.thumb : 1
+      const w = lerp(0.12, CENTER_SCREEN.w, ease(k))
+      const h = w * (9 / 16) > CENTER_SCREEN.h ? CENTER_SCREEN.h : w * (9 / 16)
+      this.thumb.scale.set(w, h, 1)
+      this.thumb.position.set(lerp(0.55, 0, ease(k)) * (seg === 'dive' ? 1 : 0), CENTER_SCREEN.pos.y + lerp(0.3, 0, ease(k)) * (seg === 'dive' ? 1 : 0), CENTER_SCREEN.pos.z + 0.003)
+      this.thumbMat.opacity = seg === 'dive' ? ramp(0.25, 0.32, u) : st.thumb
+    }
+    this.player.mesh.visible = st.center.mode === 'record' && !alt
+    if (this.player.mesh.visible) {
+      const label = `SUBJECT · ${iterationDate(this.iteration + 1)} · 05:12`
+      const key = `${label}|${st.center.a.toFixed(2)}`
+      if (key !== this.player.key) {
+        this.player.key = key
+        drawPlayer(this.player.ctx, 1024, 582, label, st.center.a)
+        this.player.tex.needsUpdate = true
+      }
+    }
+    // ——— Arif ———
+    this.applyArif(time)
+    // ——— Robots ———
+    this.applyRobots(p, seg, u, shot)
+  }
+
+  private screen(s: ScreenSet, state: ScreenState, side: 'c' | 'l' | 'r', time: number) {
+    const W = s.canvas.width
+    const H = s.canvas.height
+    const g = s.ctx
+    let key = ''
+    switch (state.mode) {
+      case 'off':
+        s.material.emissiveIntensity = 0
+        return
+      case 'sort':
+        key = `sort${state.t.toFixed(3)}|${Math.floor(time * 8)}`
+        if (key !== s.key) drawSorting(g, W, H, state.t, time, side === 'c' ? 0 : side === 'l' ? 1 : 2)
+        break
+      case 'dates': {
+        const today = `TODAY ${iterationDate(this.iteration)}`
+        const rec = `RECORD ${iterationDate(this.iteration + 1)} · 05:12`
+        key = `dates${today}${state.a.toFixed(2)}${state.b.toFixed(2)}`
+        if (key !== s.key) drawDates(g, W, H, today, rec, state.a, state.b)
+        break
+      }
+      case 'observer':
+        key = `obs${state.a.toFixed(2)}${state.b.toFixed(2)}`
+        if (key !== s.key) drawObserver(g, W, H, state.a, state.b)
+        break
+      case 'line':
+        key = `line${state.a.toFixed(2)}`
+        if (key !== s.key) drawLine(g, W, H, state.a)
+        break
+      case 'grid':
+        key = `grid${state.a.toFixed(2)}`
+        if (key !== s.key) drawGrid(g, W, H, state.a, 0)
+        break
+      case 'circle':
+        key = `circle${state.a.toFixed(2)}`
+        if (key !== s.key) drawGrid(g, W, H, 0.6, state.a)
+        break
+      case 'flash':
+        key = `flash${state.a.toFixed(2)}`
+        if (key !== s.key) drawFlash(g, W, H, state.a)
+        break
+      case 'record':
+        key = 'record'
+        if (key !== s.key) drawFlash(g, W, H, 0.0)
+        break
+    }
+    if (key !== s.key) {
+      s.key = key
+      s.texture.needsUpdate = true
+    }
+    s.material.emissiveIntensity = 1.15 * state.level
+  }
+
+  private applyArif(time: number) {
+    const st = this.st
+    const C = this.arifC
+    const S = this.arifS
+    C.visible = st.who === 'c'
+    S.visible = st.who === 's'
+    const sleeping = st.breath === 'sleep'
+    for (const a of [C, S]) {
+      a.apply(time, !sleeping && a.visible)
+      if (!a.visible) continue
+      if (sleeping) {
+        // Shallow, uneven breath in the shoulders.
+        const b = Math.sin(time * 1.9 + 0.7 * Math.sin(time * 0.43)) * (0.7 + 0.3 * Math.sin(time * 0.21))
+        a.figure.joints.chest.rotation.x += b * 0.018
+        a.figure.joints.lUpper.rotation.z += b * 0.01
+        a.figure.joints.rUpper.rotation.z -= b * 0.01
+        a.figure.root.updateMatrixWorld(true)
+      }
+      setEyes(a.figure, st.eyes)
+      setGlasses(a.figure, st.askew)
+    }
+    const g = this.ghost
+    g.visible = st.ghost > 0.001
+    g.apply(time, false)
+    for (const m of this.ghostMats) m.opacity = st.ghost
+    // The drool from the corner of his mouth to the glass.
+    const shown = st.who === 'c' ? C : st.who === 's' ? S : null
+    this.drool.visible = !!shown && st.drool > 0.02
+    if (this.drool.visible && shown) {
+      shown.figure.mouth.getWorldPosition(this.v)
+      shown.figure.joints.head.localToWorld(this.v2.set(0.03, 0.04, 0.095))
+      const len = Math.max(0.005, this.v2.y - DESK.y)
+      this.drool.position.copy(this.v2)
+      this.drool.scale.set(1, len * st.drool, 1)
+      this.drool.rotation.set(0, 0, 0)
+      this.wetSpot.position.set(this.v2.x - 0.01, DESK.y + 0.0012, this.v2.z)
+    } else this.wetSpot.position.set(CHEEK_SPOT.x, DESK.y + 0.0012, CHEEK_SPOT.z)
+    // The cloth in his hand.
+    this.room.clothHand.visible = st.clothHand && !!shown
+    if (this.room.clothHand.visible && shown) {
+      shown.figure.rGrip.getWorldPosition(this.v)
+      this.room.clothHand.position.copy(this.v)
+    }
+  }
+
+  private applyRobots(p: number, seg: SegmentId, u: number, shot: Shot) {
+    const st = this.st
+    const co = this.coffee
+    const sn = this.snack
+    const re = this.rec
+    // Defaults: coffee and snack in their niches, the recorder at its stop facing him.
+    co.place(NICHES.coffee[0], NICHES.coffee[1], PI)
+    sn.place(NICHES.snack[0], NICHES.snack[1], PI)
+    re.place(MARKS.recorder[0], MARKS.recorder[1], Math.atan2(3.3, 0.6))
+    co.setTray(0)
+    sn.setTray(0)
+    const onPath = (r: Robot, path: Path, s: number, settleYaw?: number) => {
+      pointAt(path, s, sample)
+      pointAt(path, Math.min(1, s + 0.35 / path.total), ahead)
+      let yaw = Math.atan2(ahead.x - sample.x, ahead.z - sample.z)
+      if (Math.hypot(ahead.x - sample.x, ahead.z - sample.z) < 0.02) yaw = settleYaw ?? r.yaw
+      if (settleYaw !== undefined) yaw = angleLerp(yaw, settleYaw, smoothstep(0.92, 1, s))
+      r.place(sample.x, sample.z, yaw)
+    }
+    const markYaw = (x: number, z: number) => Math.atan2(0 - x, 0.9 - z)
+    const arrived = p >= at('sits', 0.45)
+    // Coffee and snack.
+    if (p >= at('reopen', 0.55) && p < SEG.again.start) {
+      if (!arrived || p < at('sits', 0.5)) {
+        onPath(co, R.coffeeIn, evalNumber(COFFEE_IN, p), markYaw(MARKS.coffee[0], MARKS.coffee[1]))
+        onPath(sn, R.snackIn, evalNumber(SNACK_IN, p), markYaw(MARKS.snack[0], MARKS.snack[1]))
+      } else {
+        co.place(MARKS.coffee[0], MARKS.coffee[1], markYaw(MARKS.coffee[0], MARKS.coffee[1]))
+        sn.place(MARKS.snack[0], MARKS.snack[1], markYaw(MARKS.snack[0], MARKS.snack[1]))
+      }
+    }
+    // The feed (05:12) and the records: on their marks.
+    if (st.hud && (seg === 'feed' || seg === 'feedWide' || seg === 'again')) {
+      co.place(MARKS.coffee[0], MARKS.coffee[1], markYaw(MARKS.coffee[0], MARKS.coffee[1]))
+      sn.place(MARKS.snack[0], MARKS.snack[1], markYaw(MARKS.snack[0], MARKS.snack[1]))
+    }
+    if (seg === 'records' && st.record >= 2) {
+      co.place(MARKS.coffee[0], MARKS.coffee[1], markYaw(MARKS.coffee[0], MARKS.coffee[1]))
+      sn.place(MARKS.snack[0], MARKS.snack[1], markYaw(MARKS.snack[0], MARKS.snack[1]))
+    }
+    if (seg === 'again') {
+      if (u < 0.4) {
+        co.place(MARKS.coffee[0], MARKS.coffee[1], markYaw(MARKS.coffee[0], MARKS.coffee[1]))
+        sn.place(MARKS.snack[0], MARKS.snack[1], markYaw(MARKS.snack[0], MARKS.snack[1]))
+      } else {
+        onPath(co, R_OUT.coffee, ease(ramp(0.4, 0.53, u)), PI)
+        onPath(sn, R_OUT.snack, ease(ramp(0.42, 0.55, u)), PI)
+      }
+    }
+    // The hand-offs: the coffee robot to his right hand and back.
+    const handoff = (t: number) => {
+      const s = ease(clamp(t))
+      co.place(lerp(MARKS.coffee[0], HANDOFF.x, s), lerp(MARKS.coffee[1], HANDOFF.z, s), angleLerp(markYaw(MARKS.coffee[0], MARKS.coffee[1]), HANDOFF.yaw, s))
+    }
+    let cupOnTray = true
+    if (seg === 'reach') {
+      handoff(ramp(0.2, 0.4, u))
+      co.setTray(0.05 * ramp(0.3, 0.42, u) * (1 - ramp(0.45, 0.55, u)))
+    }
+    if (seg === 'sip') {
+      handoff(1 - ramp(0.6, 0.9, u))
+      co.setTray(0.02 * window4(0.38, 0.42, 0.46, 0.52, u))
+    }
+    if (seg === 'thousands') {
+      handoff(u < 0.5 ? ramp(0.05, 0.25, u) : 1 - ramp(0.75, 0.95, u))
+      co.setTray(u < 0.45 ? 0.05 * ramp(0.15, 0.3, u) * (1 - ramp(0.3, 0.4, u)) : 0.02 * window4(0.45, 0.5, 0.56, 0.62, u))
+    }
+    if (seg === 'records' && st.record === 3) {
+      co.place(HANDOFF.x, HANDOFF.z, HANDOFF.yaw)
+    }
+    // The cup: on the tray, in his hand, or falling the last 4 cm.
+    const holder = st.who === 's' ? this.arifS : this.arifC
+    if (st.cupHand) {
+      cupOnTray = false
+      holder.figure.rGrip.getWorldPosition(this.v)
+      this.cup.position.set(this.v.x, this.v.y - 0.035, this.v.z)
+      this.cup.rotation.set(0, 0.6, 0)
+    }
+    co.group.updateMatrixWorld(true)
+    co.cupSpot.getWorldPosition(this.v2)
+    if (st.cupFall >= 0) {
+      cupOnTray = false
+      this.cup.position.set(this.v2.x, this.v2.y + 0.04 * (1 - st.cupFall * st.cupFall), this.v2.z)
+      this.cup.rotation.set(0, 0.6, 0)
+    }
+    if (cupOnTray) {
+      this.cup.position.copy(this.v2)
+      this.cup.rotation.set(0, co.yaw + 0.6, 0)
+    }
+    this.cup.visible = this.room.group.visible
+    // The recorder: follows him to the right door, back with the robots, and in the end follows him halfway.
+    if (p >= at('rise', 0.6) && p < at('forty', 0.25)) onPath(re, R.recOut, evalNumber(REC_FOLLOW, p))
+    else if (p >= at('forty', 0.25) && p < at('reopen', 0.8)) re.place(NICHES.recorder[0], NICHES.recorder[1], PI)
+    else if (p >= at('reopen', 0.8) && p < at('sits', 0.75)) onPath(re, R.recIn, evalNumber(REC_IN, p), Math.atan2(3.3, 0.6))
+    if (seg === 'halt') onPath(re, R.recHalt, ease(ramp(0.0, 0.55, u)), Math.atan2(2.5, -0.7))
+    if (p >= SEG.turn.start) re.place(-0.3, 1.9, Math.atan2(2.5, -0.7))
+    re.group.visible = !st.hideRecorder
+    // Its head: on Arif — until it turns to us.
+    const shown = st.who === 'c' ? this.arifC : st.who === 's' ? this.arifS : null
+    if (shown) shown.figure.joints.head.getWorldPosition(this.v3)
+    else this.v3.set(0, 1.2, 1.05)
+    if (st.recAim === 'camera' || st.recAway > 0) {
+      re.aim(this.v3, 1)
+      const yArif = re.head.rotation.y
+      const pArif = re.tilt.rotation.x
+      re.aim(shot.pos, 1)
+      const yCam = re.head.rotation.y
+      const pCam = re.tilt.rotation.x
+      const t = st.recAim === 'camera' ? 1 : ease(st.recAway)
+      re.head.rotation.y = angleLerp(yArif, yCam, t)
+      re.tilt.rotation.x = lerp(pArif, pCam, t)
+    } else re.aim(this.v3, 1)
+    // Rings: bright while working, dim after; the lens light never goes out.
+    co.setRing(st.ringLevel)
+    sn.setRing(st.ringLevel)
+    re.setRing(st.ringLevel)
+    // How much they move (for the wheels' sound).
+    const moved = Math.abs(co.x - this.lastRobots.x) + Math.abs(sn.x - this.lastRobots.y) + Math.abs(re.x - this.lastRobots.z)
+    this.motionInfo.robots = clamp(moved * 20)
+    this.lastRobots.set(co.x, sn.x, re.x)
+    void shot
+  }
+
+  /** The record frame's overlay, laid in front of the lens. */
+  private applyHud(shot: Shot, alt: boolean) {
+    const st = this.st
+    const hud = st.hud
+    const show = !!hud && !alt
+    this.hudVignette.visible = show
+    this.hudCode.mesh.visible = show && !!hud?.code1
+    this.hudGhost.visible = st.ghost > 0.001 && !alt && st.set === 'square'
+    if (!show && !this.hudGhost.visible) return
+    this.renderer.getSize(this.size)
+    const aspect = this.size.x / Math.max(1, this.size.y)
+    const fov = fitFov(shot.fov, aspect)
+    const d = 0.12
+    const h = 2 * d * Math.tan((fov * PI) / 360)
+    const w = h * aspect
+    const fwd = this.v.copy(shot.tgt).sub(shot.pos).normalize()
+    const right = this.v2.crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize()
+    const up = this.v3.crossVectors(right, fwd).normalize()
+    const place = (m: THREE.Mesh, x: number, y: number, sw: number, sh: number) => {
+      m.position.copy(shot.pos).addScaledVector(fwd, d).addScaledVector(right, x).addScaledVector(up, y)
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(right, up, fwd.clone().negate()))
+      m.scale.set(sw, sh, 1)
+    }
+    if (this.hudGhost.visible) {
+      place(this.hudGhost, 0, 0, w, h)
+      this.hudGhostMat.opacity = st.ghost
+    }
+    if (!show || !hud) return
+    place(this.hudVignette, 0, 0, w * 1.01, h * 1.01)
+    if (hud.code1) {
+      const key = hud.code1 + hud.code2
+      if (key !== this.hudCode.key) {
+        this.hudCode.key = key
+        drawTimecode(this.hudCode.ctx, 640, 100, hud.code1, hud.code2)
+        this.hudCode.tex.needsUpdate = true
+      }
+      const cw = w * 0.34
+      const ch = cw * (100 / 640)
+      place(this.hudCode.mesh, w / 2 - cw / 2 - w * 0.03, h / 2 - ch / 2 - h * 0.05, cw, ch)
+    }
+  }
+
+  private hideHud() {
+    this.hudVignette.visible = false
+    this.hudCode.mesh.visible = false
+    this.hudGhost.visible = false
+  }
+
+  private updateMotion(seg: SegmentId, u: number) {
+    const st = this.st
+    const a = st.who === 'c' ? this.arifC : st.who === 's' ? this.arifS : null
+    this.motionInfo.step = a ? a.step + this.stepBase : 0
+    this.motionInfo.walking = a ? a.walking : 0
+    this.motionInfo.doors = st.rightDoor + st.leftDoor
+    this.motionInfo.frame = st.set === 'square' ? st.era : st.record >= 0 ? 10 + st.record : 0
+    void seg
+    void u
   }
 
   motion(m: SceneInfo['motion']) {
-    m.walking = Math.max(this.arif.walking, this.selin.walking)
-    m.step = this.arif.walking > this.selin.walking ? this.arif.step : this.selin.step
-    // The sound needs to know where the cup went (see tekerrur/audio).
-    m.frame = this.way === 'kitchen' ? 1 : this.way === 'drawer' ? 2 : 0
+    m.step = this.motionInfo.step
+    m.walking = this.motionInfo.walking
+    m.robots = this.motionInfo.robots
+    m.doors = this.motionInfo.doors
+    m.frame = this.motionInfo.frame
   }
 
   dispose() {
-    for (const s of [this.main, this.left, this.right, this.wall, this.selinScreen, this.hallScreen, this.phoneScreen]) s?.texture.dispose()
-    for (const mat of Object.values(this.pal)) {
-      for (const v of Object.values(mat)) if (v instanceof THREE.Texture) v.dispose()
-      mat.dispose()
-    }
+    this.room.dispose()
+    this.rt.dispose()
+    this.windowTex.dispose()
   }
 }
 
-/** An ince belli çay bardağı on its saucer, tea inside. Built at the group's origin (saucer on y = 0). */
-function turnedGlass(g: THREE.Group, glass: THREE.Material, tea: THREE.Material, saucer: THREE.Material) {
-  const prof = (scale: number) =>
-    [
-      [0.0, 0.0],
-      [0.022, 0.0],
-      [0.026, 0.01],
-      [0.02, 0.045],
-      [0.024, 0.075],
-      [0.03, 0.1],
-    ].map(([r, y]) => new THREE.Vector2(r * scale, y))
-  mesh(new THREE.LatheGeometry(prof(1), 32), glass, 0, 0.012, 0, g)
-  mesh(new THREE.LatheGeometry(prof(0.92).slice(0, 5), 32), tea, 0, 0.014, 0, g)
-  mesh(
-    new THREE.LatheGeometry(
-      [
-        [0, 0],
-        [0.05, 0.0],
-        [0.058, 0.008],
-        [0.06, 0.012],
-        [0.03, 0.006],
-        [0, 0.006],
-      ].map(([r, y]) => new THREE.Vector2(r, y)),
-      40,
-    ),
-    saucer,
-    0,
-    0,
-    0,
-    g,
-  )
-  // Two sugar cubes on the saucer.
-  box(0.012, 0.012, 0.012, saucer, 0.04, 0.012, 0.0, g)
-  box(0.012, 0.012, 0.012, saucer, 0.038, 0.012, 0.016, g)
+/** The scene; the wrapper hands the director each pass's iteration (dates and numbers advance on every loop). */
+export const createTekerrurScene = (options: SceneOptions): StoryScene => {
+  const director = new TekerrurDirector()
+  const inner = createSetScene(director, options)
+  return {
+    get info() {
+      return inner.info
+    },
+    init: (stage) => inner.init(stage),
+    render: (frame) => {
+      director.iteration = frame.iteration || BASE_ITERATION
+      inner.render(frame)
+    },
+    dispose: () => inner.dispose(),
+  }
 }
-
-export const createTekerrurScene = (options: SceneOptions): StoryScene => createSetScene(new TekerrurDirector(), options)

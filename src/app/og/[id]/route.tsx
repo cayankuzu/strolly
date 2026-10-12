@@ -27,12 +27,12 @@ function Brand() {
       }}
     >
       <div style={{ fontSize: 84, letterSpacing: 40, fontWeight: 300, paddingLeft: 40 }}>STROLLY</div>
-      {/* Six titles do not fit one line at this size: two rows of three. */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 56, fontSize: 20, letterSpacing: 10, opacity: 0.55 }}>
-        {[STORY_ORDER.slice(0, 3), STORY_ORDER.slice(3)].map((row, r) => (
-          <div key={r} style={{ display: 'flex', marginTop: r ? 18 : 0, paddingLeft: 10 }}>
+      {/* The titles in rows of three. */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 48, fontSize: 18, letterSpacing: 8, opacity: 0.55 }}>
+        {Array.from({ length: Math.ceil(STORY_ORDER.length / 3) }, (_, r) => STORY_ORDER.slice(r * 3, r * 3 + 3)).map((row, r) => (
+          <div key={r} style={{ display: 'flex', marginTop: r ? 14 : 0, paddingLeft: 8 }}>
             {row.map((id, i) => (
-              <div key={id} style={{ display: 'flex', marginLeft: i ? 40 : 0 }}>
+              <div key={id} style={{ display: 'flex', marginLeft: i ? 34 : 0 }}>
                 {String(r * 3 + i + 1).padStart(2, '0')} {STORIES[id].meta.title}
               </div>
             ))}
@@ -55,11 +55,14 @@ function Credit() {
 
 const OG_THEME: Record<StoryTheme, { bg: string; fg: string; accent: string; round: boolean }> = {
   archival: { bg: 'radial-gradient(ellipse at 50% 120%, #1a2230 0%, #050505 62%)', fg: '#ece8e1', accent: '#d6463a', round: false },
-  memory: { bg: 'radial-gradient(ellipse at 70% 30%, #6d5440 0%, #1a130e 60%, #0b0806 100%)', fg: '#f4ebdd', accent: '#e0a35c', round: true },
   clinical: { bg: 'radial-gradient(ellipse at 50% 0%, #cdd6da 0%, #4a5459 45%, #0d1113 100%)', fg: '#f2f6f7', accent: '#d44a35', round: true },
   temporal: { bg: 'radial-gradient(ellipse at 50% 70%, #3a2a18 0%, #0b0d12 65%)', fg: '#f3e6d4', accent: '#ffb766', round: false },
-  uncertain: { bg: 'radial-gradient(ellipse at 35% 60%, #4a3826 0%, #17130f 65%)', fg: '#efe3d1', accent: '#ff5a3c', round: true },
-  perception: { bg: 'radial-gradient(ellipse at 50% 100%, #1b2638 0%, #05070c 65%)', fg: '#e6ecf7', accent: '#8fb8ff', round: true },
+  cosmic: { bg: 'radial-gradient(ellipse at 50% 110%, #231c40 0%, #040309 62%)', fg: '#ece8f6', accent: '#b9a4ff', round: true },
+  chalk: { bg: 'radial-gradient(ellipse at 50% 40%, #2f3b2c 0%, #0b0f0a 70%)', fg: '#f2efe4', accent: '#e8d36a', round: false },
+  dread: { bg: 'radial-gradient(ellipse at 30% 60%, #2a1a12 0%, #050302 65%)', fg: '#ece2d6', accent: '#c0402f', round: false },
+  vertigo: { bg: 'radial-gradient(ellipse at 50% 0%, #4a3324 0%, #0a0c10 68%)', fg: '#f1ece4', accent: '#ff9b54', round: true },
+  neural: { bg: 'radial-gradient(ellipse at 50% 50%, #0f2a2c 0%, #020606 66%)', fg: '#e9f2f1', accent: '#ff5a7a', round: true },
+  state: { bg: 'radial-gradient(ellipse at 50% 120%, #1a2230 0%, #050505 62%)', fg: '#e6ecf2', accent: '#e2b062', round: false },
 }
 
 function Story({ id }: { id: StoryId }) {

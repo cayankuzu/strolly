@@ -14,7 +14,8 @@ import { createInfo, type FrameInput, type SceneInfo, type SceneOptions, type St
 import { applyLook, type Look, type LookRequest } from '../look'
 import { fitFov } from '../lens'
 import { disposeTree } from '../util'
-import { applyMetricUVs } from './surfaces'
+import { applyMetricUVs, preloadSurfaces, type SurfaceKind } from './surfaces'
+import { loadEnvironment, loadModel, loadModels, loadPanorama, type HdriId, type ModelId, type ModelOptions, type PanoramaId } from './assets'
 
 export type SetFrame = {
   p: number
@@ -47,7 +48,20 @@ export type Shot = {
 
 export const makeShot = (): Shot => ({ pos: new THREE.Vector3(), tgt: new THREE.Vector3(0, 0, -1), fov: 40, fade: 1, locked: false, limits: null, request: null, handheld: 1 })
 
-export type BuildContext = { quality: Quality; environment: THREE.Texture; renderer: THREE.WebGLRenderer }
+export type BuildContext = {
+  quality: Quality
+  /** The stage's neutral studio environment (always available). */
+  environment: THREE.Texture
+  renderer: THREE.WebGLRenderer
+  /** A real HDR environment (prefiltered) — `null` if it failed; fall back to `environment`. */
+  hdri: (id: HdriId) => Promise<THREE.Texture | null>
+  /** A CC0 model, placed at its footprint — `null` if it failed; keep a procedural stand-in. */
+  model: (id: ModelId, opts?: ModelOptions) => Promise<THREE.Group | null>
+  models: typeof loadModels
+  panorama: (id: PanoramaId) => Promise<THREE.Texture | null>
+  /** Scanned surfaces beyond the common set (rock, gravel, sand, tileWorn), loaded before `pbr()` is called with them. */
+  surfaces: (kinds: SurfaceKind[]) => Promise<void>
+}
 
 export interface SetDirector {
   build(scene: THREE.Scene, ctx: BuildContext): void | Promise<void>
@@ -56,6 +70,61 @@ export interface SetDirector {
   /** Optional: what the sound follows. */
   motion?(info: SceneInfo['motion']): void
   dispose(): void
+}
+
+/**
+ * Development check: what the camera is inside of or touching right now —
+ * small solid meshes (props, furniture, instanced pieces) whose world box the
+ * camera enters or comes within the near plane of, and figures whose joints
+ * it is closer to than a body is wide. Rooms, floors and big walls are
+ * skipped (being inside them is the point). Read through
+ * `globalThis.__strollyClips()` by the headless QA tools.
+ */
+function clipReport(scene: THREE.Scene, camera: THREE.Camera) {
+  const c = camera.getWorldPosition(new THREE.Vector3())
+  const box = new THREE.Box3()
+  const size = new THREE.Vector3()
+  const m4 = new THREE.Matrix4()
+  const p = new THREE.Vector3()
+  const hits: Array<{ what: string; d: number }> = []
+  const named = (o: THREE.Object3D) => {
+    let x: THREE.Object3D | null = o
+    while (x && !x.name) x = x.parent
+    return x?.name || o.type
+  }
+  const test = (what: string, b: THREE.Box3) => {
+    b.getSize(size)
+    const max = Math.max(size.x, size.y, size.z)
+    if (max > 4 || max < 0.03) return
+    const d = b.distanceToPoint(c)
+    if (d < 0.08) hits.push({ what, d: +d.toFixed(3) })
+  }
+  scene.traverseVisible((o) => {
+    const m = o as THREE.Mesh
+    if (!m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh) return
+    const mat = (Array.isArray(m.material) ? m.material[0] : m.material) as THREE.Material & { opacity?: number }
+    if (mat?.transparent && (mat.opacity ?? 1) < 0.35) return
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox()
+    const inst = m as unknown as THREE.InstancedMesh
+    if (inst.isInstancedMesh) {
+      for (let i = 0; i < Math.min(inst.count, 400); i++) {
+        inst.getMatrixAt(i, m4)
+        box.copy(m.geometry.boundingBox!).applyMatrix4(m4.premultiply(m.matrixWorld))
+        test(`${named(m)}#${i}`, box)
+      }
+    } else test(named(m), box.copy(m.geometry.boundingBox!).applyMatrix4(m.matrixWorld))
+  })
+  // People: the camera is inside a body when it is nearer to a joint than the body is thick there.
+  const R: Record<string, number> = { head: 0.13, neck: 0.1, chest: 0.2, spine: 0.18, hips: 0.18 }
+  scene.traverseVisible((o) => {
+    const b = o as THREE.Bone
+    if (!b.isBone || !(b.name in R)) return
+    const d = b.getWorldPosition(p).distanceTo(c)
+    let root: THREE.Object3D | null = b
+    while (root && ((root as THREE.Bone).isBone || !root.name)) root = root.parent
+    if (d < R[b.name]) hits.push({ what: `figure:${root?.name ?? '?'}:${b.name}`, d: +d.toFixed(3) })
+  })
+  return hits
 }
 
 const frustum = new THREE.Frustum()
@@ -94,8 +163,20 @@ class SetScene implements StoryScene {
 
   async init(stage: Stage) {
     this.stage = stage
+    if (process.env.NODE_ENV !== 'production') (globalThis as { __strollyClips?: () => unknown }).__strollyClips = () => clipReport(this.scene, this.camera)
     this.scene.background = new THREE.Color(0x000000)
-    await this.director.build(this.scene, { quality: stage.quality, environment: stage.environment, renderer: stage.renderer })
+    // Scanned surfaces first: every pbr() material made during build uses them.
+    await preloadSurfaces()
+    await this.director.build(this.scene, {
+      quality: stage.quality,
+      environment: stage.environment,
+      renderer: stage.renderer,
+      hdri: (id) => loadEnvironment(id, stage.renderer),
+      model: loadModel,
+      models: loadModels,
+      panorama: loadPanorama,
+      surfaces: preloadSurfaces,
+    })
     // Procedural surfaces keep their real-world scale on every object.
     applyMetricUVs(this.scene)
     // Compile and upload everything once, off-screen, so no set stalls on first sight.
