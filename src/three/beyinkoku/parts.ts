@@ -10,6 +10,9 @@ import { mulberry32 } from '@/lib/math'
 import { rbox, rgeo, tube } from '../kit/props'
 import { cyl, mesh } from '../util'
 
+/** Merge input: indexed geometries are flattened, the rest pass through. */
+const flat = (g: THREE.BufferGeometry) => (g.index ? g.toNonIndexed() : g)
+
 type M = THREE.Material
 
 export type Hole = { at: number; width: number; bottom?: number; height: number }
@@ -275,14 +278,14 @@ export function rockingChairGeometry() {
     if (rx) g.rotateX(rx)
     if (rz) g.rotateZ(rz)
     g.translate(x, y, z)
-    parts.push(g.index ? g.toNonIndexed() : g)
+    parts.push(flat(g))
   }
   for (const sx of [-0.24, 0.24]) {
     const rocker = new THREE.TorusGeometry(1.2, 0.018, 6, 24, 0.62)
     rocker.rotateZ(-Math.PI / 2 - 0.31)
     rocker.rotateY(Math.PI / 2)
     rocker.translate(sx, 1.22, 0)
-    parts.push(rocker.toNonIndexed())
+    parts.push(flat(rocker))
     add(rgeo(0.035, 0.42, 0.035, 0.008), sx, 0.22, 0.2)
     add(rgeo(0.035, 1.05, 0.035, 0.008), sx, 0.5, -0.2, -0.12)
     add(rgeo(0.04, 0.03, 0.46, 0.008), sx, 0.62, 0.02)
@@ -308,7 +311,7 @@ export function houseGeometries(w = 9, d = 7.5) {
     if (rx) g.rotateX(rx)
     if (ry) g.rotateY(ry)
     g.translate(x, y, z)
-    list.push(g.index ? g.toNonIndexed() : g)
+    list.push(flat(g))
   }
   const H = 3.0
   put(walls, rgeo(w, H, d, 0.05), 0, H / 2, 0)
@@ -327,7 +330,7 @@ export function houseGeometries(w = 9, d = 7.5) {
     const gg = new THREE.ShapeGeometry(gable)
     gg.rotateY(sx * Math.PI / 2)
     gg.translate(sx * (w / 2 + 0.002), H, 0)
-    walls.push(gg.toNonIndexed())
+    walls.push(flat(gg))
   }
   // Windows on the front (+z) and sides; the door.
   const win = (x: number, z: number, ry: number, ww = 1.2, wh = 1.4) => {
@@ -342,14 +345,14 @@ export function houseGeometries(w = 9, d = 7.5) {
       p.translate(sx * (ww / 2 + 0.04), 0, 0)
       p.rotateY(ry)
       p.translate(x, 1.75, z)
-      trim.push(p.toNonIndexed())
+      trim.push(flat(p))
     }
     for (const sy of [-1, 1]) {
       const p = rgeo(ww + 0.24, 0.08, 0.08, 0.015)
       p.translate(0, sy * (wh / 2 + 0.04), 0)
       p.rotateY(ry)
       p.translate(x, 1.75, z)
-      trim.push(p.toNonIndexed())
+      trim.push(flat(p))
     }
     void fr
   }
@@ -380,12 +383,12 @@ export function mailboxGeometry() {
   const parts: THREE.BufferGeometry[] = []
   const post = rgeo(0.08, 1.05, 0.08, 0.01)
   post.translate(0, 0.52, 0)
-  parts.push(post.toNonIndexed())
+  parts.push(flat(post))
   const boxG = new THREE.CapsuleGeometry(0.11, 0.3, 4, 12)
   boxG.rotateX(Math.PI / 2)
   boxG.scale(1, 0.9, 1)
   boxG.translate(0, 1.15, 0)
-  parts.push(boxG.toNonIndexed())
+  parts.push(flat(boxG))
   const g = mergeGeometries(parts)
   parts.forEach((p) => p.dispose())
   return g

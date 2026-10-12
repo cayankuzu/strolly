@@ -186,7 +186,7 @@ export class Street {
     road.receiveShadow = true
     for (const [x, w] of [
       [79.75, 2.5],
-      [89.75, 3.5],
+      [90.75, 5.5],
     ] as const) {
       const sw = box(w, 0.14, len, paving, x, 0.07, zc, g)
       sw.receiveShadow = true
@@ -233,14 +233,14 @@ export class Street {
           continue
         }
         const f = facade({ w, h, d: 10, wall: walls[Math.floor(rand() * walls.length)], facing: side < 0 ? 1 : -1, seed: Math.floor(rand() * 1000), lit: 0.45 })
-        f.position.set(side < 0 ? 73.5 : 96.5, 0, z - w / 2)
+        f.position.set(side < 0 ? 73.5 : 98.5, 0, z - w / 2)
         g.add(f)
         z -= w + 0.4
       }
     }
     // A block across the street at the very start, behind the tower's exit.
     const across = facade({ w: 24, h: 30, d: 10, wall: walls[1], facing: -1, seed: 5, lit: 0.45 })
-    across.position.set(96.5, 0, 8)
+    across.position.set(98.5, 0, 8)
     g.add(across)
     const far = facade({ w: 30, h: 40, d: 10, wall: walls[4], facing: 1, seed: 6, lit: 0.4 })
     far.rotation.y = -PI / 2
@@ -282,29 +282,37 @@ export class Street {
     const parkedGlass = new THREE.MeshPhysicalMaterial({ color: 0x1a2229, roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.55, depthWrite: false })
     const tire = pbr('rubber', 0x121314)
     const light = new THREE.MeshBasicMaterial({ color: 0xc8c0b0 })
+    // Parked cars along the left kerb (the lane Arif's own car waits in; he drives in the lane beside it).
     for (let i = 0; i < 12; i++) {
-      const c = car(pbr('painted', carCols[i % carCols.length], { roughness: 0.35, metalness: 0.5 }), parkedGlass, tire, light)
-      const side = i % 2 ? 1 : -1
       const z = -8 - i * 13 - rand() * 4
-      if (side < 0 && z > -14) continue
-      c.position.set(side < 0 ? 82.0 : 87.0, 0, z)
+      if (z > -14) continue
+      const c = car(pbr('painted', carCols[i % carCols.length], { roughness: 0.35, metalness: 0.5 }), parkedGlass, tire, light)
+      c.position.set(82.0, 0, z)
       c.rotation.y = PI
+      c.name = 'parkedCar'
       g.add(c)
     }
-    // Moving traffic: cars ahead, headlights on.
+    // Moving traffic, all of it faster than Arif: two ahead in his lane pulling away, two in the left lane passing him.
     const head = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.5, 1.3) })
+    const flow: Array<[number, number, number]> = [
+      [84.1, 1.1, -18],
+      [86.3, 1.32, 12],
+      [84.1, 1.06, -48],
+      [86.3, 1.22, -30],
+    ]
     for (let i = 0; i < 4; i++) {
       const c = car(pbr('painted', carCols[(i + 2) % carCols.length], { roughness: 0.35, metalness: 0.5 }), parkedGlass, tire, head)
       const wrap = new THREE.Group()
       wrap.add(c)
       c.rotation.y = PI
+      c.name = 'trafficCar'
       g.add(wrap)
-      this.traffic.push({ g: wrap, lane: i % 2 ? 86.2 : 84.0, speed: 0.75 + i * 0.07, z0: -14 - i * 22 })
+      this.traffic.push({ g: wrap, lane: flow[i][0], speed: flow[i][1], z0: flow[i][2] })
     }
-    // The billboard.
+    // The billboard: on the wide right sidewalk, turned to the oncoming lane, far enough down the street to come up ahead of the car in `dusk`.
     this.billboard = new THREE.Group()
-    this.billboard.position.set(90.5, 0, -60)
-    this.billboard.rotation.y = -0.64
+    this.billboard.position.set(90.3, 0, -82)
+    this.billboard.rotation.y = -0.3
     g.add(this.billboard)
     for (const sx of [-1.8, 1.8]) cyl(0.12, 0.14, 6.5, pole, sx, 3.25, -0.2, this.billboard, 12)
     rbox(6.3, 3.3, 0.25, std(0x1a1c1f, 0.6), 0, 6, -0.15, this.billboard, 0.02)

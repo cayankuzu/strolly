@@ -10,7 +10,7 @@
 import * as THREE from 'three'
 import { clamp, lerp } from '@/lib/math'
 import { makePath } from '../../figure/paths'
-import { keyed, type Actor, type ShotKeys } from '../../kit/direct'
+import { keyed, type Actor } from '../../kit/direct'
 import { pbr } from '../../kit/surfaces'
 import { box, cyl, mesh } from '../../util'
 import { PI, DEG, rng, ss, win, canvasTexture, setInstance, type Ctx, type Dir, type PSet } from '../common'

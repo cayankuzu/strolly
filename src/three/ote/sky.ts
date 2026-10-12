@@ -362,7 +362,15 @@ export class Sky {
       blending: THREE.AdditiveBlending,
       uniforms: { uSize: { value: 3 }, uA: { value: 1 } },
       vertexShader: `uniform float uSize; void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_PointSize = uSize; }`,
-      fragmentShader: `uniform float uA; void main(){ float r = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.15, r); gl_FragColor = vec4(vec3(0.5, 0.75, 1.0) * a * uA * 1.6, 1.0); }`,
+      // A pale blue point with a soft halo while it is still "the dot"; a bare pixel once it is one star among the others.
+      fragmentShader: `uniform float uA; uniform float uSize;
+        void main(){
+          float r = length(gl_PointCoord - 0.5) * 2.0;
+          float core = smoothstep(0.55, 0.16, r);
+          float halo = smoothstep(1.0, 0.2, r) * 0.6 * step(3.5, uSize);
+          vec3 col = vec3(0.6, 0.78, 1.0) * (core * 1.7 + halo);
+          gl_FragColor = vec4(col * uA, 1.0);
+        }`,
     })
     const dg = new THREE.BufferGeometry()
     dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0]), 3))
@@ -473,7 +481,7 @@ export class Sky {
     this.ringMesh.scale.setScalar(ringScale)
     // Earth (or, with eyes closed, the memory of it: large, near, lit, over everything)
     const mem = s.memory > 0.001
-    const deg = mem ? 34 : s.earth
+    const deg = mem ? 26 : s.earth
     const rad = (deg * Math.PI) / 360
     this.earth.visible = mem || s.earth > 0.25
     if (this.earth.visible) {

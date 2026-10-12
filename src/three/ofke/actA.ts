@@ -4,7 +4,7 @@
  * the drive at dusk.
  */
 import * as THREE from 'three'
-import { lerp, smoothstep } from '@/lib/math'
+import { lerp } from '@/lib/math'
 import type { SetFrame, Shot } from '../kit/SetScene'
 import { held, keyed, type Actor, type ShotKeys } from '../kit/direct'
 import { addWalk, blendPose } from '../figure/Figure'
@@ -23,9 +23,9 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [-0.08, 1.46, -1.3, 0.0, 1.22, 6.2, 24]],
   ],
   rise: [
-    [0, [-1.6, 1.38, 3.55, 0, 1.15, 5.9, 40]],
-    [0.5, [-1.55, 1.42, 3.6, 0, 1.5, 6.0, 40]],
-    [1, [-1.45, 1.45, 3.75, 0, 1.52, 6.0, 38]],
+    [0, [-2.0, 1.38, 4.55, 0, 1.15, 5.9, 40]],
+    [0.5, [-1.95, 1.42, 4.6, 0, 1.5, 6.0, 40]],
+    [1, [-1.85, 1.45, 4.72, 0, 1.52, 6.0, 38]],
   ],
   look: [
     [0, [0.55, 1.78, 6.85, -4, 1.05, 1.5, 45]],
@@ -99,6 +99,9 @@ const P_TO_LIFT = makePath([
   [-5.2, 2.9],
   [-6.05, 2.25],
 ])
+
+/** From the parking lane (x 82.2) into the road's right lane for the drive. */
+const LANE_DX = 1.9
 
 const DESKS: Array<[number, number]> = []
 for (const z of [0.6, 3.0]) for (const x of [-3.9, -1.6, 1.6, 3.9]) DESKS.push([x, z])
@@ -594,10 +597,16 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   L.setHemi(0x8f7ab0, 0x4a3a30, 0.45)
   L.setSun(0xffa070, 1.1, [CAR.x - 60, 14, 26], [CAR.x, 0, -10], 30)
   let dz = 0
-  if (seg === 'dusk') dz = -92 * ss(0, 1, u) - 1.5 * u
+  let dx = 0
+  if (seg === 'dusk') {
+    dz = -92 * ss(0, 1, u) - 1.5 * u
+    // Out of the parking lane into the road's right lane as he pulls away.
+    dx = LANE_DX * ss(0, 0.14, u)
+  }
   if (seg === 'car') dz = 0
+  const cx = CAR.x + dx
   w.carHolder.visible = true
-  w.carHolder.position.set(CAR.x, 0, CAR.z + dz)
+  w.carHolder.position.set(cx, 0, CAR.z + dz)
   w.carHolder.rotation.y = 0
   // Inside the car the kit's solid shell would cut the cabin: swap it for the thin inner body.
   const inside = seg !== 'car' || u >= 0.5
@@ -612,9 +621,9 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   const cz = CAR.z + dz
   const near = [...st.lampPositions].sort((p, q) => Math.abs(p.z - cz) - Math.abs(q.z - cz)).slice(0, 4)
   near.forEach((p, i) => L.setPoint(i, 0xffc890, 26 * lampOn, [p.x, p.y, p.z], 18))
-  L.setPoint(4, 0x9fe8dc, seg === 'car' && u < 0.5 ? 0 : 0.5, [CAR.x - 0.05, 1.15, cz - 0.4], 1.5)
-  // Traffic ahead.
-  for (const tr of st.traffic) tr.g.position.set(tr.lane, 0, tr.z0 + dz * tr.speed - (seg === 'dusk' ? 0 : 0))
+  L.setPoint(4, 0x9fe8dc, seg === 'car' && u < 0.5 ? 0 : 0.5, [cx - 0.05, 1.15, cz - 0.4], 1.5)
+  // Traffic: all of it faster than Arif, so nothing ahead is ever caught up with.
+  for (const tr of st.traffic) tr.g.position.set(tr.lane, 0, tr.z0 + dz * tr.speed)
   const a = w.use(w.cast.arifJ)
   const card = car.card
   card.visible = true
@@ -654,25 +663,28 @@ function road(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   }
   car.door.rotation.y = 0
   st.setDoor(0)
-  a.place(81.8, cz + 0.22, PI).hold(C.DRIVE)
+  a.place(cx - 0.4, cz + 0.22, PI).hold(C.DRIVE)
   if (seg === 'route') {
     const typed = sub(u, 0.1, 0.4)
     const lit = sub(u, 0.4, 0.6)
     car.screen.redraw((c, W, H) => S.route(c, W, H, typed, lit), `r:${Math.floor(typed * 11)}:${Math.round(lit * 20)}`)
-    a.reach('l', 1, 81.63, 0.97, cz - 0.28, 0.5)
-    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), 82.2 + 0.03 * Math.sin(f.time * 7), 1.04, cz - 0.6, 0.3)
+    a.reach('l', 1, cx - 0.57, 0.97, cz - 0.28, 0.5)
+    a.reach('r', win(u, 0.0, 0.08, 0.4, 0.48), cx + 0.03 * Math.sin(f.time * 7), 1.04, cz - 0.6, 0.3)
     w.apply(f.time)
     keyed(KEYS.route!, held(u, f.reduced), shot)
   } else {
     car.screen.redraw((c, W, H) => S.route(c, W, H, 1, 1), 'r:done')
-    a.reach('l', 1, 81.63, 0.97, cz - 0.28, 0.5)
-    a.reach('r', 1, 81.97, 0.97, cz - 0.28, 0.5)
+    a.reach('l', 1, cx - 0.57, 0.97, cz - 0.28, 0.5)
+    a.reach('r', 1, cx - 0.23, 0.97, cz - 0.28, 0.5)
     w.apply(f.time)
     w.mouth(a, speech(f.time, 0.3))
-    // His profile from the passenger seat; the view swings to the billboard as it passes.
-    const look = win(u, 0.36, 0.46, 0.58, 0.66)
-    shot.pos.set(82.64, 1.2, cz + 0.16)
-    shot.tgt.set(81.8, 1.16, cz + 0.12).lerp(v.set(83.6, 2.4, cz - 6), look * 0.9)
-    shot.fov = 40
+    // His profile from the passenger seat; the view swings ahead to the billboard as it comes up on the right.
+    const look = win(u, 0.44, 0.54, 0.66, 0.74)
+    shot.pos.set(cx + 0.44 + 0.16 * look, 1.2, cz + 0.16)
+    const toFace = v.set(cx - 0.4, 1.16, cz + 0.12).sub(shot.pos).normalize()
+    const toSign = v2.set(st.billboard.position.x, 4.6, st.billboard.position.z).sub(shot.pos).normalize()
+    toFace.lerp(toSign, look).normalize()
+    shot.tgt.copy(shot.pos).addScaledVector(toFace, 3)
+    shot.fov = lerp(40, 32, look)
   }
 }

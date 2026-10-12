@@ -20,8 +20,9 @@ import { createSetScene, type BuildContext, type SetDirector, type SetFrame, typ
 import { held, keyed, type ShotKeys } from '../kit/direct'
 import { JOINTS, type Pose } from '../figure/Figure'
 import { disposeTree, mesh } from '../util'
-import { rbox } from '../kit/props'
+import { canvasPlane, rbox } from '../kit/props'
 import { palette, type Pal } from './materials'
+import { drawEnvelope } from './screens'
 import { device, dress, person, type Device, type Person, type Spec } from './cast'
 import { Lab } from './lab'
 import { Suburb } from './suburb'
@@ -96,6 +97,12 @@ export class Director implements SetDirector {
   waterArc!: THREE.Mesh
   cuffGhost!: THREE.Mesh
   heroHolders: THREE.Group[] = []
+  /** The envelope in Levy's hand (the Centre's reception). */
+  envelopeHand!: ReturnType<typeof canvasPlane>
+  /** Where the pen lies on the desk when nobody holds it. */
+  penRest = { pos: new THREE.Vector3(), rot: new THREE.Euler() }
+  /** Levy's own scar material (it darkens on Tuesday). */
+  levyScar!: THREE.MeshStandardMaterial
   // Frame state
   f!: SetFrame
   seg: SegmentId = 'open'
@@ -160,9 +167,85 @@ export class Director implements SetDirector {
     // The translucent steel cuff that flashes round his wrist.
     this.cuffGhost = mesh(new THREE.TorusGeometry(0.05, 0.012, 8, 24), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.7, 1.9), transparent: true, opacity: 0.55, depthWrite: false }), 0, 0, 0, this.world)
     this.cuffGhost.visible = false
+    // Levy's scar is his own (Tuesday darkens it); the real body's head is shaved.
+    if (this.levy.scar) {
+      this.levyScar = (p.scar as THREE.MeshStandardMaterial).clone()
+      this.levy.scar.material = this.levyScar
+    }
+    this.real.figure.headMeshes[1].visible = false
+    // The television shows the studio's picture.
+    const tvMat = this.sub.tvScreen.material as THREE.MeshBasicMaterial
+    tvMat.map = this.tv.rt.texture
+    tvMat.color.setScalar(1)
+    // The ghost of the procedure chair, over the stretcher.
+    this.lab.ghostChair.position.set(500, 0, 2.95)
+    this.lab.ghostChair.rotation.y = Math.PI
+    this.world.add(this.lab.ghostChair)
+    // The envelope Levy carries into the Centre.
+    this.envelopeHand = canvasPlane(0.22, 0.11, 256, (c, W, H) => drawEnvelope(c, W, H))
+    this.world.add(this.envelopeHand.mesh)
+    this.penRest.pos.copy(this.lab.pen.position)
+    this.penRest.rot.copy(this.lab.pen.rotation)
+    this.sub.mirror.visible = false
+    this.gr.mirror.visible = false
     // Compile the studio once, off-screen.
     this.tv.render(ctx.renderer, 0, 0)
     for (const g of this.groups()) g.visible = true
+  }
+
+  /** Every prop back to its resting state; the acts switch on what their moment needs. */
+  private resetProps() {
+    const { lab, sub, arc, cen, f2, gr, pal } = this
+    sub.bus.visible = false
+    sub.mirror.visible = false
+    sub.bedSoilWet.visible = false
+    sub.bedSoil.visible = true
+    sub.envelope.mesh.visible = false
+    sub.envelopeOnTable.mesh.visible = false
+    sub.letter.mesh.visible = false
+    sub.phone.visible = false
+    sub.remote.visible = false
+    sub.cup.visible = false
+    sub.canHeld.visible = false
+    sub.canOnSteps.visible = false
+    sub.bird.visible = false
+    sub.drop.visible = false
+    sub.dogParts.group.visible = false
+    for (const b of sub.bikes) b.visible = false
+    sub.tvOverlay.mesh.visible = false
+    sub.shirtOnChair.visible = false
+    ;(sub.tvScreen.material as THREE.MeshBasicMaterial).color.setScalar(0)
+    sub.frontDoor.rotation.y = 0
+    sub.curtains(1)
+    ;(pal.sky as THREE.MeshBasicMaterial).color.setScalar(1)
+    arc.spoonLevy.visible = false
+    arc.spoonKadin.visible = false
+    cen.stairDoor.rotation.y = 0
+    cen.doorL.position.x = 299.4
+    cen.doorR.position.x = 300.6
+    cen.cup.visible = false
+    cen.stream.visible = false
+    cen.spill.visible = false
+    cen.smallDoor.rotation.y = 0
+    cen.formOnKnee.mesh.visible = false
+    cen.formHanded.mesh.visible = false
+    cen.ripple.visible = false
+    f2.roomDoor.rotation.y = 0
+    f2.light(() => true)
+    gr.mirror.visible = false
+    for (const m of Object.values(gr.screenMats)) m.color.setScalar(1)
+    lab.ghostChair.visible = false
+    lab.cartridge.visible = false
+    lab.lamp31.material = pal.lampFace
+    lab.lamp32.material = pal.lampFace
+    lab.layCables([], false)
+    lab.openHalo(0)
+    lab.setStrip(0)
+    lab.signal.mesh.visible = false
+    lab.pen.position.copy(this.penRest.pos)
+    lab.pen.rotation.copy(this.penRest.rot)
+    this.envelopeHand.mesh.visible = false
+    this.levyScar?.color.setHex(0xead2c4)
   }
 
   // ——— The cast ———
@@ -328,9 +411,11 @@ export class Director implements SetDirector {
     this.stains.visible = false
     this.apron.visible = true
     for (const h of this.heroHolders) h.visible = true
+    this.resetProps()
     this.lab.tick(f.time)
     this.sub.rock(f.time)
     this.gr.tick(f.time)
+    shot.handheld = 0.3
 
     let done = false
     for (const act of [actLab, actSuburb, actCentre, actFloor, actRoom] as Act[]) {

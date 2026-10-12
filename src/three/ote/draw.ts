@@ -6,10 +6,38 @@
  * motif, the thin-line keyhole.
  */
 import { mulberry32 } from '@/lib/math'
-import { mono, sans, spaced } from '../screens'
+import { mono, sans, spaced as spacedRaw } from '../screens'
+import { T, num } from './lang'
 
 type Ctx = CanvasRenderingContext2D
 const SERIF = 'Georgia, "Times New Roman", serif'
+
+/** Shrinks the current font until `text` (with `spacing` px between letters) is no wider than `maxW`. */
+function fitFont(ctx: Ctx, text: string, maxW: number, spacing = 0) {
+  const m = /(\d+(?:\.\d+)?)px/.exec(ctx.font)
+  if (!m) return
+  const ls = ctx.letterSpacing
+  ctx.letterSpacing = '0px'
+  let size = parseFloat(m[1])
+  const width = () => ctx.measureText(text).width + spacing * Math.max(0, text.length - 1)
+  for (let i = 0; i < 16 && width() > maxW && size > 5; i++) {
+    size *= 0.94
+    ctx.font = ctx.font.replace(/\d+(?:\.\d+)?px/, `${size.toFixed(1)}px`)
+  }
+  ctx.letterSpacing = ls
+}
+
+/**
+ * Letter-spaced text that never runs off its canvas: the room at `x` (per `textAlign`) is
+ * measured and the font shrinks to fit it — the English strings are often longer than the Turkish.
+ */
+function spaced(ctx: Ctx, text: string, x: number, y: number, spacing: number) {
+  const W = ctx.canvas.width
+  const pad = W * 0.035
+  const room = ctx.textAlign === 'center' ? 2 * Math.min(x, W - x) - 2 * pad : ctx.textAlign === 'right' ? x - pad : W - x - pad
+  fitFont(ctx, text, room, spacing)
+  spacedRaw(ctx, text, x, y, spacing)
+}
 
 /** The company's emblem: a thin circle over a narrow trapezoid. `r` is the circle's radius. */
 export function keyhole(ctx: Ctx, cx: number, cy: number, r: number, color: string, lw: number, filled = false) {
@@ -85,9 +113,9 @@ export function drawLastPage(signed: number) {
     ctx.fillStyle = '#1d1b19'
     ctx.textAlign = 'center'
     ctx.font = `italic ${Math.round(w * 0.052)}px ${SERIF}`
-    ctx.fillText('“Bizi seçtiğiniz için', w / 2, h * 0.37)
-    ctx.fillText('teşekkür ederiz.', w / 2, h * 0.37 + w * 0.07)
-    ctx.fillText('Hayatınız, hayatımızdır…”', w / 2, h * 0.37 + w * 0.17)
+    ctx.fillText(T('“Bizi seçtiğiniz için', '“Thank you for'), w / 2, h * 0.37)
+    ctx.fillText(T('teşekkür ederiz.', 'choosing us.'), w / 2, h * 0.37 + w * 0.07)
+    ctx.fillText(T('Hayatınız, hayatımızdır…”', 'Your life is our business…”'), w / 2, h * 0.37 + w * 0.17)
     ctx.textAlign = 'left'
     // The signature line.
     const ly = h * 0.8
@@ -96,7 +124,7 @@ export function drawLastPage(signed: number) {
     ctx.fillRect(w * 0.23, ly + 2, w * 0.6, 2)
     sans(ctx, Math.round(w * 0.022))
     ctx.fillStyle = 'rgba(30,28,26,0.6)'
-    ctx.fillText('K3-33 · TEK YÖN', w * 0.23, ly + w * 0.05)
+    ctx.fillText(T('K3-33 · TEK YÖN', 'K3-33 · ONE WAY'), w * 0.23, ly + w * 0.05)
     if (signed > 0) {
       // A short, plain signature in blue ink, drawn as far as the pen has gone.
       ctx.strokeStyle = '#2f4fd8'
@@ -135,7 +163,7 @@ export function drawFolder(label: string) {
     sans(ctx, Math.round(w * 0.075), 600)
     spaced(ctx, label, w / 2, h * 0.52, 3)
     sans(ctx, Math.round(w * 0.045), 500)
-    spaced(ctx, 'TEK YÖN', w / 2, h * 0.62, 4)
+    spaced(ctx, T('TEK YÖN', 'ONE WAY'), w / 2, h * 0.62, 4)
     ctx.textAlign = 'left'
     ctx.strokeStyle = 'rgba(238,240,242,0.55)'
     ctx.lineWidth = 2
@@ -169,11 +197,11 @@ export function drawCorridorPlaque(ctx: Ctx, w: number, h: number) {
   ctx.fillStyle = '#3a2810'
   ctx.textAlign = 'center'
   sans(ctx, Math.round(h * 0.085), 600)
-  spaced(ctx, 'BU KORİDORDAN BUGÜNE KADAR', w / 2, h * 0.52, 2)
+  spaced(ctx, T('BU KORİDORDAN BUGÜNE KADAR', 'TO DATE, THROUGH THIS CORRIDOR,'), w / 2, h * 0.52, 2)
   sans(ctx, Math.round(h * 0.15), 700)
-  spaced(ctx, '1.287 KİŞİ GEÇTİ', w / 2, h * 0.7, 3)
+  spaced(ctx, T('1.287 KİŞİ GEÇTİ', '1,287 PEOPLE HAVE PASSED'), w / 2, h * 0.7, 3)
   sans(ctx, Math.round(h * 0.07), 500)
-  spaced(ctx, 'HEPSİNE TEŞEKKÜR EDERİZ.', w / 2, h * 0.85, 2)
+  spaced(ctx, T('HEPSİNE TEŞEKKÜR EDERİZ.', 'WE THANK EVERY ONE OF THEM.'), w / 2, h * 0.85, 2)
   ctx.textAlign = 'left'
 }
 
@@ -215,14 +243,14 @@ export function drawPanel(mode: PanelMode) {
       keyhole(ctx, w / 2, h * 0.22, h * 0.08, white, 3)
       ctx.fillStyle = white
       sans(ctx, Math.round(h * 0.2), 600)
-      spaced(ctx, 'LÜTFEN OTURUN', w / 2, h * 0.72, 10)
+      spaced(ctx, T('LÜTFEN OTURUN', 'PLEASE BE SEATED'), w / 2, h * 0.72, 10)
       sans(ctx, Math.round(h * 0.07), 400)
       ctx.fillStyle = 'rgba(232,238,242,0.55)'
-      spaced(ctx, 'KOLTUK NUMARALARININ ÖNEMİ YOKTUR', w / 2, h * 0.88, 5)
+      spaced(ctx, T('KOLTUK NUMARALARININ ÖNEMİ YOKTUR', 'SEAT NUMBERS DO NOT MATTER'), w / 2, h * 0.88, 5)
     } else if (mode.kind === 'count') {
       ctx.fillStyle = 'rgba(232,238,242,0.6)'
       sans(ctx, Math.round(h * 0.1), 500)
-      spaced(ctx, 'KALKIŞ', w / 2, h * 0.24, 12)
+      spaced(ctx, T('KALKIŞ', 'LAUNCH'), w / 2, h * 0.24, 12)
       ctx.fillStyle = mode.n <= 3 ? '#ff6a4a' : white
       mono(ctx, Math.round(h * 0.5), 600)
       ctx.fillText(`T−${mode.n}`, w / 2, h * 0.78)
@@ -231,11 +259,11 @@ export function drawPanel(mode: PanelMode) {
       mono(ctx, Math.round(h * 0.42), 600)
       ctx.fillText('T−0', w / 2, h * 0.62)
       sans(ctx, Math.round(h * 0.08), 500)
-      spaced(ctx, 'ATEŞLEME', w / 2, h * 0.86, 12)
+      spaced(ctx, T('ATEŞLEME', 'IGNITION'), w / 2, h * 0.86, 12)
     } else {
       ctx.fillStyle = white
       sans(ctx, Math.round(h * 0.1), 600)
-      spaced(ctx, 'ROTA · GALAKSİ MERKEZİ · SGR A*', w / 2, h * 0.24, 6)
+      spaced(ctx, T('ROTA · GALAKSİ MERKEZİ · SGR A*', 'COURSE · GALACTIC CENTER · SGR A*'), w / 2, h * 0.24, 6)
       // A thin line from the ship toward a dot.
       const x0 = w * 0.12
       const x1 = w * 0.86
@@ -268,9 +296,9 @@ export function drawPanel(mode: PanelMode) {
       sans(ctx, Math.round(h * 0.065), 400)
       ctx.fillStyle = 'rgba(232,238,242,0.6)'
       ctx.textAlign = 'left'
-      ctx.fillText('DÜNYA', x0 - 20, y + h * 0.16)
+      ctx.fillText(T('DÜNYA', 'EARTH'), x0 - 20, y + h * 0.16)
       ctx.textAlign = 'right'
-      ctx.fillText('26.000 IŞIK YILI', x1 + 30, y + h * 0.16)
+      ctx.fillText(T('26.000 IŞIK YILI', '26,000 LIGHT YEARS'), x1 + 30, y + h * 0.16)
     }
     ctx.textAlign = 'left'
   }
@@ -282,12 +310,12 @@ export function drawManifest(ctx: Ctx, w: number, h: number) {
   ctx.fillRect(0, 0, w, h)
   ctx.fillStyle = '#e8eef2'
   sans(ctx, Math.round(w * 0.06), 600)
-  spaced(ctx, 'YOLCU LİSTESİ · K3', w * 0.08, h * 0.07, 2)
+  spaced(ctx, T('YOLCU LİSTESİ · K3', 'PASSENGER MANIFEST · K3'), w * 0.08, h * 0.07, 2)
   mono(ctx, Math.round(w * 0.035), 500)
   ctx.fillStyle = 'rgba(232,238,242,0.55)'
   ctx.fillText('NO', w * 0.08, h * 0.13)
-  ctx.fillText('KOLTUK', w * 0.24, h * 0.13)
-  ctx.fillText('SEBEP', w * 0.6, h * 0.13)
+  ctx.fillText(T('KOLTUK', 'SEAT'), w * 0.24, h * 0.13)
+  ctx.fillText(T('SEBEP', 'REASON'), w * 0.6, h * 0.13)
   ctx.fillRect(w * 0.08, h * 0.14, w * 0.84, 1.5)
   mono(ctx, Math.round(w * 0.032))
   for (let i = 0; i < 33; i++) {
@@ -307,7 +335,7 @@ export function drawDayCounter(day: string, blur = 0) {
     ctx.fillStyle = 'rgba(232,238,242,0.6)'
     ctx.textAlign = 'center'
     sans(ctx, Math.round(h * 0.17), 500)
-    spaced(ctx, 'GÖREV GÜNÜ', w / 2, h * 0.3, 6)
+    spaced(ctx, T('GÖREV GÜNÜ', 'MISSION DAY'), w / 2, h * 0.3, 6)
     ctx.fillStyle = '#f2d9a8'
     ctx.shadowColor = 'rgba(242,200,140,0.6)'
     ctx.shadowBlur = 8 + blur * 20
@@ -341,12 +369,12 @@ export function drawPantryLabel(ctx: Ctx, w: number, h: number) {
   ctx.fillStyle = '#1e1c1a'
   ctx.textAlign = 'center'
   sans(ctx, Math.round(h * 0.26), 700)
-  spaced(ctx, 'ERZAK', w / 2, h * 0.36, 6)
+  spaced(ctx, T('ERZAK', 'PROVISIONS'), w / 2, h * 0.36, 6)
   sans(ctx, Math.round(h * 0.15), 600)
-  spaced(ctx, '33 KİŞİ · TEK YÖN', w / 2, h * 0.62, 3)
+  spaced(ctx, T('33 KİŞİ · TEK YÖN', '33 PERSONS · ONE WAY'), w / 2, h * 0.62, 3)
   sans(ctx, Math.round(h * 0.1), 400)
   ctx.fillStyle = 'rgba(30,28,26,0.6)'
-  spaced(ctx, 'DÖNÜŞ BÖLMESİ: YOK', w / 2, h * 0.84, 2)
+  spaced(ctx, T('DÖNÜŞ BÖLMESİ: YOK', 'RETURN COMPARTMENT: NONE'), w / 2, h * 0.84, 2)
   ctx.textAlign = 'left'
 }
 
@@ -364,7 +392,7 @@ export function drawBooth(mode: BoothMode) {
     } else if (mode.kind === 'link') {
       ctx.fillStyle = white
       sans(ctx, Math.round(h * 0.085), 600)
-      spaced(ctx, 'BAĞLANTI · KESİNTİLİ', w / 2, h * 0.2, 4)
+      spaced(ctx, T('BAĞLANTI · KESİNTİLİ', 'LINK · INTERMITTENT'), w / 2, h * 0.2, 4)
       // The signal bar: pulses, drops out, comes back.
       const t = mode.t
       const drop = Math.sin(t * 2.3) > 0.55 || Math.sin(t * 5.1 + 1) > 0.9
@@ -378,29 +406,29 @@ export function drawBooth(mode: BoothMode) {
       }
       ctx.fillStyle = 'rgba(232,238,242,0.5)'
       mono(ctx, Math.round(h * 0.06))
-      ctx.fillText(drop ? 'SİNYAL ARANIYOR…' : 'VERİ AKIŞI', w / 2, h * 0.78)
+      ctx.fillText(drop ? T('SİNYAL ARANIYOR…', 'SEARCHING FOR SIGNAL…') : T('VERİ AKIŞI', 'DATA STREAM'), w / 2, h * 0.78)
       ctx.textAlign = 'right'
       mono(ctx, Math.round(h * 0.055))
-      ctx.fillText('NASA / ORTAK AĞ', w * 0.95, h * 0.94)
+      ctx.fillText(T('NASA / ORTAK AĞ', 'NASA / PARTNER NETWORK'), w * 0.95, h * 0.94)
     } else if (mode.kind === 'report') {
       keyhole(ctx, w / 2, h * 0.24, h * 0.09, white, 3)
       ctx.fillStyle = white
       sans(ctx, Math.round(h * 0.16), 600)
-      spaced(ctx, 'RAPOR VERİN.', w / 2, h * 0.68, 6)
+      spaced(ctx, T('RAPOR VERİN.', 'REPORT IN.'), w / 2, h * 0.68, 6)
       ctx.fillStyle = '#ff4a3a'
       ctx.beginPath()
       ctx.arc(w * 0.08, h * 0.1, h * 0.03, 0, Math.PI * 2)
       ctx.fill()
       ctx.textAlign = 'left'
       mono(ctx, Math.round(h * 0.05))
-      ctx.fillText('KAYIT', w * 0.12, h * 0.12)
+      ctx.fillText(T('KAYIT', 'REC'), w * 0.12, h * 0.12)
     } else {
       ctx.fillStyle = white
       sans(ctx, Math.round(h * 0.09), 600)
-      spaced(ctx, 'PAKET GÖNDERİLDİ', w / 2, h * 0.3, 4)
+      spaced(ctx, T('PAKET GÖNDERİLDİ', 'PACKET SENT'), w / 2, h * 0.3, 4)
       ctx.fillStyle = 'rgba(232,238,242,0.6)'
       sans(ctx, Math.round(h * 0.07), 500)
-      spaced(ctx, 'YANIT BEKLENİYOR', w / 2, h * 0.44, 4)
+      spaced(ctx, T('YANIT BEKLENİYOR', 'AWAITING REPLY'), w / 2, h * 0.44, 4)
       // A spinner that never completes.
       const cx = w / 2
       const cy = h * 0.7
@@ -425,15 +453,15 @@ export function drawLog(ctx: Ctx, w: number, h: number) {
   ctx.fillRect(0, 0, w, h)
   ctx.fillStyle = 'rgba(232,238,242,0.55)'
   sans(ctx, Math.round(w * 0.06), 600)
-  spaced(ctx, 'RAPOR KAYITLARI', w * 0.07, h * 0.1, 2)
+  spaced(ctx, T('RAPOR KAYITLARI', 'REPORT LOG'), w * 0.07, h * 0.1, 2)
   mono(ctx, Math.round(w * 0.042))
   const rows: Array<[string, string]> = [
-    ['K3-07', 'Bugün de aynı sahil.'],
-    ['', 'Şikâyetim yok.'],
-    ['K3-21', 'Orada saat kaç?'],
+    ['K3-07', T('Bugün de aynı sahil.', 'The same beach again today.')],
+    ['', T('Şikâyetim yok.', 'No complaints.')],
+    ['K3-21', T('Orada saat kaç?', 'What time is it there?')],
     ['K3-12', '—'],
-    ['K3-30', 'Satrançta yine kaybettim.'],
-    ['K3-02', 'Teşekkürler.'],
+    ['K3-30', T('Satrançta yine kaybettim.', 'Lost at chess again.')],
+    ['K3-02', T('Teşekkürler.', 'Thank you.')],
     ['K3-19', '—'],
   ]
   rows.forEach(([id, text], i) => {
@@ -452,7 +480,7 @@ export function drawBeacon(speed: number, offset: number) {
     ctx.fillRect(0, 0, w, h)
     ctx.fillStyle = 'rgba(232,238,242,0.6)'
     sans(ctx, Math.round(w * 0.05), 600)
-    spaced(ctx, 'DÜNYA · ZAMAN İŞARETİ', w * 0.06, h * 0.08, 2)
+    spaced(ctx, T('DÜNYA · ZAMAN İŞARETİ', 'EARTH · TIME SIGNAL'), w * 0.06, h * 0.08, 2)
     const lineH = h * 0.06
     const blur = Math.min(1, speed)
     mono(ctx, Math.round(lineH * 0.75))
@@ -486,12 +514,12 @@ export function drawPackets(count: number, signal: number, lost: boolean, t: num
     ctx.fillRect(0, 0, w, h)
     ctx.fillStyle = 'rgba(232,238,242,0.55)'
     sans(ctx, Math.round(h * 0.06), 600)
-    spaced(ctx, 'K3 · TELEMETRİ', w * 0.08, h * 0.1, 3)
+    spaced(ctx, T('K3 · TELEMETRİ', 'K3 · TELEMETRY'), w * 0.08, h * 0.1, 3)
     ctx.fillStyle = '#e8eef2'
     sans(ctx, Math.round(h * 0.07), 500)
-    spaced(ctx, 'PAKET', w * 0.08, h * 0.25, 4)
+    spaced(ctx, T('PAKET', 'PACKETS'), w * 0.08, h * 0.25, 4)
     mono(ctx, Math.round(h * 0.16), 600)
-    ctx.fillText(count.toLocaleString('tr-TR'), w * 0.08, h * 0.42)
+    ctx.fillText(num(count), w * 0.08, h * 0.42)
     // The trace: a line that loses its pulses.
     ctx.strokeStyle = lost ? '#ff5a46' : 'rgba(150,210,255,0.9)'
     ctx.lineWidth = 3
@@ -508,11 +536,11 @@ export function drawPackets(count: number, signal: number, lost: boolean, t: num
     if (lost) {
       ctx.fillStyle = '#ff5a46'
       sans(ctx, Math.round(h * 0.085), 700)
-      spaced(ctx, 'K3 · SİNYAL YOK', w * 0.08, h * 0.84, 3)
+      spaced(ctx, T('K3 · SİNYAL YOK', 'K3 · NO SIGNAL'), w * 0.08, h * 0.84, 3)
     } else {
       ctx.fillStyle = 'rgba(232,238,242,0.45)'
       mono(ctx, Math.round(h * 0.05))
-      ctx.fillText('SON PAKET · GECİKME ARTIYOR', w * 0.08, h * 0.84)
+      ctx.fillText(T('SON PAKET · GECİKME ARTIYOR', 'LAST PACKET · DELAY GROWING'), w * 0.08, h * 0.84)
     }
   }
 }
@@ -523,7 +551,7 @@ export function drawRefunds(ctx: Ctx, w: number, h: number) {
   ctx.fillRect(0, 0, w, h)
   ctx.fillStyle = 'rgba(232,238,242,0.6)'
   sans(ctx, Math.round(h * 0.2), 600)
-  spaced(ctx, 'İADE TALEPLERİ', w * 0.07, h * 0.42, 4)
+  spaced(ctx, T('İADE TALEPLERİ', 'REFUND REQUESTS'), w * 0.07, h * 0.42, 4)
   ctx.fillStyle = '#7dff9e'
   ctx.shadowColor = 'rgba(120,255,160,0.6)'
   ctx.shadowBlur = 10
@@ -543,58 +571,58 @@ export function drawForm(ctx: Ctx, w: number, h: number) {
   ctx.fillStyle = '#1b1a19'
   ctx.textAlign = 'center'
   sans(ctx, Math.round(w * 0.062), 700)
-  spaced(ctx, 'ÖTENAZİ TALEP FORMU', w / 2, h * 0.2, 3)
+  spaced(ctx, T('ÖTENAZİ TALEP FORMU', 'EUTHANASIA REQUEST FORM'), w / 2, h * 0.2, 3)
   sans(ctx, Math.round(w * 0.026), 400)
   ctx.fillStyle = 'rgba(27,26,25,0.6)'
-  spaced(ctx, 'BİLİMSEL KEŞİF PROGRAMI · KATILIMCI BAŞVURUSU', w / 2, h * 0.245, 2)
+  spaced(ctx, T('BİLİMSEL KEŞİF PROGRAMI · KATILIMCI BAŞVURUSU', 'SCIENTIFIC DISCOVERY PROGRAM · PARTICIPANT APPLICATION'), w / 2, h * 0.245, 2)
   ctx.textAlign = 'left'
   ctx.fillStyle = '#1b1a19'
   ctx.fillRect(m, h * 0.27, w - 2 * m, 2)
-  const fields = ['Ad', 'Yaş', 'Sebep']
+  const fields = [T('Ad', 'Name'), T('Yaş', 'Age'), T('Sebep', 'Reason')]
   fields.forEach((f, i) => {
     const y = h * 0.36 + i * h * 0.09
     sans(ctx, Math.round(w * 0.038), 600)
     ctx.fillStyle = '#1b1a19'
     ctx.fillText(`${f}:`, m, y)
     ctx.fillRect(m + w * 0.16, y + 4, w - 2 * m - w * 0.16, 1.5)
-    if (f === 'Sebep') {
+    if (f === fields[2]) {
       ctx.fillStyle = 'rgba(27,26,25,0.5)'
       sans(ctx, Math.round(w * 0.024), 400)
-      ctx.fillText('(doldurulması zorunlu değildir)', m + w * 0.18, y + w * 0.05)
+      ctx.fillText(T('(doldurulması zorunlu değildir)', '(not required)'), m + w * 0.18, y + w * 0.05)
     }
   })
   smallPrint(ctx, m, h * 0.7, w - 2 * m, h * 0.9, 77, 6, 10)
 }
 
-const OTHER_PLACES = [
-  'KERMADEC ÇUKURU',
-  'PUERTO RİKO ÇUKURU',
-  'ARKTİK · BUZ ALTI',
-  'VOSTOK GÖLÜ',
-  'GÜNEY OKYANUSU · HADAL',
-  'MAUNA LOA · KALDERA',
-  'ATACAMA · DERİN KUYU',
-  'AY · GÜNEY KUTBU',
-  'AY · ŞACKLETON KRATERİ',
-  'MARS · HELLAS HAVZASI',
-  'MARS · OLYMPUS MONS',
-  'FOBOS',
-  '4 VESTA',
-  '16 PSYCHE',
-  'BENNU',
-  'RYUGU',
-  'CERES · OCCATOR',
-  'İO · VOLKANLAR',
-  'GANİMEDES',
-  'KALLİSTO',
-  'ENCELADUS · GEYZERLER',
-  'JÜPİTER · BULUT ÜSTÜ',
-  'VENÜS · BULUTLAR',
-  'SATÜRN · HALKALAR',
-  'TRİTON',
-  'MİRANDA',
-  'ARROKOTH',
-  'GÜNEŞ · KORONA',
+const OTHER_PLACES: Array<[string, string]> = [
+  ['KERMADEC ÇUKURU', 'KERMADEC TRENCH'],
+  ['PUERTO RİKO ÇUKURU', 'PUERTO RICO TRENCH'],
+  ['ARKTİK · BUZ ALTI', 'ARCTIC · UNDER THE ICE'],
+  ['VOSTOK GÖLÜ', 'LAKE VOSTOK'],
+  ['GÜNEY OKYANUSU · HADAL', 'SOUTHERN OCEAN · HADAL'],
+  ['MAUNA LOA · KALDERA', 'MAUNA LOA · CALDERA'],
+  ['ATACAMA · DERİN KUYU', 'ATACAMA · DEEP BOREHOLE'],
+  ['AY · GÜNEY KUTBU', 'MOON · SOUTH POLE'],
+  ['AY · ŞACKLETON KRATERİ', 'MOON · SHACKLETON CRATER'],
+  ['MARS · HELLAS HAVZASI', 'MARS · HELLAS BASIN'],
+  ['MARS · OLYMPUS MONS', 'MARS · OLYMPUS MONS'],
+  ['FOBOS', 'PHOBOS'],
+  ['4 VESTA', '4 VESTA'],
+  ['16 PSYCHE', '16 PSYCHE'],
+  ['BENNU', 'BENNU'],
+  ['RYUGU', 'RYUGU'],
+  ['CERES · OCCATOR', 'CERES · OCCATOR'],
+  ['İO · VOLKANLAR', 'IO · VOLCANOES'],
+  ['GANİMEDES', 'GANYMEDE'],
+  ['KALLİSTO', 'CALLISTO'],
+  ['ENCELADUS · GEYZERLER', 'ENCELADUS · GEYSERS'],
+  ['JÜPİTER · BULUT ÜSTÜ', 'JUPITER · CLOUD TOPS'],
+  ['VENÜS · BULUTLAR', 'VENUS · CLOUDS'],
+  ['SATÜRN · HALKALAR', 'SATURN · RINGS'],
+  ['TRİTON', 'TRITON'],
+  ['MİRANDA', 'MIRANDA'],
+  ['ARROKOTH', 'ARROKOTH'],
+  ['GÜNEŞ · KORONA', 'SUN · CORONA'],
 ]
 
 export type Plaque = { name: string; date: string; col: number; row: number; named: boolean }
@@ -602,15 +630,15 @@ export type Plaque = { name: string; date: string; col: number; row: number; nam
 /** The 39 plaques, oldest (column 0) to newest (column 12); rows top (0) to bottom (2). */
 export function plaqueList(): Plaque[] {
   const named: Record<string, string> = {
-    '0,1': 'MARİANA ÇUKURU · CHALLENGER DERİNLİĞİ',
+    '0,1': T('MARİANA ÇUKURU · CHALLENGER DERİNLİĞİ', 'MARIANA TRENCH · CHALLENGER DEEP'),
     '4,1': '433 EROS',
-    '7,0': 'EUROPA · BUZ ALTI',
-    '7,2': 'TİTAN · METAN DENİZİ',
-    '10,0': 'VENÜS · YÜZEY',
-    '10,2': 'MERKÜR · GECE YÜZÜ',
-    '12,0': 'KARA DELİK I',
-    '12,2': 'KARA DELİK II',
-    '12,1': 'KARA DELİK III',
+    '7,0': T('EUROPA · BUZ ALTI', 'EUROPA · UNDER THE ICE'),
+    '7,2': T('TİTAN · METAN DENİZİ', 'TITAN · METHANE SEA'),
+    '10,0': T('VENÜS · YÜZEY', 'VENUS · SURFACE'),
+    '10,2': T('MERKÜR · GECE YÜZÜ', 'MERCURY · NIGHT SIDE'),
+    '12,0': T('KARA DELİK I', 'BLACK HOLE I'),
+    '12,2': T('KARA DELİK II', 'BLACK HOLE II'),
+    '12,1': T('KARA DELİK III', 'BLACK HOLE III'),
   }
   const out: Plaque[] = []
   let k = 0
@@ -621,7 +649,10 @@ export function plaqueList(): Plaque[] {
       const year = 2031 + Math.floor(n * 0.82)
       const date = `${String(((n * 5) % 27) + 1).padStart(2, '0')}.${String(((n * 7) % 12) + 1).padStart(2, '0')}.${year}`
       if (named[key]) out.push({ name: named[key], date, col, row, named: true })
-      else out.push({ name: OTHER_PLACES[k++ % OTHER_PLACES.length], date, col, row, named: false })
+      else {
+        const [tr, en] = OTHER_PLACES[k++ % OTHER_PLACES.length]
+        out.push({ name: T(tr, en), date, col, row, named: false })
+      }
     }
   return out
 }
@@ -638,15 +669,26 @@ export function drawPlaque(ctx: Ctx, x: number, y: number, w: number, h: number,
   ctx.lineWidth = 2
   ctx.strokeRect(x + 5, y + 5, w - 10, h - 10)
   ctx.fillStyle = '#2e200b'
-  const long = p.name.length > 22
-  sans(ctx, Math.round(h * (long ? 0.13 : 0.17)), 700)
+  // The name: one line when it fits left of the emblem; else split at " · " on two lines; else shrunk.
+  const maxW = w * 0.76
+  const parts = p.name.split(' · ')
+  sans(ctx, Math.round(h * 0.17), 700)
+  ctx.letterSpacing = '0px'
+  const fits = ctx.measureText(p.name).width + p.name.length <= maxW
   ctx.letterSpacing = '1px'
-  if (long) {
-    const [a, b] = p.name.split(' · ')
-    ctx.fillText(a, x + w * 0.07, y + h * 0.3)
+  if (fits) ctx.fillText(p.name, x + w * 0.07, y + h * 0.36)
+  else if (parts.length > 1) {
+    const b = parts.slice(1).join(' · ')
+    sans(ctx, Math.round(h * 0.13), 700)
+    fitFont(ctx, parts[0], maxW, 1)
+    ctx.fillText(parts[0], x + w * 0.07, y + h * 0.3)
     sans(ctx, Math.round(h * 0.11), 600)
-    ctx.fillText(b ?? '', x + w * 0.07, y + h * 0.47)
-  } else ctx.fillText(p.name, x + w * 0.07, y + h * 0.36)
+    fitFont(ctx, b, maxW, 1)
+    ctx.fillText(b, x + w * 0.07, y + h * 0.47)
+  } else {
+    fitFont(ctx, p.name, maxW, 1)
+    ctx.fillText(p.name, x + w * 0.07, y + h * 0.36)
+  }
   ctx.letterSpacing = '0px'
   mono(ctx, Math.round(h * 0.11))
   ctx.fillStyle = 'rgba(46,32,11,0.8)'

@@ -75,6 +75,8 @@ export type StoryMeta = {
   loops: boolean
   /** Shown before starting, for stories with hard material (violence, body horror). */
   warning?: string
+  /** The set prints its in-world words in the reader's language, so a translation needs no subtitles for them. */
+  localSet?: boolean
 }
 
 export type DiscoveryKind = 'visual' | 'audio' | 'character' | 'environment' | 'anomaly' | 'reflection' | 'text' | 'object'

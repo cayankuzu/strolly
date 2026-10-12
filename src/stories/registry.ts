@@ -95,6 +95,7 @@ export const STORIES: Record<StoryId, StoryContent> = {
       screenVh: OTE_VH,
       loops: false,
       warning: 'Ölüm temasını işler.',
+      localSet: true,
     },
     oteTimeline,
     oteText,

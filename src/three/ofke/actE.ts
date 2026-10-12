@@ -76,11 +76,13 @@ function lineLight(w: World, mode: Light, t: number, amp = 0) {
       L.setPoint(1 + i, 0xffa020, 3.5 + 2.5 * Math.max(0, Math.sin(a)), [X + 1.2 + Math.cos(a) * 0.3, 3.0, z + Math.sin(a) * 0.3], 5)
     }
   } else if (mode === 'reading') {
-    env(w, 'night', 0.1, 0x020202, [30, 60])
-    L.setHemi(0x406080, 0x050505, 0.12)
-    L.setKey(0xbcd2ff, 10 + 30 * amp, [X, 4.6, -26.2], [X, 1.0, -21], 1.0, 16, 0.8)
+    // Lit by the wall of screens: cold light from the far end, the speakers' faces catching it.
+    env(w, 'night', 0.14, 0x020202, [30, 60])
+    L.setHemi(0x406080, 0x050505, 0.2)
+    L.setKey(0xbcd2ff, 20 + 30 * amp, [X, 4.6, -26.2], [X, 1.0, -21], 1.0, 16, 0.8)
     L.setPoint(0, 0xff3a2a, 4 * amp, [X - 2, 3.8, -26], 10)
     L.setPoint(1, 0x8fb0ff, 3, [X, 6.8, -18], 9)
+    L.setPoint(2, 0x9fc4ff, 8 + 4 * amp, [X, 4.4, -25.6], 15)
   } else {
     env(w, 'clinic', 0.7, 0x0b0b0b, [20, 60])
     L.setHemi(0xf4f8ff, 0x9aa0a0, 0.6)
@@ -323,7 +325,8 @@ export function runActE(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
     case 'reading': {
       const amp = u > 0.52 ? 0.45 + 0.55 * Math.abs(Math.sin(t * 3.1) * Math.sin(t * 1.7 + 0.6)) : 0
       lineLight(w, 'reading', t, u > 0.5 ? amp : 0)
-      const z0 = u < 0.3 ? lerp(-12.4, -17.25, ss(0, 0.16, u)) : lerp(-17.25, -21.0, ss(0.36, 0.48, u))
+      // Through the strip curtain to the hood arm (z −19.6), then on between the speakers.
+      const z0 = u < 0.3 ? lerp(-12.4, -19.62, ss(0, 0.17, u)) : lerp(-19.62, -21.6, ss(0.36, 0.48, u))
       inFrame(w, a3, 0, z0, u > 0.52 && amp > 0.85 ? C.FLINCH : STAND_HOOD)
       if (n2) inFrame(w, a4, 1, z0 + 2.4)
       belt(w, z0)
@@ -335,17 +338,17 @@ export function runActE(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       lh.visible = lift >= 0.05
       if (lh.visible) L.gripper.position.y = lerp(-(7.2 - 2.05), -0.6, ss(0.3, 0.4, u))
       // The wall of screens lights up; the speakers boom.
-      L.updateScreens(t, amp, 0.22 + 0.78 * ss(0.3, 0.45, u))
+      L.updateScreens(t, amp, 0.55 + 0.45 * ss(0.3, 0.45, u))
       L.speakers.forEach((s) => s.drivers.forEach((d) => (d.position.z = 0.5 + 0.02 * amp * Math.sin(t * 40))))
       w.apply(t)
       w.chainsFor(a3, 0)
       if (n2) w.chainsFor(a4, 1)
       motion.robots = win(u, 0.0, 0.03, 0.45, 0.48) + win(u, 0.22, 0.25, 0.38, 0.4)
       if (u < 0.6) {
-        // From the room's far corner, back toward the passage: he comes in under the arm, the speakers either side.
-        shot.pos.set(223.3, 2.7, -25.8).lerp(v.set(223.1, 2.6, -25.4), sub(u, 0, 0.6))
-        shot.tgt.set(220.0, 1.9, -18.0).lerp(v.set(220.0, 1.6, -19.5), ss(0.3, 0.6, u))
-        shot.fov = 50
+        // Just inside the room, behind him: the belt carries him in under the arm toward the wall of screens, a speaker either side.
+        shot.pos.set(220.62, 2.5, -16.55).lerp(v.set(220.45, 2.55, -16.95), sub(u, 0, 0.6))
+        shot.tgt.set(220.0, 2.3, -25.0).lerp(v.set(220.0, 2.2, -24.5), ss(0.3, 0.6, u))
+        shot.fov = 58
       } else {
         // From the side and behind: the man small between the speakers, the wall of screens over him.
         shot.pos.set(216.3, 1.9, -17.3).lerp(v.set(216.5, 1.85, -17.6), sub(u, 0.6, 1))

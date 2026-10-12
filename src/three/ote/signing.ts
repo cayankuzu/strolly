@@ -10,6 +10,7 @@ import { canvasPlane, door, pendant, rbox, room, table, tube, turned } from '../
 import { box, cyl, mesh } from '../util'
 import type { Pal } from './materials'
 import { drawClausePage, drawFolder, drawLastPage, drawPhotoBack, keyhole } from './draw'
+import { T } from './lang'
 
 const PI = Math.PI
 export const A = {
@@ -30,7 +31,13 @@ export const A = {
   ],
 } as const
 
-export const HEADERS = ['MADDE 7 · TANIMLAR', 'MADDE 9 · HİZMETİN KAPSAMI', 'MADDE 12 · SORUMLULUK', 'MADDE 14 · İADE KOŞULLARI']
+/** The clauses on top of the stack, in the reader's language (drawn when shown). */
+export const HEADERS = [
+  () => T('MADDE 7 · TANIMLAR', 'CLAUSE 7 · DEFINITIONS'),
+  () => T('MADDE 9 · HİZMETİN KAPSAMI', 'CLAUSE 9 · SCOPE OF SERVICE'),
+  () => T('MADDE 12 · SORUMLULUK', 'CLAUSE 12 · LIABILITY'),
+  () => T('MADDE 14 · İADE KOŞULLARI', 'CLAUSE 14 · REFUND TERMS'),
+]
 
 type Plane = ReturnType<typeof canvasPlane>
 
@@ -179,10 +186,12 @@ export class SigningRoom {
     emblem.mesh.position.set(0.65, 1.5, 0.002)
     this.door2.add(emblem.mesh)
     // The frame and a shadow gap around the opening.
-    for (const sx of [-1, 1]) rbox(0.04, 2.44, 0.2, m.blackMetal, sx * 0.67, 1.22, -4.0, g, 0.004)
-    rbox(1.38, 0.04, 0.2, m.blackMetal, 0, 2.42, -4.0, g, 0.004)
+    // The frame stands 2 cm proud of the wall's cut faces (x ±0.65, y 2.4), never flush with them.
+    for (const sx of [-1, 1]) rbox(0.06, 2.44, 0.2, m.blackMetal, sx * 0.66, 1.22, -4.0, g, 0.004)
+    rbox(1.38, 0.06, 0.2, m.blackMetal, 0, 2.41, -4.0, g, 0.004)
     // Beyond it: a short white passage that glows.
-    const passage = room({ w: 1.3, d: 2.2, h: 2.4, x: 0, z: -5.1, wall: m.coldLight, floor: m.coldLight, ceiling: m.coldLight, trim: null, skip: ['s'] })
+    // A touch wider than the opening: its side walls sit behind the frame instead of on its inner faces.
+    const passage = room({ w: 1.42, d: 2.2, h: 2.4, x: 0, z: -5.1, wall: m.coldLight, floor: m.coldLight, ceiling: m.coldLight, trim: null, skip: ['s'] })
     g.add(passage)
     this.coldLight = passage.children[0] as THREE.Mesh
 
@@ -216,14 +225,14 @@ export class SigningRoom {
     // ——— On the table ———
     // The stack of ~42 sheets; the top one shows a clause.
     this.stackBody = rbox(0.21, 0.008, 0.297, m.paper, 0, 0.004, 0, this.stack, 0.001)
-    this.stackTop = canvasPlane(0.21, 0.297, 512, drawClausePage(HEADERS[0], 7))
+    this.stackTop = canvasPlane(0.21, 0.297, 512, drawClausePage(HEADERS[0](), 7))
     this.stackTop.mesh.rotation.x = -PI / 2
     this.stackTop.mesh.position.y = 0.0085
     this.stack.add(this.stackTop.mesh)
     this.stack.position.copy(A.stack)
     g.add(this.stack)
     // The sheet being turned (hinged at its left edge) and the pile of turned sheets beside the stack.
-    this.turningFront = canvasPlane(0.21, 0.297, 512, drawClausePage(HEADERS[0], 7))
+    this.turningFront = canvasPlane(0.21, 0.297, 512, drawClausePage(HEADERS[0](), 7))
     this.turningFront.mesh.position.set(0.105, 0, 0)
     this.turningFront.mesh.rotation.x = -PI / 2
     this.turning.add(this.turningFront.mesh)
@@ -242,7 +251,7 @@ export class SigningRoom {
     rbox(0.24, 0.003, 0.32, m.folderCard, 0, 0.0015, 0, this.folder, 0.001)
     this.folderCover.position.set(-0.12, 0.004, 0)
     rbox(0.24, 0.003, 0.32, m.folderCard, 0.12, 0, 0, this.folderCover, 0.001)
-    this.folderLabel = canvasPlane(0.24, 0.32, 512, drawFolder('DOSYA K3-33'))
+    this.folderLabel = canvasPlane(0.24, 0.32, 512, drawFolder(T('DOSYA K3-33', 'FILE K3-33')))
     this.folderLabel.mesh.rotation.x = -PI / 2
     this.folderLabel.mesh.position.set(0.12, 0.0017, 0)
     this.folderCover.add(this.folderLabel.mesh)
@@ -322,14 +331,14 @@ export class SigningRoom {
   setHeader(i: number) {
     if (i === this.headerKey) return
     this.headerKey = i
-    this.stackTop.redraw(drawClausePage(HEADERS[i], 7 + i * 5), `h${i}`)
+    this.stackTop.redraw(drawClausePage(HEADERS[i](), 7 + i * 5), `h${i}`)
   }
 
   /** The sheet being turned: shows header i, flipped by `t` (0 flat on the stack … 1 on the pile). */
   setTurning(i: number, t: number) {
     this.turning.visible = t > 0.001 && t < 0.999
     if (!this.turning.visible) return
-    this.turningFront.redraw(drawClausePage(HEADERS[i], 7 + i * 5), `t${i}`)
+    this.turningFront.redraw(drawClausePage(HEADERS[i](), 7 + i * 5), `t${i}`)
     this.turning.position.set(A.stack.x - 0.105, A.stack.y + 0.0095 + Math.sin(t * PI) * 0.004, A.stack.z)
     this.turning.rotation.set(0, 0, t * PI)
     // Paper bends: lift in the middle of the turn.

@@ -109,11 +109,15 @@ landing, huge stencilled floor numbers on the landing walls (7, 6, 5, 4, 3, 2,
   (81.8, 0.55, 2.2) facing −z. **Dashboard touchscreen** 0.26 × 0.16 m at
   (82.15, 1.0, 1.55), facing the driver. Passenger seat at (82.6, 0.55, 2.2): a
   **visit card** lies on it (discovery).
-- City at dusk for the drive: blocks on both sides (x 70…76 and 88…94),
-  streetlights every 15 m, a few cars, traffic lights. Either move the car
-  along −z (z 2 → −90 over `dusk`) or scroll the city past it.
-- **Billboard** at (90, 6, −60), 6 × 3 m, facing the driver: "ÖFKENİZİ EVE
-  GÖTÜRMEYİN" + the calm-face logo + "ÖFKE NÖBETİ".
+- City at dusk for the drive: blocks on both sides (x 68…78 and 93.5…104; the
+  right sidewalk is wide, x 88…93.5), streetlights every 15 m, parked cars
+  along the left kerb, moving traffic all faster than Arif, traffic lights.
+  The car moves along −z (z 2 → −90 over `dusk`) and pulls out of the parking
+  lane into the road's right lane (x 84.1) as it leaves.
+- **Billboard** at (90.3, 0, −82) (panel centre y 6, 6 × 3 m) on the right
+  sidewalk, turned to the oncoming lane (yaw −0.3): "ÖFKENİZİ EVE GÖTÜRMEYİN" +
+  the calm-face logo + "ÖFKE NÖBETİ". In `dusk` the in-car camera slews from
+  his profile to it (u 0.44–0.74) while it is 20–25 m ahead.
 
 ### D — ÖFKE NÖBETİ (x 140)
 
@@ -137,7 +141,8 @@ landing, huge stencilled floor numbers on the landing walls (7, 6, 5, 4, 3, 2,
   - Side table (139.0, 0, −14.6): a stainless tray with a pill in a paper cup
     and a paper cup of water.
   - Lockers along the west wall (x 134.3, z −12…−18), grey-white; **locker 17**
-    at (134.3, 1.0, −16.5): a small mirror inside its door, a shelf at
+    at (134.3, 1.0, −16.5): a 30 × 54 cm mirror inside its door (centre
+    y 1.5; the `hallu`/`away` camera looks over his head into it), a shelf at
     y 1.5 (his folded shirt, tie and **glasses** go there in `clothes` and
     come back out in `away`). Bench at (135.4, 0, −15).
   - **Info screen** 1.6 × 0.9 on the north wall at (136, 1.8, −18.95), facing
@@ -192,7 +197,8 @@ landing, huge stencilled floor numbers on the landing walls (7, 6, 5, 4, 3, 2,
   (224.4, 0, −21). A **wall of 12 screens** (4 × 3, total 8 × 4.5 m) on the
   far wall z −26.9: scrolling case-file text, dates, a "333" header, a red stamp
   "İDAMI KESİNLEŞMİŞTİR", waveform bars synced to the reading voice. **Never
-  images of the crimes.** An overhead arm at z −17 lifts the hood off.
+  images of the crimes.** The room's front wall (z −16) has a 1.3 m passage
+  with a strip curtain; an overhead arm at z −19.6 lifts the hood off.
   (Set dressing: a wall clock reading 18.44 at (216.2, 3.2, −21).)
 - **Injection station** z −30…−34, ceiling 2.4: three white robotic arms — pill
   arm (paper cup + water), **lens arm (same twin-cup model as the prep room)**,
@@ -796,7 +802,8 @@ segment. Text: `id` from–to (local) — *what the image shows then*.
   boom: a flat official voice reads (no intelligible words needed); the screens
   scroll case-file text, dates, "333", the red stamp; behind the voice: sirens,
   a courtroom murmur, a gavel. He flinches at each boom.
-- Camera: wide from behind him (220, 2.4, −15.5) → (220, 2.5, −26.9), vfov 52;
+- Camera: wide from behind him, just inside the passage (220.6, 2.5, −16.5) →
+  (220, 2.3, −25), vfov 58 (the wall of screens lit from the start);
   u 0.6 side view (216.5, 1.6, −20) → (220, 1.6, −21), the speakers dwarfing him.
 - `reading` 0.03–0.48. `crimes` 0.52–1.0.
 

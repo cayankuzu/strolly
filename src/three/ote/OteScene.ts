@@ -30,7 +30,7 @@ import { stageCorridor, stageSigning } from './stageA'
 import { stageLaunch, stageShuttle } from './stageC'
 import { stageHabitat, stageShip } from './stageE'
 import { stageMission } from './stageG'
-import { LAST_CLOSED, LAST_OPEN, REPORT, SHOTS } from './shots'
+import { DRIFT_CLOSED, LAST_CLOSED, LAST_OPEN, REPORT, SHOTS } from './shots'
 
 const PI = Math.PI
 
@@ -106,10 +106,10 @@ function heldCut(keys: ShotKeys, u: number, reduced: boolean) {
 
 /** The booth camera's frames, as the company received them. */
 const REPORT_FEED: Record<Answer, { u: number; pos: [number, number, number]; tgt: [number, number, number]; fov: number }> = {
-  ok: { u: 0.41, pos: [303, 1.74, -5.3], tgt: [303, 1.6, -4.3], fov: 34 },
-  earth: { u: 0.58, pos: [303, 1.74, -5.3], tgt: [307, 1.55, 4.0], fov: 15 },
-  fear: { u: 0.57, pos: [303, 1.74, -5.3], tgt: [303, 1.64, -4.3], fov: 26 },
-  none: { u: 0.5, pos: [303, 1.74, -5.3], tgt: [303, 1.55, -4.2], fov: 34 },
+  ok: { u: 0.41, pos: [303, 1.73, -5.2], tgt: [303.04, 1.6, -4.3], fov: 44 },
+  earth: { u: 0.58, pos: [303, 1.73, -5.2], tgt: [307, 1.55, 4.0], fov: 15 },
+  fear: { u: 0.57, pos: [303, 1.72, -5.2], tgt: [303.04, 1.64, -4.3], fov: 32 },
+  none: { u: 0.75, pos: [303, 1.73, -5.2], tgt: [303.04, 1.55, -4.2], fov: 44 },
 }
 
 class OteDirector implements SetDirector {
@@ -128,8 +128,9 @@ class OteDirector implements SetDirector {
     this.scene = scene
     this.renderer = ctx.renderer
     scene.background = new THREE.Color(0x000000)
-    const m = (this.m = palette())
+    // The scanned sand must be registered before the palette asks pbr() for it.
     await ctx.surfaces(['sand'])
+    const m = (this.m = palette())
     const hdris: HdriId[] = ['brown_photostudio_02', 'hospital_room_2', 'abandoned_tiled_room', 'kloofendal_48d_partly_cloudy_puresky', 'belfast_sunset_puresky', 'moonless_golf']
     const [models, ...envList] = await Promise.all([
       ctx.models({
@@ -456,6 +457,7 @@ class OteDirector implements SetDirector {
     const { seg, u, flags, reduced, time } = st
     let keys: ShotKeys | undefined = SHOTS[seg]
     if (seg === 'lastLook') keys = flags.has('look:closed') ? LAST_CLOSED : LAST_OPEN
+    else if (seg === 'drift' && flags.has('look:closed')) keys = DRIFT_CLOSED
     else if (seg === 'report') keys = REPORT[answerOf(flags)]
     if (keys) keyed(keys, heldCut(keys, u, reduced), shot)
     // ——— Shake: ignition, the climb, decaying to the silence of cut-off ———

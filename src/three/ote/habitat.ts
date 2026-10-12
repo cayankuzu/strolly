@@ -12,6 +12,7 @@ import { cyl, mesh } from '../util'
 import type { Pal } from './materials'
 import { drawBooth, drawDayCounter, drawLog, drawPantryLabel, drawSign, type BoothMode } from './draw'
 import { NOISE_GLSL } from '../shaders/noise'
+import { T } from './lang'
 
 const PI = Math.PI
 export const E = {
@@ -325,7 +326,7 @@ export class Habitat {
     fctx.fillRect(0, 0, 128, 128)
     const fogTex = new THREE.CanvasTexture(fogCanvas)
     this.fog = new THREE.Mesh(
-      new THREE.CircleGeometry(0.14, 32),
+      new THREE.CircleGeometry(0.09, 32),
       new THREE.MeshBasicMaterial({ color: 0xc8d4e4, map: fogTex, transparent: true, opacity: 0, depthWrite: false }),
     )
     this.fog.name = 'breath'
@@ -456,11 +457,11 @@ export class Habitat {
       rbox(0.5, 0.4, 0.6, m.crate, cx, cy, 2.0 + ((i * 7) % 3) * 0.05 - 0.05, L, 0.01)
     }
     // Signs and the day counters.
-    const sim = canvasPlane(0.9, 0.18, 512, drawSign('SİMÜLASYON'), { emissive: true })
+    const sim = canvasPlane(0.9, 0.18, 512, drawSign(T('SİMÜLASYON', 'SIMULATION')), { emissive: true })
     sim.mesh.position.set(302.02, 2.32, 0.1)
     sim.mesh.rotation.y = PI / 2
     L.add(sim.mesh)
-    const fun = canvasPlane(0.9, 0.18, 512, drawSign('EĞLENCE'), { emissive: true })
+    const fun = canvasPlane(0.9, 0.18, 512, drawSign(T('EĞLENCE', 'RECREATION')), { emissive: true })
     fun.mesh.position.set(311.98, 2.32, -4.6)
     fun.mesh.rotation.y = -PI / 2
     L.add(fun.mesh)

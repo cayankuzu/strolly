@@ -12,8 +12,8 @@
 import * as THREE from 'three'
 import { mulberry32 } from '@/lib/math'
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
-import { canvasPlane, chair, counter, door, plant, rbox, table, tube } from '../kit/props'
-import { box, cyl, mesh } from '../util'
+import { canvasPlane, chair, counter, door, plant, rbox, tube } from '../kit/props'
+import { cyl, mesh } from '../util'
 import type { Pal } from './materials'
 import { bicycle, bird, dog, houseGeometries, mailboxGeometry, picketFence, picketFenceZ, rockingChairGeometry, roundTrees, wall, windowIn } from './parts'
 import { drawStreetStrip } from './screens'
@@ -248,7 +248,7 @@ export class Suburb {
     rbox(1.62, 0.32, 2.08, m.deskWood, 103.6, FLOOR + 0.2, -4.92, g, 0.05)
     rbox(1.66, 0.95, 0.08, m.deskWood, 103.6, FLOOR + 0.62, -5.93, g, 0.04)
     rbox(1.5, 0.2, 1.98, m.linenWhite, 103.6, 0.75, -4.92, g, 0.07)
-    const duvet = rbox(1.56, 0.1, 1.4, m.linen, 103.6, 0.88, -4.45, g, 0.05)
+    const duvet = rbox(1.56, 0.3, 1.4, m.linen, 103.6, 0.98, -4.45, g, 0.08)
     duvet.castShadow = true
     for (const sx of [-0.36, 0.36]) rbox(0.6, 0.13, 0.36, m.linenWhite, 103.6 + sx, 0.92, -5.6, g, 0.06)
     // Nightstand, lamp.

@@ -345,7 +345,7 @@ export class ConvictLine {
     const sc = canvasPlane(8, 4.5, 1280, (c, W, H) => this.drawScreens(c, W, H, 0, 0), { emissive: true })
     this.screens = sc
     this.screenMat = sc.material as THREE.MeshBasicMaterial
-    sc.mesh.position.set(X, 4.65, -26.98)
+    sc.mesh.position.set(X, 4.65, -26.93)
     room.add(sc.mesh)
     rbox(8.2, 4.7, 0.06, dark, X, 4.65, -27.0, room, 0.01)
     const cone = pbr('fabric', 0x1c1d1f, { roughness: 1 })
@@ -363,7 +363,7 @@ export class ConvictLine {
     room.add(clock.group)
     // The overhead arm that lifts the hood.
     this.gantry = new THREE.Group()
-    this.gantry.position.set(X, 7.2, -17.2)
+    this.gantry.position.set(X, 7.2, -19.6)
     room.add(this.gantry)
     rbox(0.3, 0.2, 0.3, galv, 0, 0, 0, this.gantry, 0.02)
     const rod = cyl(0.03, 0.03, 1, steel, 0, -0.5, 0, this.gantry, 10)

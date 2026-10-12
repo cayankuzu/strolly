@@ -32,7 +32,6 @@ const NECK_ROLL = makePose({ neck: [0.1, 0, 0.32], head: [0.15, 0, 0.2] }, P.STA
 
 /** The prep chair; Arif's head when seated (approximately; the helmet follows the real joint). */
 const CHAIR = { x: 138, z: -15.0 }
-const LOCKER = { x: 134.25, z: -16.5 }
 const CURB = { x: 143.5, z: 5.0 }
 
 const KEYS: Partial<Record<Seg, ShotKeys>> = {
@@ -75,8 +74,8 @@ const KEYS: Partial<Record<Seg, ShotKeys>> = {
     [1, [136.85, 1.56, -14.3, 135.5, 1.5, -17.65, 40]],
   ],
   hallu: [
-    [0, [135.5, 1.7, -15.7, 134.72, 1.5, -16.82, 30]],
-    [1, [135.45, 1.69, -15.78, 134.72, 1.5, -16.82, 28]],
+    [0, [135.2, 1.92, -15.6, 134.73, 1.52, -16.8, 30]],
+    [1, [135.18, 1.9, -15.64, 134.73, 1.52, -16.8, 28]],
   ],
   nolimit: [
     [0, [136.05, 1.65, -16.4, 136.0, 1.78, -18.95, 36]],
@@ -469,15 +468,15 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       serviceLight(w, 'prep')
       locker(w, ss(0.03, 0.12, u))
       const dressed = u >= 0.3
-      shelf(w, !dressed, dressed, u > 0.86)
+      shelf(w, !dressed, dressed, u > 0.8)
       const a = w.use(dressed ? c.arifO : c.arifS)
       glassesOn(a, false)
       const ax = 135.0
       const az = -16.0
-      const fx = Math.sin(-1.8)
-      const fz = Math.cos(-1.8)
+      const fx = Math.sin(-1.95)
+      const fz = Math.cos(-1.95)
       const front = (d: number, y: number): [number, number, number] => [ax + fx * d, y, az + fz * d]
-      a.place(ax, az, -1.8).hold(P.STAND)
+      a.place(ax, az, -1.95).hold(P.STAND)
       if (!dressed) {
         // Tie, buttons.
         const tieK = win(u, 0.08, 0.12, 0.2, 0.24)
@@ -487,11 +486,11 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         a.reach('r', btn, ...front(0.14, 1.3 - 0.12 * sub(u, 0.22, 0.3)), 0.5)
         for (const m of w.ties.get(c.arifS) ?? []) m.visible = u < 0.2
       } else {
-        // The zip, then the glasses: the hesitation, then laid on the shirt.
+        // The zip, then the glasses: the hesitation, then laid on the shirt (the insert from u 0.6 sees the hand come in).
         a.reach('r', win(u, 0.3, 0.33, 0.42, 0.46), ...front(0.15, 1.02 + 0.38 * sub(u, 0.32, 0.44)), 0.5)
-        const look = win(u, 0.55, 0.62, 0.72, 0.76)
+        const look = win(u, 0.52, 0.56, 0.63, 0.67)
         a.reach('l', look, ...front(0.32, 1.32), 0.45)
-        a.reach('l', win(u, 0.76, 0.82, 0.9, 0.95), 134.36, 1.6, -16.42, 0.5)
+        a.reach('l', win(u, 0.67, 0.73, 0.84, 0.9), 134.38, 1.6, -16.44, 0.5)
         if (look > 0.5) a.lookAt(...([front(0.32, 0)[0], front(0.32, 0)[2]] as [number, number]), 0.3)
       }
       const g1 = w.use(c.g1)
@@ -507,7 +506,7 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         u,
       )
       w.apply(t)
-      if (u < 0.86) inHand(w.heldGlasses, a.figure, 'l', [0, -0.01, 0.02], [0, 0, PI / 2])
+      if (u < 0.8) inHand(w.heldGlasses, a.figure, 'l', [0, -0.01, 0.02], [0, 0, PI / 2])
       w.mouth(g1, win(u, 0.52, 0.56, 0.96, 1) * speech(t, 0.7))
       motion.doors = win(u, 0.03, 0.05, 0.1, 0.12)
       if (u < 0.6) {
@@ -515,10 +514,10 @@ export function runActB(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         shot.tgt.set(134.6, 1.32, -16.35)
         shot.fov = 42
       } else {
-        // Insert on the shelf: the glasses set down on the folded shirt.
-        shot.pos.set(134.82, 1.62, -16.05).lerp(v.set(134.74, 1.6, -16.15), sub(u, 0.6, 1))
-        shot.tgt.set(134.3, 1.53, -16.5)
-        shot.fov = 30
+        // Insert into the open locker: the shelf, the folded shirt, his hand laying the glasses on it.
+        shot.pos.set(134.94, 1.84, -16.5).lerp(v.set(134.9, 1.82, -16.52), sub(u, 0.6, 1))
+        shot.tgt.set(134.3, 1.52, -16.5)
+        shot.fov = 34
       }
       break
     }

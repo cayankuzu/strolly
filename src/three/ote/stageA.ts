@@ -13,6 +13,7 @@ import { A } from './signing'
 import { B } from './corridor'
 import { POSES, setEyes, setGrip } from './cast'
 import { env, face, hemi, point, pulse, show, spot, sunAt, type Rig, type St } from './rig'
+import { T } from './lang'
 
 const PI = Math.PI
 const v = new THREE.Vector3()
@@ -398,9 +399,9 @@ export function stageSigning(r: Rig, st: St) {
   if (seg === 'next') {
     stageNext(r, st)
     stageG(r, { ...st, seg: 'open' })
-    r.A.setFolderLabel('DOSYA K4-01')
+    r.A.setFolderLabel(T('DOSYA K4-01', 'FILE K4-01'))
   } else {
-    r.A.setFolderLabel('DOSYA K3-33')
+    r.A.setFolderLabel(T('DOSYA K3-33', 'FILE K3-33'))
     stageM(r, st)
     stageG(r, st)
     stageTable(r, st)
@@ -413,11 +414,12 @@ export function stageSigning(r: Rig, st: St) {
   const L = r.lights
   // The pendant's cone on the table; almost no fill.
   spot(L, { x: 0, y: 1.73, z: 0 }, { x: 0, y: 0.76, z: 0.02 }, 0xffc98e, 26, 0.7, 0.55, 9, 1.5)
-  // Daylight under door 1, and a little on its lower leaf.
-  point(L, 0, 0, 0.25, 2.62, 0xffe2bc, 2.4, 2.3, 1.6)
+  // Daylight under door 1, and a little on its lower leaf; more of the leaf when the camera turns to it (refund).
+  const doorLit = seg === 'refund' ? smoothstep(0.45, 0.7, u) : 0
+  point(L, 0, 0, 0.25 + 0.45 * doorLit, 2.62, 0xffe2bc, 2.4 + 2.8 * doorLit, 2.3 + 0.7 * doorLit, 1.6)
   const behindGlass = seg === 'open' || seg === 'glass' || seg === 'next'
   if (behindGlass) point(L, 1, w2x + 0.2, 1.2, w2z, 0x9fbadf, 0.5, 1.1)
-  else point(L, 1, 0, 2.55, -3.05, 0xc6d6f2, 1.6 * (1 - open) + 0.4, 3.2, 1.6)
+  else point(L, 1, -0.7, 2.2, -3.0, 0xc6d6f2, 0.9 * (1 - open) + 0.4, 3.2, 1.6)
   // Warm bounce off the table onto the faces.
   point(L, 2, 0, 0.95, 0.1, 0xffc58a, 1.3, 3.2)
   hemi(L, 0x2a2c33, 0x0c0a08, 0.14)

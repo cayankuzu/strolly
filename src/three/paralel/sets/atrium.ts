@@ -7,7 +7,7 @@
 import * as THREE from 'three'
 import { lerp } from '@/lib/math'
 import { makePath } from '../../figure/paths'
-import { keyed, type Actor, type ShotKeys } from '../../kit/direct'
+import { keyed, type Actor } from '../../kit/direct'
 import { room, table, chair } from '../../kit/props'
 import { pbr } from '../../kit/surfaces'
 import { box, mesh } from '../../util'

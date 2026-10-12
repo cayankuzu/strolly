@@ -24,7 +24,6 @@ const C1 = 606
 const PATCH0 = 602.8
 const PATCH1 = 604.2
 const HOLLOW = -2.2
-const ROCK = 606.5
 const DUSTY: SkyPreset = { zenith: 0x5a7aa8, horizon: 0xe0bc8a, below: 0x6a5a48, haze: 0xd6b07e, hazeAmt: 0.75, sunColor: 0xffc27a, disc: 4, glow: 1.1, cloud: 0.22, cloudLit: 0xffd6a2, cloudShade: 0x9a8a88, power: 1.1 }
 const GREY: SkyPreset = { zenith: 0x5e646c, horizon: 0x9a9ea2, below: 0x55575a, haze: 0x9a9ea2, hazeAmt: 0.7, sunColor: 0xa0a4a8, disc: 0, glow: 0.2, cloud: 0.5, cloudLit: 0xb4b8bc, cloudShade: 0x6a7076, power: 0.9 }
 

@@ -524,11 +524,11 @@ export class Service {
       if (n === 17) {
         this.locker17 = door
         // The mirror on the inside of its door.
-        this.mirror = new Reflector(new THREE.PlaneGeometry(0.26, 0.36), { textureWidth: 512, textureHeight: 704, color: 0xb8bcbe, clipBias: 0.003 })
-        this.mirror.position.set(-0.021, 1.42, 0.235)
+        this.mirror = new Reflector(new THREE.PlaneGeometry(0.3, 0.54), { textureWidth: 512, textureHeight: 920, color: 0xb8bcbe, clipBias: 0.003 })
+        this.mirror.position.set(-0.021, 1.5, 0.235)
         this.mirror.rotation.y = -PI / 2
         door.add(this.mirror)
-        rbox(0.008, 0.38, 0.28, steel, -0.011, 1.42, 0.235, door, 0.003)
+        rbox(0.008, 0.56, 0.32, steel, -0.011, 1.5, 0.235, door, 0.003)
         // The shelf inside and what lies on it.
         rbox(0.46, 0.015, 0.46, lockerMat, 134.25, 1.5, z, this.prep, 0.003)
         this.shelfOveralls = new THREE.Group()

@@ -166,12 +166,14 @@ export function runActD(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       motion.walking = Math.max(o1.walking, o2.walking)
       motion.doors = seg === 'staff' ? win(u, 0.06, 0.08, 0.16, 0.2) : 0
       if (seg === 'staff') {
-        shot.pos.set(157.82, 2.68, 1.05).lerp(v.set(157.85, 2.62, 0.95), u)
-        shot.tgt.set(160.0, 1.0, 1.4).lerp(v.set(160.6, 0.75, 0.2), ss(0.2, 1, u))
-        shot.fov = 52
+        // High in the west, on the door and the two coming in; the north-east corner stays out of frame.
+        shot.pos.set(157.9, 2.55, -0.7).lerp(v.set(157.88, 2.58, -0.4), u)
+        shot.tgt.set(160.2, 0.9, 2.45).lerp(v.set(160.1, 0.85, 1.6), ss(0.3, 0.95, u))
+        shot.fov = 50
       } else {
-        shot.pos.set(157.85, 2.62, 0.95).lerp(v.set(157.95, 2.55, 0.85), u)
-        shot.tgt.set(160.6, 0.75, 0.2).lerp(v.set(161.55, 0.32, -1.75), ss(0.15, 0.6, f.reduced ? 0.5 : u))
+        // The same eye drifts right, past the orderlies' backs, to the corner.
+        shot.pos.set(157.88, 2.58, -0.4).lerp(v.set(157.9, 2.5, 0.0), ss(0, 0.6, u))
+        shot.tgt.set(160.1, 0.85, 1.6).lerp(v.set(161.55, 0.32, -1.75), ss(0.1, 0.62, f.reduced ? 0.5 : u))
         shot.fov = 52
       }
       break
@@ -382,18 +384,19 @@ function fromTheFloor(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) {
   const g2 = w.use(c.g2)
   const tech = w.use(c.tech)
   arif.visible = g2.visible = tech.visible = seg !== 'floor'
+  // The three in the doorway, staggered in depth so all of them show through the door from the corner.
   if (seg === 'doorOpens') {
-    arif.place(160.0, 3.15, PI).hold(P.STAND)
-    g2.place(160.62, 3.4, PI).hold(C.ESCORT)
-    tech.place(159.38, 3.45, PI).hold(P.STAND)
+    arif.place(159.75, 3.2, PI).hold(P.STAND)
+    g2.place(160.3, 2.95, PI).hold(C.ESCORT)
+    tech.place(159.2, 3.6, PI).hold(P.STAND)
   } else if (seg === 'enters') {
-    if (u < 0.3) arif.walk(makePath([[160.0, 3.15], [160.0, 1.6]]), sub(u, 0, 0.3), P.STAND, PI, PI)
+    if (u < 0.3) arif.walk(makePath([[159.75, 3.2], [160.0, 1.6]]), sub(u, 0, 0.3), P.STAND, PI, PI)
     else arif.place(160.0, 1.6, PI).blend([[0.6, P.STAND], [0.72, LOOK_UP], [0.82, P.STAND]], u)
     // He looks round the white walls, as if watching something spread across them.
     const look = u > 0.6 ? Math.sin(sub(u, 0.6, 1) * PI * 2) * 0.9 : 0
     arif.look = look
-    g2.place(160.62, lerp(3.4, 3.7, ss(0.2, 0.45, u)), PI).hold(C.ESCORT)
-    tech.place(159.38, lerp(3.45, 3.75, ss(0.2, 0.45, u)), PI).hold(P.STAND)
+    g2.place(160.3, lerp(2.95, 3.5, ss(0.2, 0.45, u)), PI).hold(C.ESCORT)
+    tech.place(159.2, lerp(3.6, 3.9, ss(0.2, 0.45, u)), PI).hold(P.STAND)
     g2.visible = tech.visible = u < 0.66
   } else if (seg === 'comes') {
     g2.visible = tech.visible = false

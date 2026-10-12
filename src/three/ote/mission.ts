@@ -10,6 +10,7 @@ import { canvasPlane, door, keyboard, monitor, officeChair, rbox, room } from '.
 import { cyl, mesh } from '../util'
 import type { Pal } from './materials'
 import { drawFolder, drawForm, drawOpsMonitor, drawPackets, drawPlaque, drawRefunds, keyhole, plaqueList } from './draw'
+import { T } from './lang'
 
 const PI = Math.PI
 /** The desks' top (the CC0 metal desk is scaled to it). */
@@ -163,7 +164,7 @@ export class MissionRoom {
     rbox(0.24, 0.003, 0.32, m.folderCard, 0, 0.0015, 0, this.folder, 0.001)
     this.folderCover.position.set(-0.12, 0.004, 0)
     rbox(0.24, 0.003, 0.32, m.folderCard, 0.12, 0, 0, this.folderCover, 0.001)
-    const lbl = canvasPlane(0.24, 0.32, 512, drawFolder('DOSYA K3-33'))
+    const lbl = canvasPlane(0.24, 0.32, 512, drawFolder(T('DOSYA K3-33', 'FILE K3-33')))
     lbl.mesh.rotation.x = -PI / 2
     lbl.mesh.position.set(0.12, 0.0017, 0)
     this.folderCover.add(lbl.mesh)
@@ -204,7 +205,7 @@ export class MissionRoom {
     this.formFolder.add(form.mesh)
     this.formCover.position.set(-0.12, 0.006, 0)
     rbox(0.24, 0.003, 0.32, m.folderCard, 0.12, 0, 0, this.formCover, 0.001)
-    const lbl2 = canvasPlane(0.24, 0.32, 256, drawFolder('DOSYA K4-01'))
+    const lbl2 = canvasPlane(0.24, 0.32, 256, drawFolder(T('DOSYA K4-01', 'FILE K4-01')))
     lbl2.mesh.rotation.x = -PI / 2
     lbl2.mesh.position.set(0.12, 0.0017, 0)
     this.formCover.add(lbl2.mesh)
@@ -251,7 +252,7 @@ export class MissionRoom {
       ctx.fillStyle = '#c9b48a'
       ctx.font = `600 ${Math.round(h * 0.55)}px sans-serif`
       ctx.letterSpacing = '12px'
-      ctx.fillText('KEŞİF EKİPLERİ', w * 0.04, h * 0.72)
+      ctx.fillText(T('KEŞİF EKİPLERİ', 'EXPEDITION TEAMS'), w * 0.04, h * 0.72)
     })
     title.mesh.position.set(G.wallX + 0.02, 2.62, -2.0)
     title.mesh.rotation.y = PI / 2

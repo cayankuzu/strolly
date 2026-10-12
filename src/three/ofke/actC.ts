@@ -17,7 +17,6 @@ import * as C from './cast'
 import { env, motion, moment, PI, ss, sub, two, win, type Seg } from './common'
 import { clearPatches, setPatch } from './reveal'
 import { inHand, jointPos, speech, type World } from './world'
-import * as S from './screens'
 
 // ——— Poses ———
 
@@ -296,14 +295,15 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
       break
     }
     case 'towel': {
-      // The colour wicks across the rest like water into a dry towel; the desk and its things last.
+      // The colour wicks across the rest like water into a dry towel; the desk and its things last
+      // (their fronts lie at 0.62–0.78: they cross the desk under the macro, complete by the wide).
       const shell = lerp(0.335, 0.95, ss(0.0, 0.9, u))
-      const furn = lerp(0.6, 1.0, ss(0.02, 0.62, u))
+      const furn = lerp(0.6, 1.0, ss(0.0, 0.8, u))
       perceive(w, { shell, furn, mon: lerp(0.55, 1.0, ss(0.25, 0.9, u)), hideFurn: true })
       roomLight(w, 1)
       if (u < 0.5) {
-        shot.pos.set(160.35, 0.98, 0.35).lerp(v.set(160.25, 0.92, 0.05), sub(u, 0, 0.5))
-        shot.tgt.set(160.0, 0.75, -0.45)
+        shot.pos.set(160.42, 1.08, 0.5).lerp(v.set(160.3, 1.0, 0.2), sub(u, 0, 0.5))
+        shot.tgt.set(160.0, 0.76, -0.4)
         shot.fov = 36
       } else {
         shot.pos.set(160.0, 1.7, 2.25).lerp(v.set(160.0, 1.66, 2.0), sub(u, 0.5, 1))
@@ -438,7 +438,14 @@ export function runActC(w: World, f: SetFrame, shot: Shot, seg: Seg, u: number) 
         setPatch(r.uShell, 2, [161.4, 2.95, 0.6], [162.2, 2.95, -0.6], 0.6, win(u, 0.5, 0.54, 0.7, 0.8))
       }
       motion.doors = isCollar ? win(u, 0.28, 0.3, 0.34, 0.38) : 0
-      keyed(KEYS[seg]!, held(u, f.reduced), shot)
+      if (isCollar) keyed(KEYS[seg]!, held(u, f.reduced), shot)
+      else {
+        // Close on Arif's face over the boss's shoulder: the boss's head soft at the frame's edge.
+        jointPos(a.figure, 'head', v3)
+        shot.pos.set(v3.x + 0.5, v3.y + 0.3, v3.z - 1.25)
+        shot.tgt.set(v3.x, v3.y - 0.05, v3.z)
+        shot.fov = 30
+      }
       break
     }
     case 'blows': {

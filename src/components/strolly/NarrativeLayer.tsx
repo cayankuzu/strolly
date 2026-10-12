@@ -141,7 +141,8 @@ const NarrativeLayer = forwardRef<NarrativeHandle, Props>(function NarrativeLaye
   const master = useRef<gsap.core.Timeline | null>(null)
   const last = useRef(0)
   const flagKey = flags.join('|')
-  const subtitles = useLang() !== 'tr'
+  // A set that prints in the reader's language needs no subtitles for its words.
+  const subtitles = useLang() !== 'tr' && !story.meta.localSet
   const items = useMemo(() => plan(story, fallback, new Set(flagKey ? flagKey.split('|') : []), subtitles), [story, fallback, flagKey, subtitles])
   const railSpans = useMemo(() => items.filter(onRail).map((i) => [i.a - i.fade, i.b] as const), [items])
   const shadeOn = useRef<boolean | null>(null)

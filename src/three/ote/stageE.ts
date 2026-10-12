@@ -5,7 +5,7 @@
  */
 import * as THREE from 'three'
 import { clamp, lerp, mulberry32, smoothstep } from '@/lib/math'
-import { at, dayText, missionDay } from '@/stories/ote/timeline'
+import { at, missionDay } from '@/stories/ote/timeline'
 import * as P from '../figure/poses'
 import { makePath } from '../figure/paths'
 import { blendPose, makePose } from '../figure/Figure'
@@ -14,6 +14,7 @@ import { E } from './habitat'
 import { HAIR, POSES, setEyes, type CastId } from './cast'
 import { drawBeacon, drawLog } from './draw'
 import { env, face, hemi, point, pulse, show, spot, sunAt, toWorld, type Rig, type St } from './rig'
+import { num } from './lang'
 
 const PI = Math.PI
 const v = new THREE.Vector3()
@@ -135,7 +136,7 @@ const CALM: Spot[] = [
   [308.1, -4.3, PI],
   [305.9, -4.55, PI],
   [306.95, -4.75, PI],
-  [303.6, -3.8, 2.5],
+  [309.2, -4.0, PI - 0.3],
 ]
 
 function seatSofa(a: Actor, x: number, pose = POSES.SOFA_UP) {
@@ -254,7 +255,7 @@ export function stageHabitat(r: Rig, st: St) {
   beard.scale.set(bs * 0.82, bs * 1.12, bs * 1.12)
   // The day counters.
   const day = missionDay(p)
-  H.setDay(dayText(day), seg === 'yearsPass' ? smoothstep(0.05, 0.3, u) * (1 - smoothstep(0.85, 0.95, u)) : 0)
+  H.setDay(num(day), seg === 'yearsPass' ? smoothstep(0.05, 0.3, u) * (1 - smoothstep(0.85, 0.95, u)) : 0)
   // Things that only belong to some scenes.
   H.guitar.visible = false
   H.guitarCase.visible = false
@@ -446,11 +447,11 @@ export function stageHabitat(r: Rig, st: St) {
       const deg = earthDeg(st)
       sky.earthAt = EARTH_AFT
       sky.earth = deg > 0.35 ? deg : 0
-      sky.dotPx = u < 0.44 ? 3 : look ? lerp(3, 1.3, smoothstep(0.5, 0.65, u)) : 3
+      sky.dotPx = u < 0.44 ? 9 : look ? lerp(9, 1.3, smoothstep(0.5, 0.65, u)) : 9
       sky.dotAlpha = deg > 0.35 ? 0 : look || !closed ? lerp(1, 0.4, smoothstep(0.66, 0.85, u)) : u < 0.5 ? 1 : 0
       if (closed) {
         setEyes(m.figure, smoothstep(0.45, 0.49, u) * (1 - smoothstep(0.73, 0.77, u)))
-        r.veil.memory = smoothstep(0.5, 0.56, u) * (1 - smoothstep(0.66, 0.72, u)) * 0.35
+        r.veil.memory = smoothstep(0.5, 0.56, u) * (1 - smoothstep(0.66, 0.72, u)) * 0.3
       }
       lamps(0.1, 0xffb070)
       sunAt(L, { x: 307.3, y: 2.0, z: 12 }, { x: 307, y: 1.4, z: 3 }, 0x86a8e8, 0.7, 5)
@@ -458,7 +459,7 @@ export function stageHabitat(r: Rig, st: St) {
       hemi(L, 0x223050, 0x080605, 0.12)
       env(r, 'moonless_golf', 0.12)
       H.fog.visible = true
-      H.fog.material.opacity = (0.08 + 0.1 * (0.5 + 0.5 * Math.sin(time * 1.2))) * smoothstep(0.3, 0.44, u) * (1 - smoothstep(0.7, 0.9, u))
+      H.fog.material.opacity = (0.06 + 0.08 * (0.5 + 0.5 * Math.sin(time * 1.2))) * smoothstep(0.3, 0.44, u) * (1 - smoothstep(0.7, 0.9, u))
       break
     }
     case 'dataLink': {
@@ -556,7 +557,7 @@ export function stageHabitat(r: Rig, st: St) {
 }
 
 const LEAVE_BOOTH = makePath([
-  [E.booth.x, E.booth.z + 0.2],
+  [E.booth.x + 0.08, E.booth.z + 0.2],
   [302.55, -3.6],
 ])
 
@@ -566,7 +567,9 @@ function stageReport(r: Rig, st: St, m: Actor, ans: 'ok' | 'earth' | 'fear' | 'n
   const H = r.E
   const into = smoothstep(0.0, 0.2, u)
   const bz = E.booth.z + 0.2
-  m.place(lerp(304.2, E.booth.x, into), lerp(-3.2, bz, into), lerp(-PI * 0.75, PI, smoothstep(0, 0.14, u))).hold(P.STAND)
+  // A hand's width right of the booth's axis, so the screen stays readable past his head from the left.
+  const bx = E.booth.x + 0.08
+  m.place(lerp(304.2, bx, into), lerp(-3.2, bz, into), lerp(-PI * 0.75, PI, smoothstep(0, 0.14, u))).hold(P.STAND)
   // His face, lit by the screen, toward the lens above it.
   if (u > 0.2) {
     m.pose[2 + 4 * 3] -= 0.12
@@ -578,18 +581,21 @@ function stageReport(r: Rig, st: St, m: Actor, ans: 'ok' | 'earth' | 'fear' | 'n
   } else if (ans === 'earth') {
     const turn = smoothstep(0.36, 0.5, u) * (1 - smoothstep(0.56, 0.62, u))
     const grab = pulse(0.32, 0.62, u)
+    // He steps left of the lens line while he swings the arm, so the feed holds only the window and its stars.
+    m.place(bx - 0.34 * grab, bz + 0.02 * grab, PI - 0.5 * grab)
     m.reach('r', clamp(grab * 1.4), E.boothCam.x - 0.03, E.boothCam.y - 0.02, E.boothCam.z + 0.06, 0.6)
     H.boothCamera.rotation.y = turn * Math.atan2(307 - 303, 4 - -5.36)
     m.lookAt(307, 4, 0.5 * turn)
   } else if (ans === 'fear') {
+    // He leans in from where he stands (no step): the eyes come to a hand's width of the lens.
     const lean = smoothstep(0.36, 0.5, u) * (1 - leave)
-    blendPose(P.STAND, POSES.GLASS_LEAN, lean, m.pose)
-    m.place(E.booth.x, bz - 0.1 * lean, PI)
+    blendPose(P.STAND, POSES.GLASS_LEAN, lean * 0.8, m.pose)
+    m.place(bx, bz + 0.1 * lean, PI)
     setEyes(m.figure, -lean)
   }
   if (leave > 0) {
-    m.place(lerp(E.booth.x, 302.55, leave), lerp(bz, -3.6, leave), lerp(PI, -PI * 0.25, leave))
-    if (leave < 1) m.walk(LEAVE_BOOTH, leave, P.STAND).place(lerp(E.booth.x, 302.55, leave), lerp(bz, -3.6, leave), lerp(PI, -PI * 0.25, leave))
+    m.place(lerp(bx, 302.55, leave), lerp(bz, -3.6, leave), lerp(PI, -PI * 0.25, leave))
+    if (leave < 1) m.walk(LEAVE_BOOTH, leave, P.STAND).place(lerp(bx, 302.55, leave), lerp(bz, -3.6, leave), lerp(PI, -PI * 0.25, leave))
     m.visible = leave < 0.95
   }
 }

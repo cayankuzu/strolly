@@ -342,7 +342,7 @@ export class RoofsSet implements PSet {
   }
 
   direct(d: Dir) {
-    const { seg, u, cu, f, shot, cast, env } = d
+    const { seg, u, cu, f, cast, env } = d
     const t = f.time
     const blue = seg === 'friends' || seg === 'chain' || seg === 'fell'
     // Light.

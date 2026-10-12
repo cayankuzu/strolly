@@ -878,3 +878,35 @@ reflection should be, a thin golden ring. No text but the title.
    carries the ending.
 10. `next` is a deliberate repeat of `open` (same camera, same light, same
     watchers) with N in the chair and folder K4-01.
+
+## 9. Build notes (as built in `src/three/ote/`)
+
+Where the built scene departs from the camera figures above, the image was
+the reason; the layout in §2 is unchanged.
+
+- `rise` u 0–0.42: the "slow push toward his profile" from inside the cabin
+  put the lens inside a guard's head; it is shot high from the front-right
+  corner (40.95, 2.28, −12.36) → (40, 1.5, −13.3), looking down onto his
+  face and the hand that closes, then the cut to the indicator as written.
+- `space` u 0–0.42: shot over his head from in front of the headrest
+  (98.95, 1.52, −6.76) → (97.88, 1.22, −7.02); from behind the seat the
+  headrest hid the window.
+- `report`: before the choice, a high angle from the booth's left corner onto
+  the screen (he stands a hand's width right of the booth's axis so "RAPOR
+  VERİN." stays readable past his head); the lens POV sits 10 cm in front of
+  the camera prop (303, 1.73, −5.2), vfov 44. In `report:earth` he steps left
+  of the lens line while swinging the arm, so the feed holds only the aft
+  window and its stars. The `readout` feed for a no-flag reading is the
+  booth after he has left it (u 0.75).
+- `arrive` u 0–0.44: the exterior camera is farther back, (500, 16, 120) →
+  (500, 13, 100), so the ship is small against the hole; the reverse shot at
+  u 0.68 is taken from the forward glass (307.05, 1.62, −5.78) looking back
+  over the faces.
+- `drift` after `look:closed`: the camera is on his left (305.85, 1.64, 2.95)
+  → (307.15, 1.55, 4.7) so the side of his face is in frame with the ring.
+- The Earth dot (`lastLook` hold) is drawn as a pale-blue point with a soft
+  halo, 9 px, shrinking to a bare pixel after the look; the memory Earth of
+  `look:closed` is 26° at 30 %.
+- Printed text in the set (pages, panels, screens, plaques, forms, counters)
+  follows the page language (`src/three/ote/lang.ts`): Turkish, or English
+  when `<html lang>` is `en`.
