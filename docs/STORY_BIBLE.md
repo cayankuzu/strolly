@@ -1,5 +1,10 @@
 # STROLLY — Hikâye İncili
 
+> **Tarihçe (1.x).** Bu belge STROLLY 1.x'in altı hikâyesini anlatır. 2.0'dan itibaren
+> hikâyeler `docs/stories/<id>.md` senaryolarında tanımlanır; TEKERRÜR ilk sürümüne
+> döndü, eski "Her Şeyin Durumu" DURUM oldu (`docs/MASTER_PROMPT_DURUM.md`), EMANET,
+> KALAN ve EŞİK kaldırıldı (`v1.2.0` etiketi). Bu dosya yalnızca kayıt için duruyor.
+
 Bu belge altı hikâyenin kanonunu tutar: her hikâyenin değişmeyecek çekirdeği,
 karakterleri, mekânı, bölüm akışı, okurun seçimleri ve sonu. Yeni bir sahne,
 satır ya da seçim eklenmeden önce buraya bakılır; burada **KİLİT** diye
